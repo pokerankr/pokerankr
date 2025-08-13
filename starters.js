@@ -74,6 +74,23 @@ function writeSlots(slots) {
   localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
 }
 
+function updatePostProgress() {
+  const bar = document.getElementById("progress");
+  const txt = document.getElementById("remaining-text");
+  const container = document.getElementById("progress-container");
+  if (!bar || !txt || !container) return;
+
+  container.style.display = "block"; // ensure visible during brackets
+
+  const left = Math.max(0, post.totalMatches - post.doneMatches);
+  const pct = post.totalMatches > 0 ? Math.round((post.doneMatches / post.totalMatches) * 100) : 0;
+
+  bar.style.width = `${pct}%`;
+  txt.textContent =
+    (post.phase === 'RU' ? 'Runner-up bracket — ' : 'Third-place bracket — ')
+    + `${left} matchups remaining`;
+}
+
 // Label helper for this run
 function startersLabel() {
   const includeShinies = localStorage.getItem("includeShinies") === "true";
@@ -282,19 +299,37 @@ function closeSaveModal() {
 
 // Consolidated results computer (used by showWinner, saveResults, export)
 function computeResults(finalWinner){
-  const champion   = leftHistory[leftHistory.length - 1] || finalWinner;
-  const runnerUp   = leftHistory[leftHistory.length - 2] || null;
-  const thirdPlace = leftHistory[leftHistory.length - 3] || null;
+  const champion = leftHistory[leftHistory.length - 1] || finalWinner || current || null;
+  if (!champion) return { champion: null, runnerUp: null, thirdPlace: null, honorable: null };
 
-  const top3Keys = new Set([monKey(champion), monKey(runnerUp), monKey(thirdPlace)]);
+  // Use interactive bracket winners if present
+  const runnerUp   = post.runnerUp || null;
+  const thirdPlace = post.third    || null;
 
-  const honorable = eliminated
-    .filter(p => !top3Keys.has(monKey(p)))
-    .sort((a, b) => {
-      const byRounds = (b.roundsSurvived || 0) - (a.roundsSurvived || 0);
-      if (byRounds !== 0) return byRounds;
-      return eliminated.lastIndexOf(b) - eliminated.lastIndexOf(a);
-    })[0] || null;
+  const placed = new Set([
+    monKey(champion),
+    runnerUp ? monKey(runnerUp) : null,
+    thirdPlace ? monKey(thirdPlace) : null
+  ].filter(Boolean));
+
+  // Tie-aware Honorable Mention:
+  // - hide HM if best survivals == 0
+  // - hide HM on multi-way tie for top survivals
+  const hmPool = eliminated.filter(p => !placed.has(monKey(p)));
+  hmPool.sort(seedCmp); // highest survivals, then later loss
+
+  let honorable = null;
+  if (hmPool.length) {
+    const top = hmPool[0];
+    const topSurvivals = (top?.roundsSurvived || 0);
+    const tiedForTop = hmPool.filter(p => (p.roundsSurvived || 0) === topSurvivals);
+
+    if (topSurvivals > 0 && tiedForTop.length === 1) {
+      honorable = top; // clear, unique, >0
+    } else {
+      honorable = null; // ambiguous or trivial -> drop HM
+    }
+  }
 
   return { champion, runnerUp, thirdPlace, honorable };
 }
@@ -312,6 +347,44 @@ if (next)    next.roundsSurvived    = 0;
 
 const leftHistory = [];
 if (current) leftHistory.push(current);
+
+// --- Tracking for post‑tournament mini‑brackets ---
+const lostTo = Object.create(null);      // monKey(loser) -> monKey(winner)
+let roundNum = 0;                        // global match counter (main pass only)
+const roundIndex = Object.create(null);  // monKey(loser) -> round number lost
+
+// Post-bracket state (interactive)
+let postMode = null; // null | 'RU' | 'THIRD'
+const post = {
+  phase: null,         
+  currentRound: [],    
+  nextRound: [],       
+  index: 0,            
+  totalMatches: 0,     
+  doneMatches: 0,      
+  ruWins: 0,           // wins in RU bracket
+  thirdWins: 0,        // wins in 3rd-place bracket
+  runnerUp: null,
+  third: null
+};
+
+// Seeding comparator: higher survivals, then later loss
+function seedCmp(a, b) {
+  const sA = a?.roundsSurvived || 0, sB = b?.roundsSurvived || 0;
+  if (sA !== sB) return sB - sA;
+  const rA = roundIndex[monKey(a)] || 0, rB = roundIndex[monKey(b)] || 0;
+  if (rA !== rB) return rB - rA;
+  return String(a?.name||'').localeCompare(String(b?.name||''));
+}
+
+// Helpers to pluck mons back from eliminated/current/next by key
+function findByKey(key){
+  if (!key) return null;
+  if (current && monKey(current) === key) return current;
+  if (next && monKey(next) === key) return next;
+  const e = eliminated.find(p => monKey(p) === key);
+  return e || null;
+}
 
 // --- UNDO state ---
 let history = [];
@@ -339,10 +412,10 @@ function restoreState(s) {
 }
 function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
-  if (btn) btn.disabled = history.length === 0;
+  if (btn) btn.disabled = history.length === 0 || !!postMode; // disable during brackets
 }
 function undoLast() {
-  if (history.length === 0) return;
+  if (history.length === 0 || postMode) return; // no undo during brackets
   const prev = history.pop();
   restoreState(prev);
   history = []; // single-level undo
@@ -359,7 +432,7 @@ function displayMatchup() {
     document.getElementById("remaining-text").textContent = "No Pokémon loaded.";
     return;
   }
-  if (current && !next && remaining.length === 0) {
+  if (current && !next && remaining.length === 0 && !postMode) {
     showWinner(current);
     return;
   }
@@ -390,6 +463,11 @@ function updateProgress() {
 
 // ----- Game loop
 function pick(side) {
+  // Post-bracket interactive picks use a separate handler
+  if (postMode) {
+    handlePostPick(side);
+    return;
+  }
   if (gameOver) return;
   if (!current || !next) return;
 
@@ -400,6 +478,14 @@ function pick(side) {
   const prevLeft = current;
   const winner = side === "left" ? current : next;
   const loser  = side === "left" ? next    : current;
+
+  // Record main-pass outcome (used to build post brackets)
+  if (!postMode) { // only during the main KOTH pass
+    const wKey = monKey(winner), lKey = monKey(loser);
+    lostTo[lKey] = wKey;
+    roundNum += 1;
+    roundIndex[lKey] = roundNum;
+  }
 
   loser.roundsSurvived = loser.roundsSurvived || 0;
   eliminated.push(loser);
@@ -412,7 +498,8 @@ function pick(side) {
   current = winner;
 
   if (remaining.length === 0) {
-    showWinner(winner);
+    // Main pass finished — kick off the Runner-up bracket
+    startRunnerUpBracket(winner);
     return;
   }
 
@@ -424,6 +511,166 @@ function pick(side) {
   updateUndoButton();
 }
 
+function startRunnerUpBracket(finalChampion){
+  // entering brackets: clear undo history and disable button
+  history = [];
+  updateUndoButton();
+
+  postMode = 'RU';
+  post.phase = 'RU';
+
+  const champKey = monKey(finalChampion);
+  // Build the pool: everyone who lost directly to the champion
+  const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
+  const pool = lostKeys.map(findByKey).filter(Boolean);
+
+  // initialize bracket counters
+  post.totalMatches = Math.max(0, pool.length - 1);
+  post.doneMatches  = 0;
+  post.ruWins = 0;
+  post.thirdWins = 0;
+
+  if (pool.length === 0) {
+    // Edge case: no direct losers (late crown). Fallback to best overall.
+    post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
+    return startThirdBracket(finalChampion);
+  }
+  if (pool.length === 1) {
+    post.runnerUp = pool[0];
+    return startThirdBracket(finalChampion);
+  }
+
+  // Seed and start the interactive bracket
+  post.currentRound = [...pool].sort(seedCmp);
+  post.nextRound = [];
+  post.index = 0;
+
+  updatePostProgress();
+  scheduleNextPostMatch();
+}
+
+function startThirdBracket(finalChampion){
+  // entering third bracket: keep undo disabled
+  postMode = 'THIRD';
+  post.phase = 'THIRD';
+
+  // Pool = (lost to runnerUp) ∪ (remaining lost-to-champ excluding runnerUp)
+  const champKey = monKey(finalChampion);
+  const ruKey = post.runnerUp ? monKey(post.runnerUp) : null;
+
+  const lostToChampKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
+  const lostToChampList = lostToChampKeys.map(findByKey).filter(Boolean);
+
+  const lostToRunnerUp = ruKey
+    ? Object.keys(lostTo).filter(k => lostTo[k] === ruKey).map(findByKey).filter(Boolean)
+    : [];
+
+  const pool = [
+    ...lostToRunnerUp,
+    ...lostToChampList.filter(p => monKey(p) !== ruKey)
+  ];
+
+  // Remove champion & runner-up if they somehow appear
+  const placedKeys = new Set([champKey, ruKey].filter(Boolean));
+  const dedup = [];
+  const seen = new Set();
+  for (const p of pool) {
+    const k = monKey(p);
+    if (placedKeys.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    dedup.push(p);
+  }
+
+  if (dedup.length === 0) {
+    post.third = null;
+    return finishToResults(finalChampion);
+  }
+  if (dedup.length === 1) {
+    post.third = dedup[0];
+    return finishToResults(finalChampion);
+  }
+
+  // initialize bracket counters
+  post.totalMatches = Math.max(0, dedup.length - 1);
+  post.doneMatches  = 0;
+
+  post.currentRound = dedup.sort(seedCmp);
+  post.nextRound = [];
+  post.index = 0;
+
+  updatePostProgress();
+  scheduleNextPostMatch();
+}
+
+function scheduleNextPostMatch(){
+  // If we finished pairing this round, roll into next round or finish
+  while (post.index >= post.currentRound.length) {
+    if (post.nextRound.length <= 1) {
+      // Bracket winner decided
+      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+      if (post.phase === 'RU') {
+        post.runnerUp = bracketWinner;
+        // Move to third-place bracket
+        return startThirdBracket(leftHistory[leftHistory.length - 1]);
+      } else {
+        post.third = bracketWinner;
+        // Done — go to results
+        return finishToResults(leftHistory[leftHistory.length - 1]);
+      }
+    }
+    // Next round
+    post.currentRound = post.nextRound.sort(seedCmp);
+    post.nextRound = [];
+    post.index = 0;
+  }
+
+  // We still have pairs in this round — fetch next pair
+  const i = post.index;
+  const a = post.currentRound[i];
+  const b = post.currentRound[i + 1];
+
+  if (!b) {
+    // Odd man out gets a bye to nextRound
+    post.nextRound.push(a);
+    post.index += 2;
+    return scheduleNextPostMatch();
+  }
+
+  // Render this bracket matchup using the normal UI
+  current = a;
+  next = b;
+  displayMatchup();
+  updatePostProgress(); // single source of truth for text + bar
+}
+
+function handlePostPick(side){
+  // Winner of this bracket match
+  const winner = (side === 'left') ? current : next;
+  // const loser  = (side === 'left') ? next    : current; // not needed
+  if (post.phase === 'RU') {
+  post.ruWins += 1;
+} else if (post.phase === 'THIRD') {
+  post.thirdWins += 1;
+}
+
+  // Tick progress and advance
+  post.doneMatches += 1;
+  updatePostProgress();
+
+  // We DO NOT mutate main-pass arrays here (no eliminated push, no roundsSurvived changes)
+  post.nextRound.push(winner);
+  post.index += 2;
+
+  // Queue next bracket match
+  scheduleNextPostMatch();
+}
+
+function finishToResults(finalChampion){
+  // Hand off to results screen with bracket winners
+  showWinner(finalChampion);
+}
+
+// ----- Results (page UI)
 // ----- Results (page UI)
 function showWinner(finalWinner) {
   gameOver = true;
@@ -441,14 +688,25 @@ function showWinner(finalWinner) {
 
   const { champion, runnerUp, thirdPlace, honorable } = computeResults(finalWinner);
 
-  const renderCard = (title, p) => p ? `
-    <div class="pokemon-card compact-card">
-      ${getImageTag(p.id, p.shiny, p.name)}
-      <p>${p.shiny ? "⭐ " : ""}${p.name}</p>
-      <p class="rounds-text">Survived ${p.roundsSurvived || 0} rounds</p>
-      <p class="placement-tag">${title}</p>
-    </div>
-  ` : "";
+  const renderCard = (title, p) => {
+    if (!p) return "";
+    let statLine = "";
+    if (title === "Runner-up") {
+      statLine = `Won ${post.ruWins || 0} Matchups`;
+    } else if (title === "Third Place") {
+      statLine = `Won ${post.thirdWins || 0} Matchups`;
+    } else {
+      statLine = `Survived ${p.roundsSurvived || 0} Rounds`;
+    }
+    return `
+      <div class="pokemon-card compact-card">
+        ${getImageTag(p.id, p.shiny, p.name)}
+        <p>${p.shiny ? "⭐ " : ""}${p.name}</p>
+        <p class="rounds-text">${statLine}</p>
+        <p class="placement-tag">${title}</p>
+      </div>
+    `;
+  };
 
   document.getElementById("result").innerHTML = `
     <h2>Your Favorite Starter is:</h2>
@@ -459,7 +717,7 @@ function showWinner(finalWinner) {
       </div>
       <h3>${champion.shiny ? "⭐ " : ""}${champion.name}</h3>
       <p class="champion-text">🏆 Champion</p>
-      <p class="rounds-text">Survived ${champion.roundsSurvived || 0} rounds</p>
+      <p class="rounds-text">Survived ${champion.roundsSurvived || 0} Rounds</p>
     </div>
     <div class="compact-grid">
       ${renderCard("Runner-up",   runnerUp)}
@@ -542,7 +800,6 @@ document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveMod
 // Optional: expose resume helper globally if we decide to deep-link
 window._PR_loadStarterSession = loadStarterSession;
 
-
 // Boot
 if (!current) {
   document.getElementById("result").innerHTML = `
@@ -579,7 +836,6 @@ if (!current) {
     console.warn('Could not resume slot:', e);
   }
 })();
-
 
 /* ===========================
    Canvas Export (1080×1080)
