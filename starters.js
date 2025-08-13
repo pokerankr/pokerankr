@@ -129,13 +129,32 @@ function serializeStarterSession() {
       currentIndex: eliminated.length
     },
     state: {
-      pool,
-      remaining,
-      eliminated,
-      current,
-      next,
-      leftHistory
-    },
+  pool,
+  remaining,
+  eliminated,
+  current,
+  next,
+  leftHistory,
+  // NEW: persist KOTH outcome maps so we can build RU pool after reload
+  lostTo,           // monKey(loser) -> monKey(winner)
+  roundIndex,       // monKey(loser) -> round number
+  roundNum,         // last round number (int)
+  // NEW: persist post-bracket state if we’re in it
+  postMode,         // null | 'RU' | 'THIRD'
+  post: {
+    phase: post.phase,
+    currentRound: post.currentRound,
+    nextRound: post.nextRound,
+    index: post.index,
+    totalMatches: post.totalMatches,
+    doneMatches: post.doneMatches,
+    ruWins: post.ruWins || 0,
+    thirdWins: post.thirdWins || 0,
+    runnerUp: post.runnerUp,
+    third: post.third
+  }
+},
+
     currentMatchup: currentMatchupSnapshot(),
     meta: {
       savedAt: Date.now()
@@ -255,27 +274,76 @@ function loadStarterSession(s) {
   eliminated  = (s.state?.eliminated || []).map(x => ({...x}));
   current     = s.state?.current ? {...s.state.current} : null;
   next        = s.state?.next    ? {...s.state.next}    : null;
+  // --- NEW: restore KOTH trackers so we can build RU pool after resume ---
+if (s.state?.lostTo) {
+  // wipe current maps then refill
+  for (const k of Object.keys(lostTo)) delete lostTo[k];
+  Object.assign(lostTo, s.state.lostTo);
+}
+if (s.state?.roundIndex) {
+  for (const k of Object.keys(roundIndex)) delete roundIndex[k];
+  Object.assign(roundIndex, s.state.roundIndex);
+}
+if (typeof s.state?.roundNum === 'number') {
+  roundNum = s.state.roundNum;
+}
+
+// --- NEW: restore post-bracket state (if any) ---
+postMode = s.state?.postMode || null;
+if (s.state?.post) {
+  const P = s.state.post;
+  post.phase        = P.phase || null;
+  post.currentRound = Array.isArray(P.currentRound) ? P.currentRound.map(x => ({...x})) : [];
+  post.nextRound    = Array.isArray(P.nextRound)    ? P.nextRound.map(x => ({...x}))    : [];
+  post.index        = typeof P.index === 'number' ? P.index : 0;
+  post.totalMatches = typeof P.totalMatches === 'number' ? P.totalMatches : 0;
+  post.doneMatches  = typeof P.doneMatches  === 'number' ? P.doneMatches  : 0;
+  post.ruWins       = typeof P.ruWins       === 'number' ? P.ruWins       : 0;
+  post.thirdWins    = typeof P.thirdWins    === 'number' ? P.thirdWins    : 0;
+  post.runnerUp     = P.runnerUp ? {...P.runnerUp} : null;
+  post.third        = P.third    ? {...P.third}    : null;
+}
+
 
   leftHistory.length = 0;
   (s.state?.leftHistory || []).forEach(p => leftHistory.push({...p}));
 
-  // Repaint
-  if (!current) {
-    document.getElementById("result").innerHTML = `
-      <h2>No Pokémon found</h2>
-      <p>Try adjusting your settings.</p>
-      <div class="button-group">
-        <button onclick="window.location.href='index.html'">Back to Menu</button>
-      </div>
-    `;
-    document.getElementById("result").style.display = "block";
-  } else if (!next) {
-    showWinner(current);
-  } else {
-    displayMatchup();
-    updateProgress();
-    updateUndoButton();
-  }
+// Repaint / Route
+if (!current) {
+  document.getElementById("result").innerHTML = `
+    <h2>No Pokémon found</h2>
+    <p>Try adjusting your settings.</p>
+    <div class="button-group">
+      <button onclick="window.location.href='index.html'">Back to Menu</button>
+    </div>
+  `;
+  document.getElementById("result").style.display = "block";
+  return;
+}
+
+// If we saved during post-brackets, resume that flow
+if (postMode === 'RU' || postMode === 'THIRD') {
+  // Ensure the progress UI is visible and correct
+  displayMatchup(); // will set left/right elements for the next bracket pair
+  updatePostProgress();
+  // If we were mid-round without a current pair loaded, schedule next pair
+  if (!next || !current) scheduleNextPostMatch();
+  return;
+}
+
+// Otherwise, we’re in KOTH
+if (!next && remaining.length === 0) {
+  // This is the “one mon left” case after resume:
+  // DO NOT call showWinner; jump into the RU bracket.
+  startRunnerUpBracket(current);
+  return;
+}
+
+// Normal KOTH resume
+displayMatchup();
+updateProgress();
+updateUndoButton();
+
 }
 
 // -------- Save modal UX parity with ranker --------
@@ -518,6 +586,11 @@ function startRunnerUpBracket(finalChampion){
 
   postMode = 'RU';
   post.phase = 'RU';
+  if (!lostTo || Object.keys(lostTo).length === 0) {
+  // Edge: if a user somehow saved before any losses happened, fall back to eliminated order
+  // (practically rare; safe to keep)
+}
+
 
   const champKey = monKey(finalChampion);
   // Build the pool: everyone who lost directly to the champion
