@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Saved Rankings • PokéRankr</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* --- Page-specific UI tweaks --- */
+    .saved-toolbar{
+      display:flex;justify-content:space-between;align-items:center;
+      gap:10px;margin:10px 0 12px;
+      flex-wrap:wrap;
+    }
+    .mini-btn{
+      appearance:none;border:none;cursor:pointer;
+      background:#fff;border:2px solid #cfd9ff;color:#2f5fe0;
+      border-radius:10px;padding:8px 10px;font-weight:700;
+    }
+    .mini-btn:hover{background:#f5f7ff}
+    .danger{color:#a11;border-color:#f0caca}
+    .danger:hover{background:#fff1f1}
+
+    .filters{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .filters input[type="search"]{
+      border:2px solid #cfd9ff; border-radius:10px; padding:8px 10px; width:260px;
+      font-weight:600; outline:none;
+    }
+    .filters select{
+      border:2px solid #cfd9ff; border-radius:10px; padding:8px 10px; font-weight:700; outline:none;
+    }
+
+    /* ===== Saved Rankings horizontal bars ===== */
+    .saved-row{ padding:12px 14px; text-align:left; }
+    .saved-row-header{
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:8px; gap:10px; flex-wrap:wrap;
+    }
+    .saved-row-slots{
+      display:flex; align-items:stretch; justify-content:space-between;
+      gap:10px;
+    }
+
+    /* Ultra-tight slots with 100x100 sprites */
+    .saved-slot{
+      position:relative;
+      flex:1;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:2px solid #dfe7ff;
+      border-radius:12px;
+      background:var(--panel-soft);
+      height:110px;
+      padding:4px 8px 4px 8px;
+    }
+    .saved-slot.empty{ opacity:.6 }
+
+    .saved-label{
+      position:absolute;
+      top:4px; left:8px;
+      font-size:.75rem;
+      font-weight:700;
+      color:var(--accent);
+      line-height:1;
+      pointer-events:none;
+    }
+
+    .saved-core{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      width:100%;
+      margin-top:12px;
+    }
+
+    .saved-sprite{
+      width:100px; height:100px;
+      image-rendering: pixelated;
+      flex-shrink:0;
+    }
+
+    .saved-text{ line-height:1.1; flex:1; }
+    .saved-name{ font-weight:700; font-size:.9rem; }
+    .saved-meta{ font-size:.75rem; color:var(--text-soft); }
+    .text-soft{ color: var(--text-soft); }
+
+    @media (max-width: 720px){
+      .saved-row-slots{ flex-direction:column; }
+      .filters input[type="search"]{ width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Saved Rankings</h1>
+
+    <div class="saved-toolbar">
+      <div class="filters">
+        <input id="q" type="search" placeholder="Search Pokémon or category…" />
+        <select id="mode">
+          <option value="all">All modes</option>
+          <option value="no">No Shinies</option>
+          <option value="plus">+Shinies</option>
+          <option value="only">Shiny‑only</option>
+        </select>
+        <select id="sort">
+          <option value="dateDesc">Newest first</option>
+          <option value="dateAsc">Oldest first</option>
+          <option value="catAz">Category A→Z</option>
+        </select>
+        <button class="mini-btn" id="btnClearFilters">Clear</button>
+      </div>
+      <div>
+        <button class="mini-btn danger" id="btnClearAll">🧹 Clear All</button>
+        <button class="mini-btn" onclick="window.location.href='index.html'">Back to Menu</button>
+      </div>
+    </div>
+
+    <div id="saved-list"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "savedRankings";
+
+    /* ---------- Helpers ---------- */
+    function sprite(id, shiny=false, alt="") {
+      const src = shiny
+        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
+        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+      return `<img class="saved-sprite" src="${src}" alt="${alt}">`;
+    }
+
+    function slot(label, mon) {
+      if (!mon) {
+        return `<div class="saved-slot empty"><span class="saved-label">${label}</span><span class="saved-meta" style="margin-left:8px;">—</span></div>`;
+      }
+      return `
+        <div class="saved-slot">
+          <span class="saved-label">${label}</span>
+          <div class="saved-core">
+            ${sprite(mon.id, mon.shiny, mon.name)}
+            <div class="saved-text">
+              <div class="saved-name">${mon.shiny ? "⭐ " : ""}${mon.name}</div>
+              <div class="saved-meta">Survived ${mon.roundsSurvived} rounds</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function loadSaves() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+      catch { return []; }
+    }
+    function persistSaves(arr) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    }
+
+    function deleteEntry(key) {
+      let saved = loadSaves();
+      saved = saved.filter(run => {
+        const runKey = run.key || run.id || `${(run.category||"")}_${!!run.includeShinies}_${!!run.shinyOnly}`;
+        return runKey !== key;
+      });
+      persistSaves(saved);
+      render();
+    }
+
+    function clearAll() {
+      if (!confirm("Delete ALL saved rankings? This can’t be undone.")) return;
+      persistSaves([]);
+      render();
+    }
+
+    function formatMode(run) {
+      const base = run.category || "Ranking";
+      if (run.shinyOnly) return `${base} • Shiny‑only`;
+      if (run.includeShinies) return `${base} • +Shinies`;
+      return `${base} • No Shinies`;
+    }
+
+    /* ---------- Search / Filter / Sort ---------- */
+    const $q   = () => document.getElementById("q");
+    const $mode= () => document.getElementById("mode");
+    const $sort= () => document.getElementById("sort");
+
+    function normalize(s){ return (s||"").toString().toLowerCase().trim(); }
+
+    function matchesQuery(run, query){
+      if (!query) return true;
+      const hay = [
+        run.category,
+        run.champion?.name, run.runnerUp?.name, run.thirdPlace?.name, run.honorable?.name
+      ].filter(Boolean).map(normalize).join(" ");
+      return hay.includes(normalize(query));
+    }
+
+    function matchesMode(run, mode){
+      if (mode === "all") return true;
+      if (mode === "no")   return !run.includeShinies && !run.shinyOnly;
+      if (mode === "plus") return  run.includeShinies && !run.shinyOnly;
+      if (mode === "only") return  run.shinyOnly === true;
+      return true;
+    }
+
+    function whenOf(run){
+      // prefer lastModified; fallback to date
+      return new Date(run.lastModified || run.date || Date.now()).getTime();
+    }
+
+    function sortRuns(arr, how){
+      const copy = arr.slice();
+      if (how === "dateAsc")  return copy.sort((a,b)=> whenOf(a) - whenOf(b));
+      if (how === "catAz")    return copy.sort((a,b)=> (a.category||"").localeCompare(b.category||""));
+      // default: newest first
+      return copy.sort((a,b)=> whenOf(b) - whenOf(a));
+    }
+
+    function applyFilters(all){
+      const q = $q().value;
+      const mode = $mode().value;
+      const sort = $sort().value;
+      const filtered = all.filter(run => matchesQuery(run, q) && matchesMode(run, mode));
+      return sortRuns(filtered, sort);
+    }
+
+    function debounce(fn, ms=200){
+      let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+    }
+
+    /* ---------- Render ---------- */
+    function render() {
+      const all = loadSaves();
+      const saved = applyFilters(all);
+      const list = document.getElementById("saved-list");
+
+      if (saved.length === 0) {
+        list.innerHTML = `<p class="panel panel-soft">No saved results${all.length ? " (try different filters)" : ""}.</p>`;
+        return;
+      }
+
+      list.innerHTML = saved.map(run => {
+        const whenStr = new Date(run.lastModified || run.date || Date.now()).toLocaleString();
+        const key = run.key || run.id || `${(run.category||"")}_${!!run.includeShinies}_${!!run.shinyOnly}`;
+        return `
+          <div class="saved-row panel">
+            <div class="saved-row-header">
+              <div>
+                <strong>${formatMode(run)}</strong>
+                <span class="text-soft"> • ${whenStr}</span>
+              </div>
+              <button class="mini-btn danger" onclick="if(confirm('Delete this saved ranking?')) deleteEntry('${key.replace(/'/g,"\\'")}')">🗑️ Delete</button>
+            </div>
+            <div class="saved-row-slots">
+              ${slot("🏆 Champion", run.champion)}
+              ${slot("Runner‑up",   run.runnerUp)}
+              ${slot("Third",       run.thirdPlace)}
+              ${slot("Hon. Mention",run.honorable)}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    /* ---------- Events ---------- */
+    document.getElementById("btnClearAll").addEventListener("click", clearAll);
+    document.getElementById("btnClearFilters").addEventListener("click", () => {
+      $q().value = ""; $mode().value = "all"; $sort().value = "dateDesc"; render();
+    });
+    $q().addEventListener("input", debounce(render, 120));
+    $mode().addEventListener("change", render);
+    $sort().addEventListener("change", render);
+
+    render();
+  </script>
+</body>
+</html>

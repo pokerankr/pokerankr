@@ -1,0 +1,346 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+/* THEME */
+:root{
+  --font:'Poppins',sans-serif;
+
+  /* Blue theme like the mock */
+  --bg-1:#e9f0ff;
+  --bg-2:#c9dcff;
+  --panel:#ffffff;
+  --panel-soft:#f3f6ff;
+
+  --primary:#3a6ff8;
+  --primary-600:#2f5fe0;
+  --accent:#ffb200;     /* VS & highlights */
+  --text:#0d1b2a;
+  --text-soft:#5a6a8a;
+  --shadow:0 12px 24px rgba(27,56,120,.15);
+}
+
+/* BASE */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  padding:24px;
+  font-family:var(--font);
+  color:var(--text);
+  background:radial-gradient(1200px 700px at 10% -10%, var(--bg-2), transparent 60%),
+             radial-gradient(1200px 700px at 110% 10%, var(--bg-2), transparent 60%),
+             linear-gradient(180deg,var(--bg-1),#d5e3ff);
+  text-align:center;
+}
+
+.container{max-width:1100px;margin:0 auto}
+
+/* HEADINGS */
+h1{font-size:2.4rem;letter-spacing:.4px;margin:0 0 8px}
+h2{font-size:1.25rem;color:var(--text);margin:12px 0 6px}
+h3{font-size:1.05rem;margin:10px 0 4px}
+p{margin:.25rem 0}
+
+/* MENU (index.html) */
+.settings{
+  display:flex;justify-content:center;gap:1.25rem;
+  margin:16px 0 20px;color:var(--text-soft);font-weight:600
+}
+.settings input{margin-right:.4rem}
+
+.category-buttons,.menu-buttons,.button-row,.button-group{
+  display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap
+}
+.category-buttons{margin-top:18px}
+
+.category-button,.menu-button,button{
+  appearance:none;border:none;cursor:pointer;text-decoration:none;
+  background:var(--primary);color:#fff;border-radius:14px;
+  padding:12px 22px;font-weight:700;letter-spacing:.2px;
+  box-shadow:var(--shadow);transition:transform .05s ease, background .2s ease;
+}
+.category-button:hover,.menu-button:hover,button:hover{background:var(--primary-600)}
+.category-button:active,.menu-button:active,button:active{transform:translateY(1px)}
+/* Selected/active button look */
+.menu-button.selected,
+.gen-btn.selected{
+  background:#fff;
+  color:var(--primary);
+  border:2px solid var(--primary);
+  box-shadow:none;
+}
+.menu-button.selected:focus-visible,
+.gen-btn.selected:focus-visible{
+  outline:3px solid #aac3ff;
+  outline-offset:2px;
+}
+
+
+/* MATCHUP LAYOUT */
+.matchup-container,#matchup{
+  display:flex;justify-content:center;align-items:center;gap:28px;flex-wrap:wrap;margin-top:22px
+}
+#vs-text{
+  font-weight:900;font-size:1.6rem;color:#fff;
+  background:linear-gradient(180deg,#ffc94d,#ff9d00);
+  padding:.35rem .75rem;border-radius:14px;box-shadow:0 8px 18px rgba(255,157,0,.25);
+  text-shadow:0 1px 0 rgba(0,0,0,.15);
+}
+
+/* CARD */
+.pokemon-card,.panel{
+  background:var(--panel);
+  border-radius:18px;
+  padding:18px 18px 16px;
+  box-shadow:var(--shadow);
+  border:4px solid #d2deff;               /* blue frame */
+  outline:1px solid #eef3ff;               /* inner line for depth */
+  transition:transform .1s ease, box-shadow .1s ease;
+}
+.pokemon-card:hover{transform:translateY(-2px)}
+.pokemon-card img{width:220px;max-width:65vw;height:auto;display:block;margin:0 auto}
+.pokemon-card p{font-weight:700;margin-top:10px}
+
+/* PROGRESS BAR */
+.progress-wrap{width:min(880px,92vw);height:22px;margin:18px auto 8px;
+  background:#1c2e66;border-radius:14px;padding:3px;box-shadow:inset 0 2px 6px rgba(0,0,0,.25)}
+.progress{
+  height:100%; width:0%;
+  background:linear-gradient(90deg,#5c86ff,#3a6ff8);
+  border-radius:12px; transition:width .35s ease
+}
+#remaining-text{color:#000000;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+
+/* RESULT / CHAMPION */
+.result-container{margin-top:10px}
+.champion-card{background:transparent;box-shadow:none;border:none;padding:0;margin:0 auto 10px}
+.champion-image-wrapper{position:relative;display:inline-block}
+.champion-img{width:320px;max-width:80vw;animation:pulse 2s infinite ease-in-out}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+
+.confetti{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:360px;max-width:90vw;pointer-events:none;opacity:0;z-index:2;
+  animation:confettiIn .7s ease-out .15s forwards, confettiOut .7s ease-in 2.9s forwards;
+}
+@keyframes confettiIn{from{opacity:0}to{opacity:1}}
+@keyframes confettiOut{from{opacity:1}to{opacity:0}}
+
+.champion-text{color:var(--accent);font-weight:800;margin:6px 0 12px}
+.runner-ups{gap:18px;margin-top:14px}
+.rounds-text{font-size:.9rem;color:var(--text-soft);margin-top:6px}
+
+/* BUTTONS FOOTER */
+.button-row{margin-top:18px}
+.button-row .alt{
+  background:#fff;color:var(--primary);border:2px solid var(--primary)
+}
+.button-row .alt:hover{background:#f5f7ff}
+
+/* breathing room under result action buttons */
+.result-container .button-group{
+  margin-top: 18px;
+  margin-bottom: 28px;
+}
+
+/* UTILS */
+.panel-soft{background:var(--panel-soft)}
+.hide{display:none!important}
+
+/* RESPONSIVE — small tweaks */
+@media (max-width:700px){
+  .pokemon-card img{width:180px}
+  .champion-img{width:280px}
+  #vs-text{font-size:1.3rem}
+} /* <-- fixed: properly close this media query */
+
+/* ====== MULTI-PAGE FLOW ====== */
+.page{display:none}
+.page.active{display:block}
+
+/* Loading page */
+#loading-page{
+  /* no display here so .page/.active rules can control visibility */
+  flex-direction:column;align-items:center;justify-content:center;
+  min-height:70vh;gap:20px;
+}
+
+/* only flex when active */
+#loading-page.active{
+  display:flex;
+}
+.logo{
+  font-weight:800;font-size:2rem;letter-spacing:.5px;
+  background:#fff;border:4px solid #d2deff;outline:1px solid #eef3ff;
+  border-radius:18px;padding:20px 26px;box-shadow:var(--shadow)
+}
+.menu-buttons{margin-top:6px}
+button[disabled]{opacity:.55;cursor:not-allowed}
+
+/* ====== CONFIG PAGE ====== */
+#config-page{max-width:880px;margin:0 auto}
+#config-page h1{margin-top:6px}
+
+.config-section,
+#extra-options{
+  text-align:left; margin:14px auto; padding:16px;
+  background:var(--panel-soft); border:4px solid #d2deff; outline:1px solid #eef3ff;
+  border-radius:18px; box-shadow:var(--shadow); width:min(760px,92vw)
+}
+.config-section label,
+#extra-options label{
+  display:inline-flex;align-items:center;gap:10px;font-weight:600;color:var(--text)
+}
+.settings{margin-top:12px}
+
+/* Inputs */
+select{
+  appearance:none; outline:none; border:2px solid #d2deff; background:#fff;
+  border-radius:12px; padding:10px 12px; font-family:var(--font); font-weight:600;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.04)
+}
+select:focus{border-color:var(--primary)}
+input[type="checkbox"]{
+  width:18px;height:18px;border-radius:4px;border:2px solid #cdd9ff;cursor:pointer
+}
+
+/* Type pickers layout */
+#extra-options > div{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+#type2Wrap{display:inline-block}
+
+/* Footer buttons */
+#btnStartRanking{margin-top:10px}
+#btnBackToMenu{margin-left:10px}
+
+/* Mobile tweaks for config page */
+@media (max-width:700px){
+  .logo{font-size:1.6rem}
+  .config-section,#extra-options{padding:14px}
+}
+
+/* --- Compact placements row --- */
+.compact-grid{
+  display:flex;
+  justify-content:center;
+  gap:16px;
+  flex-wrap:wrap;
+  margin:18px auto 6px;
+  max-width:980px;
+}
+
+/* Smaller, side-by-side cards for placements */
+.compact-card{
+  padding:12px 12px 10px;
+  border-width:3px;
+  width:220px;
+}
+.compact-card img{
+  width:140px;
+  max-width:100%;
+}
+.compact-grid .rounds-text{font-size:.85rem;margin-top:4px}
+.placement-tag{font-size:.85rem;color:var(--accent);font-weight:700;margin-top:4px}
+
+/* Mobile: stack neatly */
+@media (max-width:700px){
+  .compact-card{ width:46%; }
+  .compact-card img{ width:120px; }
+}
+/* ===== Saved Rankings horizontal bars ===== */
+.saved-row{ padding:12px 14px; text-align:left; }
+.saved-row-header{
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:8px;
+}
+
+.saved-row-slots{
+  display:flex; align-items:stretch; justify-content:space-between;
+  gap:10px;
+}
+.saved-slot{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;           /* center sprite + text vertically */
+  gap:10px;
+  border:2px solid #dfe7ff;
+  border-radius:12px;
+  padding:8px 10px 8px;         /* tighter padding */
+  padding-top:26px;             /* room for the label badge */
+  background:var(--panel-soft);
+  height:130px;                 /* fixed compact height */
+}
+.saved-slot.empty{ opacity:.6 }
+
+/* Make the label a small badge so it doesn't add height */
+.saved-label{
+  position:absolute;
+  top:6px; left:10px;
+  font-size:.8rem;
+  font-weight:700;
+  color:var(--accent);
+  line-height:1;
+  pointer-events:none;
+}
+
+/* Core content sits on one line: sprite + text */
+.saved-core{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+}
+
+/* Ultra-tight horizontal bar slots */
+.saved-slot{
+  position:relative;
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:2px solid #dfe7ff;
+  border-radius:12px;
+  background:var(--panel-soft);
+  height:110px;           /* shorter overall height */
+  padding:4px 8px 4px 8px; /* minimal padding */
+}
+.saved-slot.empty{ opacity:.6 }
+
+/* Label as small badge above sprite/text */
+.saved-label{
+  position:absolute;
+  top:4px; left:8px;
+  font-size:.75rem;
+  font-weight:700;
+  color:var(--accent);
+  line-height:1;
+}
+
+/* Keep content centered vertically */
+.saved-core{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  margin-top:12px; /* small offset so label doesn't overlap */
+}
+
+/* Big sprite without forcing height to grow */
+.saved-sprite{
+  width:100px;
+  height:100px;
+  image-rendering: pixelated;
+  flex-shrink:0;
+}
+
+/* Text is snug next to sprite */
+.saved-text{
+  line-height:1.1;
+  flex:1;
+}
+.saved-name{ font-weight:700; font-size:.9rem; }
+.saved-meta{ font-size:.75rem; color:var(--text-soft); }
+
+/* Mobile stacking still works */
+@media (max-width: 720px){
+  .saved-row-slots{ flex-direction:column; }
+}
