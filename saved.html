@@ -124,6 +124,10 @@
     const STORAGE_KEY = "savedRankings";
 
     /* ---------- Helpers ---------- */
+    function pluralize(count, singular, plural) {
+      return `${count} ${count === 1 ? singular : plural}`;
+    }
+
     function sprite(id, shiny=false, alt="") {
       const src = shiny
         ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
@@ -135,6 +139,29 @@
       if (!mon) {
         return `<div class="saved-slot empty"><span class="saved-label">${label}</span><span class="saved-meta" style="margin-left:8px;">—</span></div>`;
       }
+
+      const survivedCount = mon.roundsSurvived || 0;
+      const survivedLine = `<div class="saved-meta">Survived ${pluralize(survivedCount, "Round", "Rounds")}</div>`;
+
+      // RU / Third: show "Won X Match/Matches" or "Auto-advanced".
+      // Back-compat: only if save payload has bracketWins/bracketTotal.
+      let extraLine = "";
+      const isRU    = /runner/i.test(label);
+      const isThird = /third/i.test(label);
+      if ((isRU || isThird) && typeof mon.bracketWins === "number") {
+        const wins = mon.bracketWins;
+        const total = (typeof mon.bracketTotal === "number") ? mon.bracketTotal : 0;
+        if (wins > 0) {
+          extraLine = `<div class="saved-meta">Won ${pluralize(wins, "Match", "Matches")}</div>`;
+        } else {
+          // If the bracket had zero matches (single-entrant), call it Auto-advanced; otherwise "Won 0 Matches".
+          extraLine = `<div class="saved-meta">${total === 0 ? "Auto-advanced" : "Won 0 Matches"}</div>`;
+        }
+      } else {
+        // Keep vertical alignment with an invisible placeholder line when we have nothing extra to show.
+        extraLine = `<div class="saved-meta" style="visibility:hidden;">placeholder</div>`;
+      }
+
       return `
         <div class="saved-slot">
           <span class="saved-label">${label}</span>
@@ -142,7 +169,8 @@
             ${sprite(mon.id, mon.shiny, mon.name)}
             <div class="saved-text">
               <div class="saved-name">${mon.shiny ? "⭐ " : ""}${mon.name}</div>
-              <div class="saved-meta">Survived ${mon.roundsSurvived} rounds</div>
+              ${survivedLine}
+              ${extraLine}
             </div>
           </div>
         </div>
@@ -255,7 +283,7 @@
             <div class="saved-row-slots">
               ${slot("🏆 Champion", run.champion)}
               ${slot("Runner‑up",   run.runnerUp)}
-              ${slot("Third",       run.thirdPlace)}
+              ${slot("Third Place",       run.thirdPlace)}
               ${slot("Hon. Mention",run.honorable)}
             </div>
           </div>

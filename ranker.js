@@ -179,6 +179,85 @@ function shuffle(a){
 }
 const key = (p) => p ? `${p.id}-${p.shiny?1:0}` : "";
 
+// --- Shared helpers ---
+function pluralize(n, singular, plural) {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+// monKey alias for compatibility with starters.js snippets
+const monKey = (p) => key(p);
+
+// --- Post-tournament global win map (used for THIRD seeding) ---
+const bracketWinsByMon = Object.create(null); // monKey -> count
+
+// --- Tracking for post‑tournament mini‑brackets ---
+const lostTo = Object.create(null);      // monKey(loser) -> monKey(winner)
+let roundNum = 0;                        // global match counter (main pass only)
+const roundIndex = Object.create(null);  // monKey(loser) -> round number lost
+
+// Post-bracket state (interactive)
+let postMode = null; // null | 'RU' | 'THIRD'
+const post = {
+  phase: null,
+  currentRound: [],
+  nextRound: [],
+  index: 0,
+  totalMatches: 0,
+  doneMatches: 0,
+  ruWins: 0,
+  thirdWins: 0,
+  runnerUp: null,
+  third: null,
+  ruR1Pairs: new Set(),
+  // per-bracket per-mon wins
+  ruWinsByMon: Object.create(null),     // monKey -> wins in RU bracket
+  thirdWinsByMon: Object.create(null),  // monKey -> wins in THIRD bracket
+  // optional totals (used by exporter “Auto-advanced” label)
+  ruTotal: 0,
+  thirdTotal: 0,
+};
+
+// Seeding comparator: higher survivals, then later loss, then name
+function seedCmp(a, b) {
+  const sA = a?.roundsSurvived || 0, sB = b?.roundsSurvived || 0;
+  if (sA !== sB) return sB - sA;
+  const rA = roundIndex[monKey(a)] || 0, rB = roundIndex[monKey(b)] || 0;
+  if (rA !== rB) return rB - rA;
+  return String(a?.name||'').localeCompare(String(b?.name||'')); // stable tiebreak
+}
+
+// Third reseeding: more RU bracket wins first, then seedCmp
+function thirdSeedCmp(a, b) {
+  const wa = bracketWinsByMon[monKey(a)] || 0;
+  const wb = bracketWinsByMon[monKey(b)] || 0;
+  if (wa !== wb) return wb - wa;
+  return seedCmp(a, b);
+}
+
+function pairKey(a, b) {
+  const ak = monKey(a), bk = monKey(b);
+  return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
+}
+function buildPairsAvoidingRematch(sortedArr, avoidSet) {
+  const arr = [...sortedArr];
+  for (let i = 0; i < arr.length - 1; i += 2) {
+    const a = arr[i];
+    let b = arr[i + 1];
+    if (!b) break;
+    if (avoidSet.has(pairKey(a, b))) {
+      for (let j = i + 2; j < arr.length; j++) {
+        if (!arr[j]) continue;
+        if (!avoidSet.has(pairKey(a, arr[j]))) {
+          [arr[i + 1], arr[j]] = [arr[j], arr[i + 1]];
+          break;
+        }
+      }
+    }
+  }
+  return arr;
+}
+
+
 // ----- State
 let remaining = shuffle([...pool]);
 let eliminated = [];
@@ -214,7 +293,7 @@ function restoreState(s){
 }
 function updateUndoButton(){
   const btn = document.getElementById("btnUndo");
-  if (btn) btn.disabled = history.length === 0;
+  if (btn) btn.disabled = (history.length === 0) || !!postMode;
 }
 function undoLast(){
   if (!history.length) return;
@@ -229,7 +308,7 @@ function serializeRankerSession(){
   const rc = window.rankConfig || {};
   return {
     id: 'v1',
-    type: 'ranker', // used by index.html to route back to this page
+    type: 'ranker',
     label: rankerLabel(),
     context: {
       config: rc,
@@ -248,7 +327,31 @@ function serializeRankerSession(){
       eliminated,
       current,
       next,
-      leftHistory
+      leftHistory,
+      // Persist KOTH trackers & round counter
+      lostTo,
+      roundIndex,
+      roundNum,
+      // Persist per-mon bracket wins (for results after resume)
+      bracketWinsByMon,
+      // Persist post-bracket state (if any)
+      postMode,
+      post: {
+        phase: post.phase,
+        currentRound: post.currentRound,
+        nextRound: post.nextRound,
+        index: post.index,
+        totalMatches: post.totalMatches,
+        doneMatches: post.doneMatches,
+        ruWins: post.ruWins,
+        thirdWins: post.thirdWins,
+        runnerUp: post.runnerUp,
+        third: post.third,
+        ruWinsByMon: post.ruWinsByMon,
+        thirdWinsByMon: post.thirdWinsByMon,
+        ruTotal: post.ruTotal,
+        thirdTotal: post.thirdTotal,
+      }
     },
     currentMatchup: (current && next) ? {
       a: { id: current.id, name: current.name || nameCache[current.id], shiny: !!current.shiny },
@@ -412,6 +515,21 @@ function updateProgress(){
   document.getElementById("remaining-text").textContent =
     `${remainingCount} matchups remaining`;
 }
+function updatePostProgress() {
+  const bar = document.getElementById("progress");
+  const txt = document.getElementById("remaining-text");
+  const container = document.getElementById("progress-container");
+  if (!bar || !txt || !container) return;
+  container.style.display = "block";
+
+  const left = Math.max(0, post.totalMatches - post.doneMatches);
+  const pct = post.totalMatches > 0 ? Math.round((post.doneMatches / post.totalMatches) * 100) : 0;
+
+  bar.style.width = `${pct}%`;
+  txt.textContent =
+    (post.phase === 'RU' ? 'Runner-up bracket — ' : 'Third-place bracket — ')
+    + `${left} matchups remaining`;
+}
 
 // ----- Input control
 let gameOver = false;
@@ -426,6 +544,7 @@ document.getElementById("btnUndo")?.addEventListener("click", undoLast);
 
 // ----- Game loop
 function pick(side){
+  if (postMode) { handlePostPick(side); return; }
   if (gameOver) return;
   if (!current || !next) return;
 
@@ -436,15 +555,21 @@ function pick(side){
   const winner = (side === "left") ? current : next;
   const loser  = (side === "left") ? next    : current;
 
-  loser.roundsSurvived  = loser.roundsSurvived  || 0;
-  winner.roundsSurvived = (winner.roundsSurvived|| 0) + 1;
-  eliminated.push(loser);
+  // Record main-pass outcome (used to build post brackets)
+  const wKeyMain = monKey(winner), lKeyMain = monKey(loser);
+  lostTo[lKeyMain] = wKeyMain;
+  roundNum += 1;
+  roundIndex[lKeyMain] = roundNum;
 
-  if (key(winner) !== key(prevLeft)) leftHistory.push(winner);
+  loser.roundsSurvived  = loser.roundsSurvived  || 0;
+  eliminated.push(loser);
+  winner.roundsSurvived = (winner.roundsSurvived|| 0) + 1;
+
+  if (monKey(winner) !== monKey(prevLeft)) leftHistory.push(winner);
   current = winner;
 
   if (remaining.length === 0){
-    showWinner(winner);
+    startRunnerUpBracket(winner);
     return;
   }
   next = remaining.pop();
@@ -453,6 +578,199 @@ function pick(side){
   displayMatchup();
   updateProgress();
   updateUndoButton();
+}
+
+function startRunnerUpBracket(finalChampion){
+  history = [];
+  updateUndoButton();
+
+  postMode = 'RU';
+  post.phase = 'RU';
+  post.ruWins = 0;
+  post.ruWinsByMon = Object.create(null);
+
+  const champKey = monKey(finalChampion);
+  const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
+  const poolRU = lostKeys.map(k => {
+    // try to find the actual mon object from current/next/eliminated
+    if (current && monKey(current) === k) return current;
+    if (next && monKey(next) === k) return next;
+    return eliminated.find(p => monKey(p) === k);
+  }).filter(Boolean);
+
+  post.totalMatches = Math.max(0, poolRU.length - 1);
+  post.doneMatches  = 0;
+  post.ruTotal = post.totalMatches;
+
+  if (poolRU.length === 0) {
+    post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
+    return startThirdBracket(finalChampion);
+  }
+  if (poolRU.length === 1) {
+    post.runnerUp = poolRU[0];
+    return startThirdBracket(finalChampion);
+  }
+
+  const seededRU = [...poolRU].sort(seedCmp);
+  post.nextRound = [];
+  post.index = 0;
+
+  if (seededRU.length % 2 === 1) {
+    const bye = seededRU.shift();   // highest seed
+    post.nextRound.push(bye);       // pre-seed into next round
+  }
+
+  post.currentRound = seededRU;
+
+  post.ruR1Pairs.clear();
+  for (let i = 0; i < post.currentRound.length; i += 2) {
+    const a = post.currentRound[i];
+    const b = post.currentRound[i + 1];
+    if (b) post.ruR1Pairs.add(pairKey(a, b));
+  }
+
+  updatePostProgress();
+  scheduleNextPostMatch();
+}
+
+function startThirdBracket(finalChampion){
+  postMode = 'THIRD';
+  post.phase = 'THIRD';
+  post.thirdWins = 0;
+  post.thirdWinsByMon = Object.create(null);
+
+  const champKey = monKey(finalChampion);
+  const ruKey = post.runnerUp ? monKey(post.runnerUp) : null;
+
+  const lostToChampKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
+  const lostToChampList = lostToChampKeys.map(k => {
+    if (current && monKey(current) === k) return current;
+    if (next && monKey(next) === k) return next;
+    return eliminated.find(p => monKey(p) === k);
+  }).filter(Boolean);
+
+  const lostToRunnerUp = ruKey
+    ? Object.keys(lostTo).filter(k => lostTo[k] === ruKey).map(k => {
+        if (current && monKey(current) === k) return current;
+        if (next && monKey(next) === k) return next;
+        return eliminated.find(p => monKey(p) === k);
+      }).filter(Boolean)
+    : [];
+
+  const poolThird = [
+    ...lostToRunnerUp,
+    ...lostToChampList.filter(p => monKey(p) !== ruKey)
+  ];
+
+  const placedKeys = new Set([champKey, ruKey].filter(Boolean));
+  const dedup = [];
+  const seen = new Set();
+  for (const p of poolThird) {
+    const k = monKey(p);
+    if (placedKeys.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    dedup.push(p);
+  }
+
+  if (dedup.length === 0) { post.third = null; return finishToResults(finalChampion); }
+  if (dedup.length === 1) { post.third = dedup[0]; return finishToResults(finalChampion); }
+
+  post.totalMatches = Math.max(0, dedup.length - 1);
+  post.doneMatches  = 0;
+  post.thirdTotal   = post.totalMatches;
+
+  const seeded = dedup.sort(thirdSeedCmp);
+  post.nextRound = [];
+  post.index = 0;
+
+  let round1List = seeded;
+  if (seeded.length % 2 === 1) {
+    const bye = round1List.shift();
+    post.nextRound.push(bye);
+  }
+
+  post.currentRound = buildPairsAvoidingRematch(round1List, post.ruR1Pairs);
+
+  updatePostProgress();
+  scheduleNextPostMatch();
+}
+
+function scheduleNextPostMatch(){
+  // Finish a round -> roll into next or finish bracket
+  while (post.index >= post.currentRound.length) {
+    if (post.nextRound.length <= 1) {
+      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+      if (post.phase === 'RU') {
+        post.runnerUp = bracketWinner;
+        return startThirdBracket(leftHistory[leftHistory.length - 1]);
+      } else {
+        post.third = bracketWinner;
+        return finishToResults(leftHistory[leftHistory.length - 1]);
+      }
+    }
+
+    // Re-seed each round
+    let seededNext = (post.phase === 'THIRD')
+      ? post.nextRound.sort(thirdSeedCmp)
+      : post.nextRound.sort(seedCmp);
+
+    post.nextRound = [];
+    post.index = 0;
+
+    if (seededNext.length % 2 === 1) {
+      const byeTop = seededNext.shift();
+      post.nextRound.push(byeTop);
+    }
+
+    post.currentRound = seededNext;
+    updatePostProgress();
+  }
+
+  // Schedule next pair in this round
+  const i = post.index;
+  const a = post.currentRound[i];
+  const b = post.currentRound[i + 1];
+
+  if (!b) {
+    // Bye -> advance
+    post.nextRound.push(a);
+    post.index += 2;
+    return scheduleNextPostMatch();
+  }
+
+  // Render bracket match in main UI
+  current = a;
+  next = b;
+  displayMatchup();
+  updatePostProgress();
+}
+
+function handlePostPick(side){
+  const winner = (side === 'left') ? current : next;
+
+  // Count bracket win for the actual mon (RU or THIRD only)
+  const wKey = monKey(winner);
+  bracketWinsByMon[wKey] = (bracketWinsByMon[wKey] || 0) + 1;
+
+  if (post.phase === 'RU') {
+    post.ruWins += 1;
+    post.ruWinsByMon[wKey] = (post.ruWinsByMon[wKey] || 0) + 1;
+  } else if (post.phase === 'THIRD') {
+    post.thirdWins += 1;
+    post.thirdWinsByMon[wKey] = (post.thirdWinsByMon[wKey] || 0) + 1;
+  }
+
+  post.doneMatches += 1;
+  updatePostProgress();
+
+  post.nextRound.push(winner);
+  post.index += 2;
+
+  scheduleNextPostMatch();
+}
+
+function finishToResults(finalChampion){
+  showWinner(finalChampion);
 }
 
 // ----- Results + save
@@ -473,25 +791,52 @@ function showWinner(finalWinner){
   document.getElementById("progress-container").style.display = "none";
   document.getElementById("matchup").style.display = "none";
 
-  const champion   = leftHistory[leftHistory.length-1] || finalWinner;
-  const runnerUp   = leftHistory[leftHistory.length-2] || null;
-  const thirdPlace = leftHistory[leftHistory.length-3] || null;
+  const { champion, runnerUp, thirdPlace, honorable } = computeResults(finalWinner);
 
-  const top3 = new Set([key(champion), key(runnerUp), key(thirdPlace)]);
-  const honorable = eliminated
-    .filter(p => !top3.has(key(p)))
-    .sort((a,b)=>{
-      const d = (b.roundsSurvived||0) - (a.roundsSurvived||0);
-      return d !== 0 ? d : eliminated.lastIndexOf(b) - eliminated.lastIndexOf(a);
-    })[0] || null;
+  function bracketWinsFor(title, mon) {
+    const key = monKey(mon);
+    if (title === "Runner-up") {
+      return (post.ruWinsByMon && post.ruWinsByMon[key]) || 0;
+    }
+    if (title === "Third Place") {
+      return (post.thirdWinsByMon && post.thirdWinsByMon[key]) || 0;
+    }
+    return 0;
+  }
 
-  const card = (title,p)=> p ? `
-    <div class="pokemon-card compact-card">
-      ${getImageTag(p.id, p.shiny)}
-      <p>${displayName(p)}</p>
-      <p class="rounds-text">Survived ${p.roundsSurvived||0} rounds</p>
-      <p class="placement-tag">${title}</p>
-    </div>` : "";
+  const renderCard = (title, p) => {
+    if (!p) return "";
+    const survivedLine = `<p class="rounds-text">Survived ${pluralize(p.roundsSurvived || 0, "Round", "Rounds")}</p>`;
+
+    if (title === "Runner-up" || title === "Third Place") {
+      let wins = bracketWinsFor(title, p);
+      const total = (title === "Runner-up") ? (post.ruTotal || 0) : (post.thirdTotal || 0);
+      const winsLine = (wins > 0)
+        ? `<p class="rounds-text">Won ${pluralize(wins, "Match", "Matches")}</p>`
+        : `<p class="rounds-text">Auto-advanced</p>`;
+
+      return `
+        <div class="pokemon-card compact-card">
+          ${getImageTag(p.id, p.shiny)}
+          <p>${displayName(p)}</p>
+          ${survivedLine}
+          ${total === 0 ? `<p class="rounds-text">Auto-advanced</p>` : winsLine}
+          <p class="placement-tag">${title}</p>
+        </div>
+      `;
+    }
+
+    // Honorable: keep alignment with hidden placeholder line
+    return `
+      <div class="pokemon-card compact-card">
+        ${getImageTag(p.id, p.shiny)}
+        <p>${displayName(p)}</p>
+        ${survivedLine}
+        <p class="rounds-text" style="visibility:hidden;">placeholder</p>
+        <p class="placement-tag">${title}</p>
+      </div>
+    `;
+  };
 
   const g = window.rankConfig?.filters?.generation || 1;
 
@@ -504,12 +849,12 @@ function showWinner(finalWinner){
       </div>
       <h3>${displayName(champion)}</h3>
       <p class="champion-text">🏆 Champion</p>
-      <p class="rounds-text">Survived ${champion.roundsSurvived||0} rounds</p>
+      <p class="rounds-text">Survived ${pluralize(champion.roundsSurvived || 0, "Round", "Rounds")}</p>
     </div>
     <div class="compact-grid">
-      ${card("Runner-up",   runnerUp)}
-      ${card("Third Place", thirdPlace)}
-      ${card("Honorable Mention", honorable)}
+      ${renderCard("Runner-up",   runnerUp)}
+      ${renderCard("Third Place", thirdPlace)}
+      ${renderCard("Honorable Mention", honorable)}
     </div>
     <div class="button-group">
       <button onclick="restart()">Start Over</button>
@@ -520,27 +865,32 @@ function showWinner(finalWinner){
   `;
   document.getElementById("result").style.display = "block";
 
-  // kick off name fetches for visible finals (so UI labels update if needed)
   [champion, runnerUp, thirdPlace, honorable].filter(Boolean).forEach(m=>ensureName(m.id));
 }
 
+
 function saveResults(){
-  const champion   = leftHistory[leftHistory.length-1];
-  const runnerUp   = leftHistory[leftHistory.length-2] || null;
-  const thirdPlace = leftHistory[leftHistory.length-3] || null;
+  const { champion, runnerUp, thirdPlace, honorable } = computeResults();
 
-  const top3Keys = new Set([key(champion), key(runnerUp), key(thirdPlace)]);
-  const honorable = eliminated
-    .filter(p => !top3Keys.has(key(p)))
-    .sort((a,b)=>{
-      const d = (b.roundsSurvived||0) - (a.roundsSurvived||0);
-      return d !== 0 ? d : eliminated.lastIndexOf(b) - eliminated.lastIndexOf(a);
-    })[0] || null;
-
-  const pack = (p)=> p ? ({
-    id: p.id, name: nameCache[p.id] || p.name || null,
-    shiny: !!p.shiny, roundsSurvived: p.roundsSurvived||0
-  }) : null;
+  const pack = (p, role) => {
+    if (!p) return null;
+    const obj = {
+      id: p.id,
+      name: nameCache[p.id] || p.name || null,
+      shiny: !!p.shiny,
+      roundsSurvived: p.roundsSurvived || 0
+    };
+    if (role === 'RU') {
+      const k = monKey(p);
+      obj.bracketWins  = (post.ruWinsByMon && post.ruWinsByMon[k]) || 0;
+      obj.bracketTotal = typeof post.ruTotal === 'number' ? post.ruTotal : 0;
+    } else if (role === 'THIRD') {
+      const k = monKey(p);
+      obj.bracketWins  = (post.thirdWinsByMon && post.thirdWinsByMon[k]) || 0;
+      obj.bracketTotal = typeof post.thirdTotal === 'number' ? post.thirdTotal : 0;
+    }
+    return obj;
+  };
 
   const g = window.rankConfig?.filters?.generation || 1;
   const category = `Gen ${g}`;
@@ -552,16 +902,15 @@ function saveResults(){
   saved = saved.filter(r => (r.key || r.id) !== comboKey);
   saved.push({
     key: comboKey,
-    // v1.0.0: prefer lastModified; keep date for back-compat
     lastModified: nowIso,
     date: nowIso,
     category,
     includeShinies: !!window.includeShinies,
     shinyOnly: !!window.shinyOnly,
-    champion:   pack(champion),
-    runnerUp:   pack(runnerUp),
-    thirdPlace: pack(thirdPlace),
-    honorable:  pack(honorable)
+    champion:   pack(champion, 'CHAMP'),
+    runnerUp:   pack(runnerUp, 'RU'),
+    thirdPlace: pack(thirdPlace, 'THIRD'),
+    honorable:  pack(honorable, 'HM')
   });
 
   try {
@@ -614,7 +963,7 @@ async function loadSpriteBitmap(p){
 // Rounded card + text renderer (same as starters)
 async function drawMon(ctx, {
   bmp, name, x, y, maxW, maxH, tag, mini=false,
-  card=false, rounds
+  card=false, lines = [], // NEW: array of strings
 }){
   function roundedPath(px, py, w, h, r){
     const rr = Math.min(r, w/2, h/2);
@@ -627,13 +976,12 @@ async function drawMon(ctx, {
     ctx.closePath();
   }
 
-  let nameY, tagY, roundsY;
+  let nameY, tagY;
 
   if (card){
     const CARD_W = 280, CARD_H = 300;
     const cx = x - CARD_W/2, cy = y - CARD_H/2;
 
-    // shadow + fill
     ctx.save();
     ctx.shadowColor = 'rgba(27,56,120,.15)';
     ctx.shadowBlur = 24;
@@ -643,7 +991,6 @@ async function drawMon(ctx, {
     ctx.fill();
     ctx.restore();
 
-    // blue frame + inner outline
     ctx.lineWidth = 6;
     ctx.strokeStyle = '#d2deff';
     roundedPath(cx, cy, CARD_W, CARD_H, 22);
@@ -654,7 +1001,6 @@ async function drawMon(ctx, {
     roundedPath(cx+3, cy+3, CARD_W-6, CARD_H-6, 18);
     ctx.stroke();
 
-    // top-anchored sprite inside card
     const PAD_TOP = 18;
     const IMG_MAX_W = Math.min(maxW || 200, 200);
     const IMG_MAX_H = Math.min(maxH || 160, 160);
@@ -663,16 +1009,13 @@ async function drawMon(ctx, {
       const imgX = x - s.w/2;
       const imgY = cy + PAD_TOP;
       ctx.drawImage(bmp, imgX, imgY, s.w, s.h);
-      nameY   = imgY + s.h + 18;
-      tagY    = nameY + 28;
-      roundsY = tagY  + 26;
+      nameY = imgY + s.h + 18;
+      tagY  = nameY + 28;
     } else {
-      nameY   = cy + 190;
-      tagY    = nameY + 28;
-      roundsY = tagY  + 26;
+      nameY = cy + 190;
+      tagY  = nameY + 28;
     }
   } else {
-    // Champion (centered), text anchored to image bottom (with comfy gaps)
     let imgBottom = y;
     if (bmp){
       const s = fitContain(bmp.width, bmp.height, maxW, maxH);
@@ -681,31 +1024,35 @@ async function drawMon(ctx, {
       ctx.drawImage(bmp, imgX, imgY, s.w, s.h);
       imgBottom = imgY + s.h;
     }
-    const GAP_NAME = 32, GAP_TAG = 30, GAP_ROUNDS = 26;
-    nameY   = imgBottom + GAP_NAME;
-    tagY    = nameY     + GAP_TAG;
-    roundsY = tagY      + GAP_ROUNDS;
+    const GAP_NAME = 32;
+    const GAP_TAG  = 30;
+    nameY = imgBottom + GAP_NAME;
+    tagY  = nameY + GAP_TAG;
   }
 
-  // Text
+  // Name
   ctx.textAlign = 'center';
-
   ctx.fillStyle = '#0d1b2a';
   ctx.font = mini ? '700 24px Poppins, sans-serif' : '800 32px Poppins, sans-serif';
   ctx.fillText(name, x, nameY);
 
+  // Placement tag
   if (tag){
     ctx.fillStyle = '#ffb200';
     ctx.font = mini ? '800 20px Poppins, sans-serif' : '800 24px Poppins, sans-serif';
     ctx.fillText(tag, x, tagY);
   }
 
-  if (typeof rounds === 'number'){
-    ctx.fillStyle = '#5a6a8a';
-    ctx.font = mini ? '700 18px Poppins, sans-serif' : '700 20px Poppins, sans-serif';
-    ctx.fillText(`Survived ${rounds} rounds`, x, roundsY);
-  }
+  const startY = tag ? (tagY + (mini ? 24 : 26)) : (nameY + (mini ? 24 : 28));
+  const lineGap = mini ? 22 : 24;
+  ctx.fillStyle = '#5a6a8a';
+  ctx.font = mini ? '700 18px Poppins, sans-serif' : '700 20px Poppins, sans-serif';
+  (lines || []).forEach((ln, i) => {
+    if (!ln) return;
+    ctx.fillText(ln, x, startY + i * lineGap);
+  });
 }
+
 
 async function exportRankingImage(){
   const { champion, runnerUp, thirdPlace, honorable } = computeResults();
@@ -731,7 +1078,7 @@ async function exportRankingImage(){
   ctx.strokeStyle = '#d2deff';
   ctx.strokeRect(8, 8, size - 16, size - 16);
 
-  // Title uses Gen from rankConfig
+  // Title (uses Gen from rankConfig)
   const g = (window.rankConfig?.filters?.generation) || 1;
   const TITLE = `PokéRankr — Gen ${g}`;
   const MODE  = (window.shinyOnly ? 'Shiny-only' : (window.includeShinies ? '+Shinies' : 'No Shinies'));
@@ -761,32 +1108,60 @@ async function exportRankingImage(){
     const top = champY - s.h/2;
     if (top < minTop) champY = minTop + s.h/2;
   }
+
   await drawMon(ctx, {
-    bmp: champBmp, name: displayNameCanvas(champion),
+    bmp: champBmp,
+    name: displayNameCanvas(champion),
     x: size/2, y: champY, maxW: CHAMP_MAX, maxH: CHAMP_MAX,
-    tag: '🏆 Champion', rounds: champion.roundsSurvived || 0
+    tag: '🏆 Champion',
+    lines: [ `Survived ${pluralize(champion.roundsSurvived || 0, "Round", "Rounds")}` ]
   });
+
+  // Helper to build stat lines for bottom cards
+  function buildLinesFor(title, mon) {
+    if (!mon) return [];
+    const survived = `Survived ${pluralize(mon.roundsSurvived || 0, "Round", "Rounds")}`;
+
+    if (title === 'Runner-up') {
+      const wins  = (post?.ruWinsByMon?.[monKey(mon)] || 0);
+      const total = (typeof post?.ruTotal === 'number' ? post.ruTotal : 0);
+      const auto  = (total === 0);
+      return auto ? [survived, 'Auto-advanced']
+                  : [survived, `Won ${pluralize(wins, "Match", "Matches")}`];
+    }
+
+    if (title === 'Third Place') {
+      const wins  = (post?.thirdWinsByMon?.[monKey(mon)] || 0);
+      const total = (typeof post?.thirdTotal === 'number' ? post.thirdTotal : 0);
+      const auto  = (total === 0);
+      return auto ? [survived, 'Auto-advanced']
+                  : [survived, `Won ${pluralize(wins, "Match", "Matches")}`];
+    }
+
+    // Honorable Mention: only survived line
+    return [survived];
+  }
 
   // Bottom row cards
   const rowY = 840;
   const slots = [
-    runnerUp   ? { bmp: ruBmp,    name: displayNameCanvas(runnerUp),   tag: 'Runner-up',   rounds: runnerUp.roundsSurvived   || 0 } : null,
-    thirdPlace ? { bmp: thirdBmp, name: displayNameCanvas(thirdPlace), tag: 'Third Place', rounds: thirdPlace.roundsSurvived || 0 } : null,
-    honorable  ? { bmp: hmBmp,    name: displayNameCanvas(honorable),  tag: 'Hon. Mention',rounds: honorable.roundsSurvived  || 0 } : null,
+    runnerUp   ? { bmp: ruBmp,    mon: runnerUp,   title: 'Runner-up'    } : null,
+    thirdPlace ? { bmp: thirdBmp, mon: thirdPlace, title: 'Third Place'  } : null,
+    honorable  ? { bmp: hmBmp,    mon: honorable,  title: 'Hon. Mention' } : null,
   ].filter(Boolean);
 
-  const total = slots.length;
-  if (total > 0){
+  if (slots.length > 0){
     const spacing = 300;
-    const startX = size/2 - ((total - 1) * spacing)/2;
-    for (let i=0;i<total;i++){
-      const slot = slots[i];
+    const startX = size/2 - ((slots.length - 1) * spacing)/2;
+    for (let i=0;i<slots.length;i++){
+      const sd = slots[i];
       await drawMon(ctx, {
-        bmp: slot.bmp, name: slot.name,
+        bmp: sd.bmp,
+        name: displayNameCanvas(sd.mon),
         x: startX + i*spacing, y: rowY,
         maxW: 200, maxH: 160,
-        tag: slot.tag, mini:true, card:true,
-        rounds: slot.rounds
+        tag: sd.title, mini:true, card:true,
+        lines: buildLinesFor(sd.title, sd.mon)
       });
     }
   }
@@ -806,23 +1181,32 @@ function restart(){ window.location.reload(); }
 
 // Results helper
 function computeResults(finalWinner){
-  const lh = leftHistory || [];
-  const champion   = lh[lh.length - 1] || finalWinner || null;
-  const runnerUp   = lh[lh.length - 2] || null;
-  const thirdPlace = lh[lh.length - 3] || null;
+  const champion = leftHistory[leftHistory.length - 1] || finalWinner || null;
+  if (!champion) return { champion: null, runnerUp: null, thirdPlace: null, honorable: null };
 
-  if (!champion) return { champion:null, runnerUp:null, thirdPlace:null, honorable:null };
+  const runnerUp   = post.runnerUp || null;
+  const thirdPlace = post.third    || null;
 
-  const top3Keys = new Set([key(champion), key(runnerUp), key(thirdPlace)]);
-  const honorable = eliminated
-    .filter(p => !top3Keys.has(key(p)))
-    .sort((a, b) => {
-      const byRounds = (b.roundsSurvived || 0) - (a.roundsSurvived || 0);
-      return byRounds !== 0 ? byRounds : eliminated.lastIndexOf(b) - eliminated.lastIndexOf(a);
-    })[0] || null;
+  const placed = new Set([
+    monKey(champion),
+    runnerUp ? monKey(runnerUp) : null,
+    thirdPlace ? monKey(thirdPlace) : null
+  ].filter(Boolean));
+
+  const hmPool = eliminated.filter(p => !placed.has(monKey(p)));
+  hmPool.sort(seedCmp);
+
+  let honorable = null;
+  if (hmPool.length) {
+    const top = hmPool[0];
+    const topSurvivals = (top?.roundsSurvived || 0);
+    const tiedForTop = hmPool.filter(p => (p.roundsSurvived || 0) === topSurvivals);
+    honorable = (topSurvivals > 0 && tiedForTop.length === 1) ? top : null;
+  }
 
   return { champion, runnerUp, thirdPlace, honorable };
 }
+
 
 // Expose for onclick
 window.pick = pick;
@@ -841,7 +1225,7 @@ function loadRankerSession(s){
     localStorage.setItem('rankConfig', JSON.stringify(window.rankConfig));
   } catch {}
 
-  // Restore state (reuse helper)
+  // Restore state
   restoreState({
     remaining:   s.state?.remaining   || [],
     eliminated:  s.state?.eliminated  || [],
@@ -849,6 +1233,50 @@ function loadRankerSession(s){
     next:        s.state?.next        || null,
     leftHistory: s.state?.leftHistory || [],
   });
+
+  // Restore KOTH trackers
+  if (s.state?.lostTo) {
+    for (const k of Object.keys(lostTo)) delete lostTo[k];
+    Object.assign(lostTo, s.state.lostTo);
+  }
+  if (s.state?.roundIndex) {
+    for (const k of Object.keys(roundIndex)) delete roundIndex[k];
+    Object.assign(roundIndex, s.state.roundIndex);
+  }
+  if (typeof s.state?.roundNum === 'number') roundNum = s.state.roundNum;
+
+  // Restore per-mon bracket wins
+  if (s.state?.bracketWinsByMon) {
+    for (const k of Object.keys(bracketWinsByMon)) delete bracketWinsByMon[k];
+    Object.assign(bracketWinsByMon, s.state.bracketWinsByMon);
+  }
+
+  // Restore post-bracket state
+  postMode = s.state?.postMode || null;
+  if (s.state?.post) {
+    const P = s.state.post;
+    post.phase        = P.phase || null;
+    post.currentRound = Array.isArray(P.currentRound) ? P.currentRound.map(x => ({...x})) : [];
+    post.nextRound    = Array.isArray(P.nextRound)    ? P.nextRound.map(x => ({...x}))    : [];
+    post.index        = typeof P.index === 'number' ? P.index : 0;
+    post.totalMatches = typeof P.totalMatches === 'number' ? P.totalMatches : 0;
+    post.doneMatches  = typeof P.doneMatches  === 'number' ? P.doneMatches  : 0;
+    post.ruWins       = typeof P.ruWins       === 'number' ? P.ruWins       : 0;
+    post.thirdWins    = typeof P.thirdWins    === 'number' ? P.thirdWins    : 0;
+    post.runnerUp     = P.runnerUp ? {...P.runnerUp} : null;
+    post.third        = P.third    ? {...P.third}    : null;
+    post.ruWinsByMon   = P.ruWinsByMon   ? { ...P.ruWinsByMon }   : Object.create(null);
+    post.thirdWinsByMon= P.thirdWinsByMon? { ...P.thirdWinsByMon}: Object.create(null);
+    post.ruTotal       = typeof P.ruTotal === 'number' ? P.ruTotal : 0;
+    post.thirdTotal    = typeof P.thirdTotal === 'number' ? P.thirdTotal : 0;
+  }
+
+  // If resuming mid-post, ensure matchup is displayed
+  if (postMode === 'RU' || postMode === 'THIRD') {
+    displayMatchup();
+    updatePostProgress();
+    if (!next || !current) scheduleNextPostMatch();
+  }
 }
 
 // Auto-resume if index.html set a pending slot for ranker
