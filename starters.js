@@ -594,34 +594,87 @@ function startRunnerUpBracket(finalChampion){
   history = [];
   updateUndoButton();
 
-  postMode = 'RU';
-  post.phase = 'RU';
+  // Mark that we're in the RU bracket (needed by the scheduler/labels)
+postMode = 'RU';
+post.phase = 'RU';
 
-  // reset per-phase wins
-  post.ruWins = 0;
-  post.ruWinsByMon = Object.create(null);
+// reset per-phase wins and maps for RU
+post.ruWins = 0;
+post.ruWinsByMon = Object.create(null);
 
-  const champKey = monKey(finalChampion);
-  // Build the pool: everyone who lost directly to the champion
-  const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
-  const poolRU = lostKeys.map(findByKey).filter(Boolean);
+ const champKey = monKey(finalChampion);
 
-  post.totalMatches = Math.max(0, poolRU.length - 1);
-  post.doneMatches  = 0;
-  post.thirdWins = 0; // keep third counter clean if resuming
+// --- Build base RU pool: everyone who lost directly to the champion
+const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
+let poolRU = lostKeys.map(findByKey).filter(Boolean);
 
-  if (poolRU.length === 0) {
-    post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
-    return startThirdBracket(finalChampion);
+// --- Inject Honorable Mention (highest unique roundsSurvived) if eligible
+// Placed currently = just the champion at this point.
+const placedNow = new Set([champKey]);
+
+// Build an HM candidate exactly like computeResults does:
+//   - exclude placed
+//   - sort by seedCmp (roundsSurvived desc, then later-loss, then name)
+//   - require top to be unique on roundsSurvived and > 0
+const hmPool = eliminated.filter(p => !placedNow.has(monKey(p)));
+hmPool.sort(seedCmp);
+
+let hmCandidate = null;
+if (hmPool.length) {
+  const top = hmPool[0];
+  const topSurvivals = (top?.roundsSurvived || 0);
+  const tiedForTop = hmPool.filter(p => (p.roundsSurvived || 0) === topSurvivals);
+  if (topSurvivals > 0 && tiedForTop.length === 1) {
+    hmCandidate = top;
   }
-  if (poolRU.length === 1) {
-    post.runnerUp = poolRU[0];
-    return startThirdBracket(finalChampion);
-  }
+}
 
-  const seededRU = [...poolRU].sort(seedCmp);
+// If we have a valid HM and it's not already inside RU, add it.
+if (hmCandidate) {
+  const hmKey = monKey(hmCandidate);
+  const inRU = poolRU.some(p => monKey(p) === hmKey);
+  if (!inRU) poolRU.push(hmCandidate);
+}
+
+// --- Proceed as before
+post.totalMatches = Math.max(0, poolRU.length - 1);
+post.doneMatches  = 0;
+post.thirdWins = 0; // keep third counter clean if resuming
+
+if (poolRU.length === 0) {
+  post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
+  return startThirdBracket(finalChampion);
+}
+if (poolRU.length === 1) {
+  post.runnerUp = poolRU[0];
+  return startThirdBracket(finalChampion);
+}
+
+const seededRU = [...poolRU].sort(seedCmp);
   post.nextRound = [];
   post.index = 0;
+
+  // If odd, top seed gets a bye into next round (same as today)
+let round1List = [...seededRU];
+if (round1List.length % 2 === 1) {
+  const bye = round1List.shift();         // highest seed gets bye
+  post.nextRound.push(bye);
+}
+
+// Build 1 vs N, 2 vs N-1, ...
+const pairs = [];
+for (let i = 0, j = round1List.length - 1; i < j; i++, j--) {
+  pairs.push(round1List[i], round1List[j]);
+}
+
+// If we somehow have a leftover (shouldn’t with even count), push it forward.
+if (round1List.length % 2 === 1) {
+  post.nextRound.push(round1List[Math.floor(round1List.length / 2)]);
+  // (But with the bye above, this case won’t happen.)
+}
+
+post.currentRound = pairs;   // now top seed is in the first visible match (or byed)
+
 
   // Top-seed bye for odd count → enters Round 2
   if (seededRU.length % 2 === 1) {
