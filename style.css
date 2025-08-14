@@ -245,6 +245,7 @@ input[type="checkbox"]{
   .compact-card{ width:46%; }
   .compact-card img{ width:120px; }
 }
+
 /* ===== Saved Rankings horizontal bars ===== */
 .saved-row{ padding:12px 14px; text-align:left; }
 .saved-row-header{
@@ -343,4 +344,110 @@ input[type="checkbox"]{
 /* Mobile stacking still works */
 @media (max-width: 720px){
   .saved-row-slots{ flex-direction:column; }
+}
+
+/* ========================================================= */
+/* === MOBILE IMPROVEMENTS (phones only; desktop untouched) === */
+@media (max-width: 640px) {
+
+  /* Global safety: no sideways scroll + fluid media */
+  html, body { overflow-x: hidden; }
+  img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
+
+  /* Body/container breathing room */
+  body { padding: 14px; }
+  .container { padding: 0 6px; }
+
+  /* Title scale + tighter spacing */
+  h1 { 
+    font-size: clamp(22px, 6.3vw, 28px); 
+    line-height: 1.15; 
+    margin: 8px 0 10px;
+    word-break: break-word;
+  }
+  h2 { font-size: clamp(18px, 5vw, 22px); }
+  h3 { font-size: clamp(16px, 4.5vw, 19px); }
+  body, p, li, button, input, select { font-size: clamp(14px, 4vw, 16px); }
+
+  /* Buttons go full width with comfy tap targets */
+  .category-button, .menu-button, button {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+  .button-row, .button-group, .menu-buttons, .category-buttons {
+    gap: 10px;
+    width: 100%;
+  }
+
+  /* Stack the matchup cards; center VS between them */
+  .matchup-container, #matchup {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  #vs-text {
+    display: inline-block;
+    align-self: center;
+    margin: 2px auto;
+    font-size: 1rem;
+    padding: .28rem .6rem;
+  }
+
+  /* Cards scale to viewport, slightly less padding */
+  .pokemon-card { 
+    width: min(92vw, 440px); 
+    padding: 14px 14px 12px; 
+  }
+  .pokemon-card img { 
+    width: min(70vw, 260px); 
+    max-width: 100%; 
+    height: auto; 
+  }
+
+  /* Progress bar fills width */
+  .progress-wrap { width: 100%; margin-left: 0; margin-right: 0; }
+
+  /* Champion/confetti sizing */
+  .champion-img { width: min(75vw, 300px); }
+  .confetti { width: min(85vw, 360px); }
+
+  /* Config sections */
+  .config-section, #extra-options {
+    width: 100%;
+    padding: 12px;
+  }
+  .settings { flex-wrap: wrap; gap: 10px; }
+
+  /* Compact placements: single column on narrow phones */
+  .compact-card { width: 100%; }
+  .compact-card img { width: 120px; margin: 0 auto; }
+
+  /* Saved rankings: vertical stack, auto height */
+  .saved-row { padding: 10px 12px; }
+  .saved-row-slots { flex-direction: column; gap: 10px; }
+  .saved-slot { height: auto; padding: 10px; }
+  .saved-label { top: 6px; left: 10px; font-size: .8rem; }
+  .saved-core { margin-top: 18px; gap: 10px; }
+  .saved-sprite { width: 84px; height: 84px; }
+  .saved-name { font-size: .95rem; }
+  .saved-meta { font-size: .8rem; }
+
+  /* Breathing room under result buttons */
+  .result-container .button-group {
+    margin-top: 14px;
+    margin-bottom: 22px;
+  }
+
+  /* Prevent long names from blowing layout */
+  .saved-name, .saved-meta, .pokemon-card p, .placement-tag, .rounds-text {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+}
+
+/* Slightly wider phones / small tablets */
+@media (max-width: 768px) {
+  .progress-wrap { width: 100%; }
+  .config-section, #extra-options { width: min(700px, 100%); }
 }
