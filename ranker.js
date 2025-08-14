@@ -638,6 +638,18 @@ function startRunnerUpBracket(finalChampion){
     if (!inRU) poolRU.push(hmCandidate);
   }
 
+  // De-duplicate RU pool by monKey to prevent mirror matches
+{
+  const seen = new Set();
+  poolRU = poolRU.filter(p => {
+    const k = monKey(p);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
   // --- Proceed as before
   post.totalMatches = Math.max(0, poolRU.length - 1);
   post.doneMatches  = 0;
