@@ -608,6 +608,18 @@ post.ruWinsByMon = Object.create(null);
 const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
 let poolRU = lostKeys.map(findByKey).filter(Boolean);
 
+// De-duplicate RU pool by monKey to prevent mirror matches
+{
+  const seen = new Set();
+  poolRU = poolRU.filter(p => {
+    const k = monKey(p);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
 // --- Inject Honorable Mention (highest unique roundsSurvived) if eligible
 // Placed currently = just the champion at this point.
 const placedNow = new Set([champKey]);
@@ -634,17 +646,6 @@ if (hmCandidate) {
   const hmKey = monKey(hmCandidate);
   const inRU = poolRU.some(p => monKey(p) === hmKey);
   if (!inRU) poolRU.push(hmCandidate);
-}
-
-// De-duplicate RU pool by monKey to prevent mirror matches
-{
-  const seen = new Set();
-  poolRU = poolRU.filter(p => {
-    const k = monKey(p);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
 }
 
 // --- Proceed as before
@@ -823,6 +824,14 @@ function scheduleNextPostMatch(){
   const i = post.index;
   const a = post.currentRound[i];
   const b = post.currentRound[i + 1];
+
+  // Guard against accidental mirror pair (treat as a bye)
+if (a && b && monKey(a) === monKey(b)) {
+  post.nextRound.push(a);
+  post.index += 2;
+  return scheduleNextPostMatch();
+}
+
 
   if (!b) {
     // Bye -> advance

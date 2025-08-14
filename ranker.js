@@ -610,6 +610,18 @@ function startRunnerUpBracket(finalChampion){
     return eliminated.find(p => monKey(p) === k);
   }).filter(Boolean);
 
+  // De-duplicate RU pool by monKey to prevent mirror matches
+{
+  const seen = new Set();
+  poolRU = poolRU.filter(p => {
+    const k = monKey(p);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
   // --- Inject Honorable Mention (highest unique roundsSurvived > 0), if eligible
   // At this moment, "placed" is only the champion.
   const placedNow = new Set([champKey]);
@@ -637,18 +649,6 @@ function startRunnerUpBracket(finalChampion){
     const inRU = poolRU.some(p => monKey(p) === hmKey);
     if (!inRU) poolRU.push(hmCandidate);
   }
-
-  // De-duplicate RU pool by monKey to prevent mirror matches
-{
-  const seen = new Set();
-  poolRU = poolRU.filter(p => {
-    const k = monKey(p);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
-
 
   // --- Proceed as before
   post.totalMatches = Math.max(0, poolRU.length - 1);
@@ -804,6 +804,14 @@ function scheduleNextPostMatch(){
   const i = post.index;
   const a = post.currentRound[i];
   const b = post.currentRound[i + 1];
+
+  // Guard against accidental mirror pair (treat as a bye)
+if (a && b && monKey(a) === monKey(b)) {
+  post.nextRound.push(a);
+  post.index += 2;
+  return scheduleNextPostMatch();
+}
+
 
   if (!b) {
     // Bye -> advance
