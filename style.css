@@ -344,3 +344,105 @@ input[type="checkbox"]{
 @media (max-width: 720px){
   .saved-row-slots{ flex-direction:column; }
 }
+
+/* === MOBILE IMPROVEMENTS (phones only) === */
+@media (max-width: 640px) {
+
+  /* 1) Global safety: no horizontal scroll, media scales */
+  html, body { overflow-x: hidden; }
+  img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
+
+  /* 2) Body & container breathing room */
+  body { padding: 14px; }
+  .container { padding: 0 6px; }
+
+  /* 3) Type scale: slightly smaller on phones, responsive caps */
+  h1 { font-size: clamp(20px, 6.5vw, 26px); line-height: 1.2; }
+  h2 { font-size: clamp(18px, 5vw, 22px); }
+  h3 { font-size: clamp(16px, 4.5vw, 19px); }
+  body, p, li, button, input, select { font-size: clamp(14px, 4vw, 16px); }
+
+  /* 4) Buttons: full width, bigger tap area, nice stacking */
+  .category-button, .menu-button, button {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+  .button-row, .button-group, .menu-buttons, .category-buttons {
+    gap: 10px;
+    width: 100%;
+  }
+
+  /* 5) Layout: stack rows that are side-by-side on desktop */
+  .matchup-container, #matchup,
+  .row, .flex {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  /* 6) Cards & images */
+  .pokemon-card { padding: 14px; }
+  .pokemon-card img { width: min(70vw, 220px); max-width: 100%; }
+
+  /* 7) VS pill a little smaller to fit */
+  #vs-text { font-size: 1.1rem; padding: .3rem .65rem; }
+
+  /* 8) Progress bar fits screen width */
+  .progress-wrap { width: 100%; margin-left: 0; margin-right: 0; }
+
+  /* 9) Champion image & confetti scale */
+  .champion-img { width: min(75vw, 300px); }
+  .confetti { width: min(85vw, 360px); }
+
+  /* 10) Config sections narrower padding */
+  .config-section, #extra-options {
+    width: 100%;
+    padding: 12px;
+  }
+  .settings { flex-wrap: wrap; gap: 10px; }
+
+  /* 11) Compact placements: 2-up → 1-up if tight */
+  .compact-card { width: 100%; }
+  .compact-card img { width: 120px; margin: 0 auto; }
+
+  /* 12) Saved rankings: stack slots vertically, reduce heights */
+  .saved-row { padding: 10px 12px; }
+  .saved-row-slots {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .saved-slot {
+    height: auto;           /* let height grow with content */
+    padding: 10px 10px 10px 10px;
+  }
+  .saved-label {
+    top: 6px; left: 10px; font-size: .8rem;
+  }
+  .saved-core {
+    margin-top: 18px;       /* ensure label doesn't collide */
+    gap: 10px;
+  }
+  .saved-sprite {
+    width: 84px; height: 84px;
+  }
+  .saved-name { font-size: .95rem; }
+  .saved-meta { font-size: .8rem; }
+
+  /* 13) Footer/button rows under results: extra breathing room */
+  .result-container .button-group {
+    margin-top: 14px;
+    margin-bottom: 22px;
+  }
+
+  /* 14) Prevent long names from blowing layout */
+  .saved-name, .saved-meta, .pokemon-card p, .placement-tag, .rounds-text {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+}
+
+/* Optional: slightly wider phones (small tablets) */
+@media (max-width: 768px) {
+  .progress-wrap { width: 100%; }
+  .config-section, #extra-options { width: min(700px, 100%); }
+}
