@@ -55,6 +55,13 @@ function shuffle(a) {
 }
 const monKey = (p) => p ? `${p.id}-${p.shiny ? 1 : 0}` : "";
 
+// Keep scroll position stable across DOM updates (iOS Safari safe)
+function withScrollLock(run) {
+  const y = window.scrollY;
+  run();
+  // restore on next frame so Safari doesn't animate
+  requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'instant' }));
+}
 
 // ===== Save Slot layer (Starters only for now) =====
 const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
@@ -576,9 +583,11 @@ function pick(side) {
   next = remaining.pop();
   next.roundsSurvived = 0;
 
+ withScrollLock(() => {
   displayMatchup();
   updateProgress();
   updateUndoButton();
+});
 }
 
 function startRunnerUpBracket(finalChampion){

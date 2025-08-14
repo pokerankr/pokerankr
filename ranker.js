@@ -184,6 +184,14 @@ function pluralize(n, singular, plural) {
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
+// Keep scroll position stable across DOM updates (iOS Safari safe)
+function withScrollLock(run) {
+  const y = window.scrollY;
+  run();
+  // restore on next frame so Safari doesn't animate
+  requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'instant' }));
+}
+
 // monKey alias for compatibility with starters.js snippets
 const monKey = (p) => key(p);
 
@@ -575,9 +583,11 @@ function pick(side){
   next = remaining.pop();
   next.roundsSurvived = 0;
 
+withScrollLock(() => {
   displayMatchup();
   updateProgress();
   updateUndoButton();
+});
 }
 
 function startRunnerUpBracket(finalChampion){
