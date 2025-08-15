@@ -21,8 +21,63 @@
   titleEl.textContent = label + (window.shinyOnly ? " • Shiny-only" : window.includeShinies ? " • +Shinies" : " • No Shinies");
 })();
 
+// ----- Regional form name suffixes used by PokeAPI "pokemon" endpoint
+const FORM_VARIETY_SUFFIX = {
+  hisui:  '-hisui',
+  galar:  '-galar',
+  alola:  '-alola',
+};
+
+
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
+  // ----- Regional/alt-form → generation overrides (forms that belong to a later gen)
+  // Only include forms whose *base dex ID* is from an earlier gen, but the form debuted later.
+  // Display names are what you want to show in the UI/export; IDs stay the same.
+  const FORM_GEN_OVERRIDES = [
+    // Hisui (Gen 8)
+    { id: 58,   name: "Hisuian Growlithe", gen: 8 },
+    { id: 59,   name: "Hisuian Arcanine",  gen: 8 },
+    { id: 215,  name: "Hisuian Sneasel",   gen: 8 },
+    { id: 503,  name: "Hisuian Samurott",  gen: 8 },
+    { id: 549,  name: "Hisuian Lilligant", gen: 8 },
+    { id: 571,  name: "Hisuian Zoroark",   gen: 8 },
+    { id: 628,  name: "Hisuian Braviary",  gen: 8 },
+    { id: 705,  name: "Hisuian Sliggoo",   gen: 8 },
+    { id: 706,  name: "Hisuian Goodra",    gen: 8 },
+    { id: 713,  name: "Hisuian Avalugg",   gen: 8 },
+    { id: 724,  name: "Hisuian Decidueye", gen: 8 },
+
+    // Alola (Gen 7) – examples
+    { id: 19,   name: "Alolan Rattata",    gen: 7 },
+    { id: 20,   name: "Alolan Raticate",   gen: 7 },
+    { id: 26,   name: "Alolan Raichu",     gen: 7 },
+    { id: 27,   name: "Alolan Sandshrew",  gen: 7 },
+    { id: 28,   name: "Alolan Sandslash",  gen: 7 },
+    { id: 37,   name: "Alolan Vulpix",     gen: 7 },
+    { id: 38,   name: "Alolan Ninetales",  gen: 7 },
+
+    // Galar (Gen 8) – examples
+    { id: 52,   name: "Galarian Meowth",   gen: 8 },
+    { id: 77,   name: "Galarian Ponyta",   gen: 8 },
+    { id: 78,   name: "Galarian Rapidash", gen: 8 },
+    { id: 79,   name: "Galarian Slowpoke", gen: 8 },
+    { id: 80,   name: "Galarian Slowbro",  gen: 8 },
+    { id: 110,  name: "Galarian Weezing",  gen: 8 },
+    { id: 122,  name: "Galarian Mr. Mime", gen: 8 },
+    { id: 144,  name: "Galarian Articuno", gen: 8 },
+    { id: 145,  name: "Galarian Zapdos",  gen: 8 },
+    { id: 146,  name: "Galarian Moltres", gen: 8 },
+  ];
+
+  // helper: build entries honoring shinyOnly/includeShinies flags
+  function entriesFor(id, name) {
+    const base = { id, name: name || null };
+    if (window.shinyOnly) return [{ ...base, shiny: true }];
+    if (window.includeShinies) return [{ ...base, shiny: false }, { ...base, shiny: true }];
+    return [{ ...base, shiny: false }];
+  }
+
   const ranges = {
     1:[1,151],
     2:[152,251],
@@ -37,12 +92,16 @@ function buildGenPool(gen){
   const [start, end] = ranges[gen] || [];
   if (!start) return [];
 
+  // Base pool by national dex range
   const ids = Array.from({length: end - start + 1}, (_,i)=> start + i);
-  const mk = (id, shiny)=> ({ id, name: null, shiny });
+  let pool = [];
+  ids.forEach(id => { pool.push(...entriesFor(id, null)); });
 
-  if (window.shinyOnly)         return ids.map(id => mk(id, true));
-  if (window.includeShinies)    return [...ids.map(id => mk(id,false)), ...ids.map(id => mk(id,true))];
-  return ids.map(id => mk(id,false));
+  // Add regional/alt-forms that *belong* to this generation (same ID, custom name)
+  const formsForGen = FORM_GEN_OVERRIDES.filter(f => f.gen === gen);
+  formsForGen.forEach(f => { pool.push(...entriesFor(f.id, f.name)); });
+
+  return pool;
 }
 
 // ----- Choose pool from config
@@ -103,15 +162,6 @@ function spriteUrl(id, shiny){
     : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
 }
 
-// ----- Image helper (UI)
-function getImageTag(id, shiny=false, alt=""){
-  const primary  = spriteUrl(id, shiny);
-  const fallback = shiny
-    ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/shiny/${id}.png`
-    : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
-  return `<img src="${primary}" alt="${alt}" onerror="this.onerror=null;this.src='${fallback}'">`;
-}
-
 // ----- Name cache (localStorage) + helpers
 const NAME_CACHE_KEY = "dexNames";
 const nameCache = (() => {
@@ -122,6 +172,16 @@ function saveNameCache(){
   try { localStorage.setItem(NAME_CACHE_KEY, JSON.stringify(nameCache)); } catch {}
 }
 function titleize(s){ return (s||"").split("-").map(w=>w? w[0].toUpperCase()+w.slice(1):w).join("-"); }
+
+// Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
+const ART_ID_CACHE_KEY = "artIdCache";
+const artIdCache = (() => {
+  try { return JSON.parse(localStorage.getItem(ART_ID_CACHE_KEY) || "{}"); }
+  catch { return {}; }
+})();
+function saveArtIdCache(){
+  try { localStorage.setItem(ART_ID_CACHE_KEY, JSON.stringify(artIdCache)); } catch {}
+}
 
 // UI display name (uses p.name, then cache, else #NNN)
 function displayName(p){
@@ -169,6 +229,151 @@ function updateLabelsIfVisible(id){
   if (rightP && rightP.dataset.id == id && next)    rightP.textContent = displayName(next);
 }
 
+/* ---------- Form-aware sprite helpers (official-artwork only, numeric-ID aware) ---------- */
+
+// Slugify a display name like "Mr. Mime" -> "mr-mime"
+function slugifyBaseName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')   // non-alnum -> dash
+    .replace(/^-+|-+$/g, '');      // trim dashes
+}
+
+// Detect a regional form from a display name like "Hisuian Growlithe" or "Galarian Weezing"
+function parseFormFromName(name) {
+  const n = String(name || '');
+  if (/^\s*hisuian\s+/i.test(n)) return 'hisui';
+  if (/^\s*galarian\s+/i.test(n)) return 'galar';
+  if (/^\s*alolan?\s+/i.test(n))  return 'alola';
+  return null;
+}
+
+// Build a best-guess "variety" slug for PokeAPI official-artwork URLs, e.g. "growlithe-hisui"
+function varietySlugFromMon(p) {
+  const display = p?.name || nameCache[p?.id];
+  if (!display) return null;
+
+  const form = parseFormFromName(display);
+  if (!form) return null;
+
+  // Strip the leading form word to get the base species (e.g. "Growlithe")
+  const base = display.replace(/^\s*(Hisuian|Galarian|Alolan?)\s+/i, '');
+  const baseSlug = slugifyBaseName(base);
+
+  const suffix = FORM_VARIETY_SUFFIX[form] || '';
+  if (!baseSlug || !suffix) return null;
+
+  return `${baseSlug}${suffix}`;
+}
+
+// Resolve numeric artwork id for a variety slug via PokeAPI /pokemon/{slug}, cache it, then refresh any matching <img>s.
+async function ensureArtworkIdForVariety(varietySlug){
+  if (!varietySlug || artIdCache[varietySlug]) return artIdCache[varietySlug];
+
+  try {
+    const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${varietySlug}`, { cache: 'force-cache' });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const id = data?.id;
+    if (typeof id === 'number' && id > 0) {
+      artIdCache[varietySlug] = id;
+      saveArtIdCache();
+
+      // Update any imgs already on the page that were waiting on this id
+      const nodes = document.querySelectorAll(`img[data-variety="${varietySlug}"]`);
+      nodes.forEach(img => {
+        const shiny = img.dataset.shiny === '1';
+        const chain = buildOfficialChainFromId(id, shiny);
+        if (chain.length && img.src !== chain[0]) {
+          img.dataset.step = "0";
+          img.src = chain[0];
+          img.dataset.fallbacks = JSON.stringify(chain.slice(1));
+        }
+      });
+      return id;
+    }
+  } catch {}
+  return null;
+}
+
+// Helper: construct official-artwork fallback chain from a numeric id
+function buildOfficialChainFromId(numId, shiny){
+  const idShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${numId}.png`;
+  const idNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${numId}.png`;
+  return shiny ? [idShiny, idNorm] : [idNorm];
+}
+
+// Return official-artwork URL for a form if we can, else official-artwork by base ID (string URL only, used in previews)
+function spriteUrlForMon(p, shiny) {
+  const variety = varietySlugFromMon(p);
+  if (variety) {
+    const artId = artIdCache[variety];
+    if (artId) {
+      return shiny
+        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${artId}.png`
+        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${artId}.png`;
+    }
+    // try slug first; kick off async resolve
+    ensureArtworkIdForVariety(variety);
+    return shiny
+      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`
+      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`;
+  }
+  // Fall back to base species official-artwork by ID
+  return spriteUrl(p.id, shiny);
+}
+
+// OFFICIAL-ARTWORK ONLY fallback chain with numeric-ID preference:
+// variety (numeric cached) -> variety (slug) -> base (id)
+// For shiny: try shiny first, then non-shiny of the SAME target.
+function getImageTag(monOrId, shiny = false, alt = "") {
+  const p = (typeof monOrId === 'object' && monOrId)
+    ? monOrId
+    : { id: monOrId, shiny, name: nameCache[monOrId] };
+
+  const wantShiny = !!(p.shiny ?? shiny);
+  const variety = varietySlugFromMon(p);
+
+  let chain = [];
+
+  if (variety) {
+    const artId = artIdCache[variety] || null;
+    if (artId) {
+      chain.push(...buildOfficialChainFromId(artId, wantShiny));
+    } else {
+      // Try slug; also prefetch numeric id for next time / live swap
+      const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`;
+      const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`;
+      chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
+      ensureArtworkIdForVariety(variety);
+    }
+  }
+
+  // Last resort: base species by numeric id (still official-artwork)
+  const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
+  const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+  chain.push(...(wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm]));
+
+  const first = chain[0];
+  const safeAlt = alt || (p.name || nameCache[p.id] || `#${String(p.id).padStart(3,'0')}`);
+
+  return `<img
+    src="${first}"
+    alt="${safeAlt}"
+    data-variety="${variety || ''}"
+    data-shiny="${wantShiny ? '1' : '0'}"
+    data-fallbacks='${JSON.stringify(chain.slice(1))}'
+    onerror="
+      try {
+        const steps = JSON.parse(this.dataset.fallbacks||'[]');
+        const i = parseInt(this.dataset.step||'0',10);
+        if (i < steps.length) { this.dataset.step = String(i+1); this.src = steps[i]; }
+        else { this.onerror=null; }
+      } catch(e) { this.onerror=null; }
+    ">`;
+}
+
+
 // ----- Utils
 function shuffle(a){
   for (let i=a.length-1;i>0;i--){
@@ -188,7 +393,6 @@ function pluralize(n, singular, plural) {
 function withScrollLock(run) {
   const y = window.scrollY;
   run();
-  // restore on next frame so Safari doesn't animate
   requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: 'instant' }));
 }
 
@@ -573,8 +777,8 @@ function displayMatchup(){
     return;
   }
 
-  leftEl.innerHTML  = `${getImageTag(current.id, current.shiny)}${labelHTML(current)}`;
-  rightEl.innerHTML = `${getImageTag(next.id,    next.shiny)}${labelHTML(next)}`;
+  leftEl.innerHTML  = `${getImageTag(current)}${labelHTML(current)}`;
+  rightEl.innerHTML = `${getImageTag(next)}${labelHTML(next)}`;
 
   // kick off lazy name fetches (non-blocking)
   ensureName(current.id);
@@ -654,11 +858,11 @@ function pick(side){
   next = remaining.pop();
   next.roundsSurvived = 0;
 
-withScrollLock(() => {
-  displayMatchup();
-  updateProgress();
-  updateUndoButton();
-});
+  withScrollLock(() => {
+    displayMatchup();
+    updateProgress();
+    updateUndoButton();
+  });
 }
 
 function startRunnerUpBracket(finalChampion){
@@ -675,37 +879,29 @@ function startRunnerUpBracket(finalChampion){
   post.lastSnap = null;  // single-step undo starts clean for RU
   updateUndoButton();
 
-    const champKey = monKey(finalChampion);
+  const champKey = monKey(finalChampion);
 
   // --- Build base RU pool: everyone who lost directly to the champion
   const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
   let poolRU = lostKeys.map(k => {
-    // try to find the actual mon object from current/next/eliminated
     if (current && monKey(current) === k) return current;
     if (next && monKey(next) === k) return next;
     return eliminated.find(p => monKey(p) === k);
   }).filter(Boolean);
 
   // De-duplicate RU pool by monKey to prevent mirror matches
-{
-  const seen = new Set();
-  poolRU = poolRU.filter(p => {
-    const k = monKey(p);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
-
+  {
+    const seen = new Set();
+    poolRU = poolRU.filter(p => {
+      const k = monKey(p);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
 
   // --- Inject Honorable Mention (highest unique roundsSurvived > 0), if eligible
-  // At this moment, "placed" is only the champion.
   const placedNow = new Set([champKey]);
-
-  // Build HM candidate like computeResults:
-  //  - exclude placed
-  //  - sort by seedCmp (roundsSurvived desc, later loss later, then name)
-  //  - require unique top on roundsSurvived and > 0
   const hmPool = eliminated.filter(p => !placedNow.has(monKey(p)));
   hmPool.sort(seedCmp);
 
@@ -718,8 +914,6 @@ function startRunnerUpBracket(finalChampion){
       hmCandidate = top;
     }
   }
-
-  // If we have a valid HM and it's not already in RU, add it.
   if (hmCandidate) {
     const hmKey = monKey(hmCandidate);
     const inRU = poolRU.some(p => monKey(p) === hmKey);
@@ -745,31 +939,26 @@ function startRunnerUpBracket(finalChampion){
   post.index = 0;
 
   // If odd, top seed gets a bye into next round (same as today)
-let round1List = [...seededRU];
-if (round1List.length % 2 === 1) {
-  const bye = round1List.shift();         // highest seed gets bye
-  post.nextRound.push(bye);
-}
+  let round1List = [...seededRU];
+  if (round1List.length % 2 === 1) {
+    const bye = round1List.shift();         // highest seed gets bye
+    post.nextRound.push(bye);
+  }
 
-// Build 1 vs N, 2 vs N-1, ...
-const pairs = [];
-for (let i = 0, j = round1List.length - 1; i < j; i++, j--) {
-  pairs.push(round1List[i], round1List[j]);
-}
-
-// If we somehow have a leftover (shouldn’t with even count), push it forward.
-if (round1List.length % 2 === 1) {
-  post.nextRound.push(round1List[Math.floor(round1List.length / 2)]);
-  // (But with the bye above, this case won’t happen.)
-}
-
-post.currentRound = pairs;   // now top seed is in the first visible match (or byed)
+  // Build 1 vs N, 2 vs N-1, ...
+  const pairs = [];
+  for (let i = 0, j = round1List.length - 1; i < j; i++, j--) {
+    pairs.push(round1List[i], round1List[j]);
+  }
+  if (round1List.length % 2 === 1) {
+    post.nextRound.push(round1List[Math.floor(round1List.length / 2)]);
+  }
+  post.currentRound = pairs;
 
   if (seededRU.length % 2 === 1) {
     const bye = seededRU.shift();   // highest seed
     post.nextRound.push(bye);       // pre-seed into next round
   }
-
   post.currentRound = seededRU;
 
   post.ruR1Pairs.clear();
@@ -851,17 +1040,17 @@ function scheduleNextPostMatch(){
   // Finish a round -> roll into next or finish bracket
   while (post.index >= post.currentRound.length) {
     if (post.nextRound.length <= 1) {
-  const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
-  if (post.phase === 'RU') {
-    post.runnerUp = bracketWinner;
-
-    return startThirdBracket(leftHistory[leftHistory.length - 1]);
-  } else {
-    post.third = bracketWinner;
-    return finishToResults(leftHistory[leftHistory.length - 1]);
-  }
-}
-
+      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+      if (post.phase === 'RU') {
+        post.runnerUp = bracketWinner;
+        // Save RU final state so a single Undo in Third returns here
+        postSaveLastSnapshot();
+        return startThirdBracket(leftHistory[leftHistory.length - 1]);
+      } else {
+        post.third = bracketWinner;
+        return finishToResults(leftHistory[leftHistory.length - 1]);
+      }
+    }
 
     // Re-seed each round
     let seededNext = (post.phase === 'THIRD')
@@ -886,12 +1075,11 @@ function scheduleNextPostMatch(){
   const b = post.currentRound[i + 1];
 
   // Guard against accidental mirror pair (treat as a bye)
-if (a && b && monKey(a) === monKey(b)) {
-  post.nextRound.push(a);
-  post.index += 2;
-  return scheduleNextPostMatch();
-}
-
+  if (a && b && monKey(a) === monKey(b)) {
+    post.nextRound.push(a);
+    post.index += 2;
+    return scheduleNextPostMatch();
+  }
 
   if (!b) {
     // Bye -> advance
@@ -909,7 +1097,7 @@ if (a && b && monKey(a) === monKey(b)) {
 
 function handlePostPick(side){
   const winner = (side === 'left') ? current : next;
-    // Save snapshot BEFORE mutation so Undo rolls back one step
+  // Save snapshot BEFORE mutation so Undo rolls back one step
   if (post.phase === 'RU' || post.phase === 'THIRD') {
     postSaveLastSnapshot();
   }
@@ -983,7 +1171,7 @@ function showWinner(finalWinner){
 
       return `
         <div class="pokemon-card compact-card">
-          ${getImageTag(p.id, p.shiny)}
+          ${getImageTag(p)}
           <p>${displayName(p)}</p>
           ${survivedLine}
           ${total === 0 ? `<p class="rounds-text">Auto-advanced</p>` : winsLine}
@@ -995,7 +1183,7 @@ function showWinner(finalWinner){
     // Honorable: keep alignment with hidden placeholder line
     return `
       <div class="pokemon-card compact-card">
-        ${getImageTag(p.id, p.shiny)}
+        ${getImageTag(p)}
         <p>${displayName(p)}</p>
         ${survivedLine}
         <p class="rounds-text" style="visibility:hidden;">placeholder</p>
@@ -1010,7 +1198,7 @@ function showWinner(finalWinner){
     <h2>Your Favorite (Gen ${g}) is:</h2>
     <div class="champion-card">
       <div class="champion-image-wrapper">
-        ${getImageTag(champion.id, champion.shiny).replace('<img ', '<img class="champion-img" ')}
+        ${getImageTag(champion).replace('<img ', '<img class="champion-img" ')}
         <img src="confetti.gif" class="confetti" alt="Confetti">
       </div>
       <h3>${displayName(champion)}</h3>
@@ -1103,18 +1291,53 @@ function displayNameCanvas(p){
   return (p.shiny ? '⭐ ' : '') + name;
 }
 
-// Sprite URLs
-function spriteUrls(id, shiny){
-  const baseOA   = spriteUrl(id, shiny);
-  const baseHome = shiny
-    ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/shiny/${id}.png`
-    : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png`;
-  return [baseOA, baseHome];
+// Sprite URLs (OFFICIAL-ARTWORK ONLY, prefer numeric variety ids if cached)
+function spriteUrls(pOrId, shiny) {
+  const p = (typeof pOrId === 'object' && pOrId) ? pOrId : { id: pOrId, shiny, name: nameCache[pOrId] };
+  const wantShiny = !!(p.shiny ?? shiny);
+  const variety = varietySlugFromMon(p);
+
+  const urls = [];
+
+  if (variety) {
+    const artId = artIdCache[variety] || null;
+    if (artId) {
+      const arr = buildOfficialChainFromId(artId, wantShiny);
+      urls.push(...arr);
+    } else {
+      // Try slug first; queue resolve for next export
+      if (wantShiny) {
+        urls.push(
+          `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`,
+          `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`
+        );
+      } else {
+        urls.push(
+          `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`
+        );
+      }
+      ensureArtworkIdForVariety(variety); // async, improves subsequent runs
+    }
+  }
+
+  // Base species numeric id (last resort)
+  if (wantShiny) {
+    urls.push(
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`,
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`
+    );
+  } else {
+    urls.push(
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`
+    );
+  }
+
+  return urls;
 }
 
 // Fetch → ImageBitmap (prevents canvas taint)
 async function loadSpriteBitmap(p){
-  const urls = spriteUrls(p.id, !!p.shiny);
+  const urls = spriteUrls(p, !!p.shiny);
   for (const url of urls){
     try {
       const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
@@ -1400,7 +1623,7 @@ function loadRankerSession(s){
     leftHistory: s.state?.leftHistory || [],
   });
 
-  // Restore KOTH trackers
+ // Restore KOTH trackers
   if (s.state?.lostTo) {
     for (const k of Object.keys(lostTo)) delete lostTo[k];
     Object.assign(lostTo, s.state.lostTo);
