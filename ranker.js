@@ -224,6 +224,48 @@ const post = {
   ruTotal: 0,
   thirdTotal: 0,
 };
+// --- Single-step undo for post-phase (RU/THIRD) ---
+function postSaveLastSnapshot() {
+  post.lastSnap = {
+    phase: post.phase,
+    currentRound: [...post.currentRound],
+    nextRound:    [...post.nextRound],
+    index:        post.index,
+    totalMatches: post.totalMatches,
+    doneMatches:  post.doneMatches,
+    ruWins:       post.ruWins,
+    ruWinsByMon:  { ...(post.ruWinsByMon || {}) },
+    thirdWins:    post.thirdWins,
+    thirdWinsByMon:{ ...(post.thirdWinsByMon || {}) },
+    runnerUp:     post.runnerUp ? { ...post.runnerUp } : null,
+    third:        post.third ? { ...post.third } : null,
+  };
+  updateUndoButton?.();
+}
+
+function postRestoreLastSnapshot() {
+  const s = post.lastSnap;
+  if (!s) return;
+
+  post.phase        = s.phase;
+  post.currentRound = s.currentRound;
+  post.nextRound    = s.nextRound;
+  post.index        = s.index;
+  post.totalMatches = s.totalMatches;
+  post.doneMatches  = s.doneMatches;
+  post.ruWins       = s.ruWins;
+  post.ruWinsByMon  = s.ruWinsByMon || {};
+  post.thirdWins    = s.thirdWins;
+  post.thirdWinsByMon = s.thirdWinsByMon || {};
+  post.runnerUp     = s.runnerUp;
+  post.third        = s.third;
+
+  post.lastSnap = null;        // single-step: consume it
+  updateUndoButton?.();
+
+  // Re-render the current post-phase matchup
+  scheduleNextPostMatch();
+}
 
 // Seeding comparator: higher survivals, then later loss, then name
 function seedCmp(a, b) {
@@ -299,17 +341,46 @@ function restoreState(s){
   updateProgress();
   updateUndoButton();
 }
-function updateUndoButton(){
+function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
-  if (btn) btn.disabled = (history.length === 0) || !!postMode;
+  if (!btn) return;
+
+  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+  if (inPost) {
+    // Enable if we can undo within post-phase OR jump back across the boundary
+    btn.disabled = !(post.lastSnap || history.length > 0);
+  } else {
+    btn.disabled = history.length === 0; // normal KOTH history
+  }
 }
-function undoLast(){
-  if (!history.length) return;
+
+function undoLast() {
+  // Post-phase undo
+  if (post.phase === 'RU' || post.phase === 'THIRD') {
+    if (post.lastSnap) {
+      // Step back within the post-phase (RU↩ or THIRD↩)
+      postRestoreLastSnapshot();
+      return;
+    }
+    // No post snapshot yet → jump back across the boundary to KOTH
+    if (history.length > 0) {
+      postMode = null;
+      post.phase = null;
+      const prev = history.pop();   // last KOTH snapshot
+      restoreState(prev);           // re-renders KOTH matchup + progress
+      updateUndoButton();
+    }
+    return;
+  }
+
+  // KOTH undo (unchanged single-step)
+  if (history.length === 0) return;
   const prev = history.pop();
   restoreState(prev);
-  history = []; // single-level undo
+  history = [];
   updateUndoButton();
 }
+
 
 // ----- Save & Exit (serializer + modal)
 function serializeRankerSession(){
@@ -591,13 +662,18 @@ withScrollLock(() => {
 }
 
 function startRunnerUpBracket(finalChampion){
-  history = [];
+  // Keep KOTH history so Undo can return across the boundary
   updateUndoButton();
 
+  // Enter RU bracket
   postMode = 'RU';
   post.phase = 'RU';
+
+  // reset per-phase wins and maps for RU
   post.ruWins = 0;
   post.ruWinsByMon = Object.create(null);
+  post.lastSnap = null;  // single-step undo starts clean for RU
+  updateUndoButton();
 
     const champKey = monKey(finalChampion);
 
@@ -712,6 +788,8 @@ function startThirdBracket(finalChampion){
   post.phase = 'THIRD';
   post.thirdWins = 0;
   post.thirdWinsByMon = Object.create(null);
+  // Do NOT clear post.lastSnap — it holds the RU→Third boundary snapshot
+  updateUndoButton();
 
   const champKey = monKey(finalChampion);
   const ruKey = post.runnerUp ? monKey(post.runnerUp) : null;
@@ -773,15 +851,17 @@ function scheduleNextPostMatch(){
   // Finish a round -> roll into next or finish bracket
   while (post.index >= post.currentRound.length) {
     if (post.nextRound.length <= 1) {
-      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
-      if (post.phase === 'RU') {
-        post.runnerUp = bracketWinner;
-        return startThirdBracket(leftHistory[leftHistory.length - 1]);
-      } else {
-        post.third = bracketWinner;
-        return finishToResults(leftHistory[leftHistory.length - 1]);
-      }
-    }
+  const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+  if (post.phase === 'RU') {
+    post.runnerUp = bracketWinner;
+
+    return startThirdBracket(leftHistory[leftHistory.length - 1]);
+  } else {
+    post.third = bracketWinner;
+    return finishToResults(leftHistory[leftHistory.length - 1]);
+  }
+}
+
 
     // Re-seed each round
     let seededNext = (post.phase === 'THIRD')
@@ -829,6 +909,10 @@ if (a && b && monKey(a) === monKey(b)) {
 
 function handlePostPick(side){
   const winner = (side === 'left') ? current : next;
+    // Save snapshot BEFORE mutation so Undo rolls back one step
+  if (post.phase === 'RU' || post.phase === 'THIRD') {
+    postSaveLastSnapshot();
+  }
 
   // Count bracket win for the actual mon (RU or THIRD only)
   const wKey = monKey(winner);

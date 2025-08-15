@@ -440,6 +440,50 @@ const post = {
   thirdWinsByMon: Object.create(null),  // monKey -> wins in THIRD bracket
 };
 
+// --- Single-step undo for post-phase (RU/THIRD) ---
+function postSaveLastSnapshot() {
+  post.lastSnap = {
+    phase: post.phase,
+    currentRound: [...post.currentRound],
+    nextRound:    [...post.nextRound],
+    index:        post.index,
+    totalMatches: post.totalMatches,
+    doneMatches:  post.doneMatches,
+    ruWins:       post.ruWins,
+    ruWinsByMon:  { ...(post.ruWinsByMon || {}) },
+    thirdWins:    post.thirdWins,
+    thirdWinsByMon:{ ...(post.thirdWinsByMon || {}) },
+    runnerUp:     post.runnerUp ? { ...post.runnerUp } : null,
+    third:        post.third ? { ...post.third } : null,
+  };
+  updateUndoButton?.();
+}
+
+function postRestoreLastSnapshot() {
+  const s = post.lastSnap;
+  if (!s) return;
+
+  post.phase        = s.phase;
+  post.currentRound = s.currentRound;
+  post.nextRound    = s.nextRound;
+  post.index        = s.index;
+  post.totalMatches = s.totalMatches;
+  post.doneMatches  = s.doneMatches;
+  post.ruWins       = s.ruWins;
+  post.ruWinsByMon  = s.ruWinsByMon || {};
+  post.thirdWins    = s.thirdWins;
+  post.thirdWinsByMon = s.thirdWinsByMon || {};
+  post.runnerUp     = s.runnerUp;
+  post.third        = s.third;
+
+  post.lastSnap = null;        // single-step: consume it
+  updateUndoButton?.();
+
+  // Re-render the current post-phase matchup
+  scheduleNextPostMatch();
+}
+
+
 // Seeding comparator: higher survivals, then later loss
 function seedCmp(a, b) {
   const sA = a?.roundsSurvived || 0, sB = b?.roundsSurvived || 0;
@@ -497,15 +541,46 @@ function restoreState(s) {
 }
 function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
-  if (btn) btn.disabled = history.length === 0 || !!postMode;
+  if (!btn) return;
+
+  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+  if (inPost) {
+    // Enable if we can undo within post-phase OR jump back across the boundary
+    btn.disabled = !(post.lastSnap || history.length > 0);
+  } else {
+    btn.disabled = history.length === 0; // normal KOTH history
+  }
 }
+
+
+
 function undoLast() {
-  if (history.length === 0 || postMode) return;
+  // Post-phase undo
+  if (post.phase === 'RU' || post.phase === 'THIRD') {
+    if (post.lastSnap) {
+      // Step back within post-phase (Third → RU, or RU → previous RU pick)
+      postRestoreLastSnapshot();
+      return;
+    }
+    // No post snapshot yet → jump back across the boundary (Third→RU or RU→KOTH)
+    if (history.length > 0) {
+      postMode = null;
+      post.phase = null;
+      const prev = history.pop();   // last KOTH snapshot
+      restoreState(prev);           // re-render KOTH matchup + progress
+      updateUndoButton();
+    }
+    return;
+  }
+
+  // KOTH undo (unchanged)
+  if (history.length === 0) return;
   const prev = history.pop();
   restoreState(prev);
   history = [];
   updateUndoButton();
 }
+
 
 // ----- Rendering (in-game)
 function displayMatchup() {
@@ -591,8 +666,8 @@ function pick(side) {
 }
 
 function startRunnerUpBracket(finalChampion){
-  history = [];
-  updateUndoButton();
+ // Keep KOTH history so Undo can return across the boundary
+updateUndoButton();
 
   // Mark that we're in the RU bracket (needed by the scheduler/labels)
 postMode = 'RU';
@@ -601,6 +676,9 @@ post.phase = 'RU';
 // reset per-phase wins and maps for RU
 post.ruWins = 0;
 post.ruWinsByMon = Object.create(null);
+post.lastSnap = null;  // single-step undo starts clean for RU
+updateUndoButton();
+
 
  const champKey = monKey(finalChampion);
 
@@ -731,7 +809,10 @@ function buildPairsAvoidingRematch(sortedArr, avoidSet) {
 
 function startThirdBracket(finalChampion){
   postMode = 'THIRD';
-  post.phase = 'THIRD';
+post.phase = 'THIRD';
+// Do NOT clear post.lastSnap here — it holds the RU→Third boundary snapshot
+updateUndoButton();
+
 
   // reset per-phase wins
   post.thirdWins = 0;
@@ -792,15 +873,22 @@ function scheduleNextPostMatch(){
   // Finish a round -> roll into next or finish bracket
   while (post.index >= post.currentRound.length) {
     if (post.nextRound.length <= 1) {
-      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
-      if (post.phase === 'RU') {
-        post.runnerUp = bracketWinner;
-        return startThirdBracket(leftHistory[leftHistory.length - 1]);
-      } else {
-        post.third = bracketWinner;
-        return finishToResults(leftHistory[leftHistory.length - 1]);
-      }
-    }
+  const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+if (post.phase === 'RU') {
+  post.runnerUp = bracketWinner;
+
+  // Keep the snapshot from the *last RU pick* (pre-final-pick state).
+  // Only create one if, for some reason, we don't already have it.
+  if (!post.lastSnap) postSaveLastSnapshot();
+
+  return startThirdBracket(leftHistory[leftHistory.length - 1]);
+}
+ else {
+    post.third = bracketWinner;
+    return finishToResults(leftHistory[leftHistory.length - 1]);
+  }
+}
+
 
     // Re-seed each round; for THIRD later rounds you may keep thirdSeedCmp or fall back to seedCmp.
     let seededNext = (post.phase === 'THIRD')
@@ -848,6 +936,11 @@ if (a && b && monKey(a) === monKey(b)) {
 }
 
 function handlePostPick(side){
+  // Save snapshot BEFORE mutation so Undo rolls back one step
+  if (post.phase === 'RU' || post.phase === 'THIRD') {
+    postSaveLastSnapshot();
+  }
+
   const winner = (side === 'left') ? current : next;
 
   // Count bracket win for the actual mon (RU or THIRD only)
