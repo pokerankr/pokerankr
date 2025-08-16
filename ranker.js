@@ -28,9 +28,61 @@ const FORM_VARIETY_SUFFIX = {
   alola:  '-alola',
 };
 
+// Curated display names for specific varieties (no dashed slugs)
+const FRIENDLY_NAME_OVERRIDES = {
+  "lycanroc-midday":   "Lycanroc (Midday)",
+  "lycanroc-midnight": "Lycanroc (Midnight)",
+  "lycanroc-dusk":     "Lycanroc (Dusk)",
+
+  "oricorio-baile":    "Oricorio (Baile)",
+  "oricorio-pom-pom":  "Oricorio (Pom-Pom)",
+  "oricorio-pau":      "Oricorio (Pa'u)",
+  "oricorio-sensu":    "Oricorio (Sensu)",
+};
+
+// Minimal starter set for Alternate/Battle forms by generation.
+// IMPORTANT: we pass a base national dex id (id), plus a variety slug (variety).
+// Images will use the slug; keys use (id + variety) so entries are distinct.
+const ALT_BATTLE_FORMS_BY_GEN = {
+  7: [
+    // Lycanroc
+    { id: 745, variety: "lycanroc-midday"   },
+    { id: 745, variety: "lycanroc-midnight" },
+    { id: 745, variety: "lycanroc-dusk"     },
+
+    // Oricorio
+    { id: 741, variety: "oricorio-baile"   },
+    { id: 741, variety: "oricorio-pom-pom" },
+    { id: 741, variety: "oricorio-pau"     },
+    { id: 741, variety: "oricorio-sensu"   },
+  ],
+};
+
+
+// Helper: build a nice display name for an alt/battle entry
+function friendlyNameForVariety(variety){
+  // 1) exact curated override
+  if (FRIENDLY_NAME_OVERRIDES[variety]) return FRIENDLY_NAME_OVERRIDES[variety];
+
+  // 2) derive "Base (Form ...)" from the slug, e.g. "lycanroc-midday" -> "Lycanroc (Midday)"
+  const parts = String(variety || '').split('-').filter(Boolean);
+  if (!parts.length) return '';
+  const base = parts.shift();                 // "lycanroc"
+  const form = parts.join(' ');               // "midday" | "mid night" (rare multi-part)
+
+  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  const capWords = (s) => s.split(' ').map(cap).join(' ');
+
+  return `${cap(base)} (${capWords(form)})`;
+}
+
 
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
+  const toggles = (window.rankConfig && window.rankConfig.toggles) || window.toggles || {};
+  const includeRegional = !!toggles.regional;      // Regional forms (Alola / Galar / Hisui)
+  const includeAltBattle = !!toggles.altBattle;    // Alternate/Battle forms (e.g., Lycanroc)
+
   // ----- Regional/alt-form → generation overrides (forms that belong to a later gen)
   // Only include forms whose *base dex ID* is from an earlier gen, but the form debuted later.
   // Display names are what you want to show in the UI/export; IDs stay the same.
@@ -70,7 +122,7 @@ function buildGenPool(gen){
     { id: 146,  name: "Galarian Moltres", gen: 8 },
   ];
 
-  // helper: build entries honoring shinyOnly/includeShinies flags
+   // helper: build entries honoring shinyOnly/includeShinies flags
   function entriesFor(id, name) {
     const base = { id, name: name || null };
     if (window.shinyOnly) return [{ ...base, shiny: true }];
@@ -78,17 +130,7 @@ function buildGenPool(gen){
     return [{ ...base, shiny: false }];
   }
 
-  const ranges = {
-    1:[1,151],
-    2:[152,251],
-    3:[252,386],
-    4:[387,493],
-    5:[494,649],
-    6:[650,721],
-    7:[722,809],
-    8:[810,905],
-    9:[906,1025],
-  };
+  const ranges = { 1:[1,151],2:[152,251],3:[252,386],4:[387,493],5:[494,649],6:[650,721],7:[722,809],8:[810,905],9:[906,1025] };
   const [start, end] = ranges[gen] || [];
   if (!start) return [];
 
@@ -97,10 +139,72 @@ function buildGenPool(gen){
   let pool = [];
   ids.forEach(id => { pool.push(...entriesFor(id, null)); });
 
-  // Add regional/alt-forms that *belong* to this generation (same ID, custom name)
-  const formsForGen = FORM_GEN_OVERRIDES.filter(f => f.gen === gen);
-  formsForGen.forEach(f => { pool.push(...entriesFor(f.id, f.name)); });
+    // ✅ Inject Regional forms for this gen ONLY if toggle is on
+  if (includeRegional) {
+    const formsForGen = FORM_GEN_OVERRIDES.filter(f => f.gen === gen);
 
+    // Track existing display names to avoid dup labels
+    const existingNames = new Set(
+      pool.map(m => (m.name || '').toLowerCase()).filter(Boolean)
+    );
+
+    formsForGen.forEach(f => {
+      const display = f.name; // e.g., "Alolan Rattata"
+      if (!existingNames.has(display.toLowerCase())) {
+        pool.push(...entriesFor(f.id, display));
+        existingNames.add(display.toLowerCase());
+      }
+    });
+  }
+
+// ✅ Inject Alternate/Battle forms for this gen ONLY if toggle is on
+if (includeAltBattle && ALT_BATTLE_FORMS_BY_GEN[gen]?.length) {
+  // Index existing entries by id
+  const byId = new Map();
+  pool.forEach((p, idx) => {
+    if (!byId.has(p.id)) byId.set(p.id, []);
+    byId.get(p.id).push(idx);
+  });
+
+  // Track names to avoid dup labels
+  const existingNames = new Set(
+    pool.map(m => (m.name || '').toLowerCase()).filter(Boolean)
+  );
+
+  ALT_BATTLE_FORMS_BY_GEN[gen].forEach(entry => {
+    const display = friendlyNameForVariety(entry.variety); // e.g. "Lycanroc (Midnight)"
+
+    // If we already have the base id in pool (e.g. 745 from base dex range)
+    // and this variety is the "default" one you want the base slot to represent
+    // (for Lycanroc, we treat "midday" as default),
+    // then rename/annotate that base entry instead of adding a duplicate.
+    const isDefaultLycanroc = (entry.id === 745 && entry.variety === 'lycanroc-midday');
+    const isDefaultOricorio = (entry.id === 741 && entry.variety === 'oricorio-baile');
+
+    if ((isDefaultLycanroc || isDefaultOricorio) && byId.has(entry.id)) {
+      const idxs = byId.get(entry.id) || [];
+      idxs.forEach(i => {
+        pool[i].name = display;          // curated label
+        pool[i].variety = entry.variety; // remember variety for images/keys
+      });
+      existingNames.add(display.toLowerCase());
+      return; // do not add a new entry for the default
+    }
+
+    // For non-default varieties: add a new entry if name not already present
+    if (!existingNames.has(display.toLowerCase())) {
+      const base = { id: entry.id, name: display, variety: entry.variety };
+      if (window.shinyOnly) {
+        pool.push({ ...base, shiny: true });
+      } else if (window.includeShinies) {
+        pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+      } else {
+        pool.push({ ...base, shiny: false });
+      }
+      existingNames.add(display.toLowerCase());
+    }
+  });
+}
   return pool;
 }
 
@@ -116,8 +220,8 @@ if (!pool.length) {
   document.getElementById("progress-container").style.display = "none";
   const res = document.getElementById("result");
   res.innerHTML = `
-    <h2>Nothing to rank</h2>
-    <p>Go back and pick <strong>Generation → Gen 1 or Gen 2</strong>.</p>
+    <h2>COMING SOON!</h2>
+    <p>Currently Supported: <strong>Generation + Starters</strong>.</p>
     <div class="button-group">
       <button onclick="window.location.href='index.html'">Back to Menu</button>
     </div>
@@ -248,23 +352,27 @@ function parseFormFromName(name) {
   return null;
 }
 
-// Build a best-guess "variety" slug for PokeAPI official-artwork URLs, e.g. "growlithe-hisui"
+// Build a "variety" slug. For alt/battle, we store p.variety explicitly.
+// For regional (Alolan/Galarian/Hisuian) we derive from the display name.
 function varietySlugFromMon(p) {
+  if (p?.variety) return p.variety; // explicit wins
+
   const display = p?.name || nameCache[p?.id];
   if (!display) return null;
 
-  const form = parseFormFromName(display);
-  if (!form) return null;
-
-  // Strip the leading form word to get the base species (e.g. "Growlithe")
-  const base = display.replace(/^\s*(Hisuian|Galarian|Alolan?)\s+/i, '');
-  const baseSlug = slugifyBaseName(base);
-
-  const suffix = FORM_VARIETY_SUFFIX[form] || '';
-  if (!baseSlug || !suffix) return null;
-
-  return `${baseSlug}${suffix}`;
+  const n = String(display);
+  if (/^\s*hisuian\s+/i.test(n)) {
+    return `${slugifyBaseName(n.replace(/^\s*hisuian\s+/i, ''))}-hisui`;
+  }
+  if (/^\s*galarian\s+/i.test(n)) {
+    return `${slugifyBaseName(n.replace(/^\s*galarian\s+/i, ''))}-galar`;
+  }
+  if (/^\s*alolan?\s+/i.test(n)) {
+    return `${slugifyBaseName(n.replace(/^\s*alolan?\s+/i, ''))}-alola`;
+  }
+  return null;
 }
+
 
 // Resolve numeric artwork id for a variety slug via PokeAPI /pokemon/{slug}, cache it, then refresh any matching <img>s.
 async function ensureArtworkIdForVariety(varietySlug){
@@ -325,7 +433,6 @@ function spriteUrlForMon(p, shiny) {
 
 // OFFICIAL-ARTWORK ONLY fallback chain with numeric-ID preference:
 // variety (numeric cached) -> variety (slug) -> base (id)
-// For shiny: try shiny first, then non-shiny of the SAME target.
 function getImageTag(monOrId, shiny = false, alt = "") {
   const p = (typeof monOrId === 'object' && monOrId)
     ? monOrId
@@ -341,7 +448,6 @@ function getImageTag(monOrId, shiny = false, alt = "") {
     if (artId) {
       chain.push(...buildOfficialChainFromId(artId, wantShiny));
     } else {
-      // Try slug; also prefetch numeric id for next time / live swap
       const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`;
       const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`;
       chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
@@ -349,29 +455,33 @@ function getImageTag(monOrId, shiny = false, alt = "") {
     }
   }
 
-  // Last resort: base species by numeric id (still official-artwork)
   const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
   const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
   chain.push(...(wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm]));
 
   const first = chain[0];
-  const safeAlt = alt || (p.name || nameCache[p.id] || `#${String(p.id).padStart(3,'0')}`);
+  const safeAlt = alt || (p.name || nameCache[p.id] || "");
 
   return `<img
     src="${first}"
     alt="${safeAlt}"
+    style="visibility:hidden"
     data-variety="${variety || ''}"
     data-shiny="${wantShiny ? '1' : '0'}"
+    data-step="0"
     data-fallbacks='${JSON.stringify(chain.slice(1))}'
+    onload="this.style.visibility='visible'"
     onerror="
       try {
+        this.style.visibility='hidden';
         const steps = JSON.parse(this.dataset.fallbacks||'[]');
-        const i = parseInt(this.dataset.step||'0',10);
-        if (i < steps.length) { this.dataset.step = String(i+1); this.src = steps[i]; }
+        let i = parseInt(this.dataset.step||'0',10);
+        if (i < steps.length) { this.dataset.step = String(++i); this.src = steps[i-1]; }
         else { this.onerror=null; }
       } catch(e) { this.onerror=null; }
     ">`;
 }
+
 
 
 // ----- Utils
@@ -397,12 +507,17 @@ function withScrollLock(run) {
 }
 
 // monKey alias for compatibility with starters.js snippets
-const monKey = (p) => key(p);
+const monKey = (p) => {
+  if (!p) return "";
+  const v = p.variety ? `-${p.variety}` : "";
+  return `${p.id}-${p.shiny ? 1 : 0}${v}`;
+};
+
 
 // --- Post-tournament global win map (used for THIRD seeding) ---
 const bracketWinsByMon = Object.create(null); // monKey -> count
 
-// --- Tracking for post‑tournament mini‑brackets ---
+// --- Tracking for post-tournament mini-brackets ---
 const lostTo = Object.create(null);      // monKey(loser) -> monKey(winner)
 let roundNum = 0;                        // global match counter (main pass only)
 const roundIndex = Object.create(null);  // monKey(loser) -> round number lost
@@ -761,8 +876,91 @@ document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveMod
 
 // ----- Rendering
 function labelHTML(p){
-  return `<p data-id="${p.id}">${displayName(p)}</p>`;
+  const nm = p.name || nameCache[p.id] || "";
+  const text = nm ? (p.shiny ? `⭐ ${nm}` : nm) : ""; // no "#NNN" placeholder
+  // keep the height stable a bit with &nbsp; if totally empty
+  return `<p data-id="${p.id}">${text || "&nbsp;"}</p>`;
 }
+
+// 🔹 Track last rendered mon on each side to skip left re-renders
+let lastLeftKey = null;
+let lastRightKey = null;
+
+// Update only the label text inside an existing side
+function updateLabelText(containerEl, mon){
+  const p = containerEl.querySelector('p');
+  if (p) {
+    const nm = mon?.name || nameCache[mon?.id] || "";
+    p.textContent = mon?.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+  }
+}
+
+// Prefetch next image (best-effort) to reduce perceived delay
+function ensurePrefetch(mon){
+  try {
+    if (!mon) return;
+    const urls = spriteUrls(mon, !!mon.shiny);
+    if (urls && urls[0]) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.loading = 'eager';
+      img.src = urls[0];
+    }
+  } catch {}
+}
+
+// --- Right-side smooth swap: keep old visible until the new one is fully loaded ---
+let pendingRightTemp = null;
+
+function renderOpponentSmooth(mon){
+  const rightEl = document.getElementById("right");
+
+  // Clean up any previous offscreen pre-render
+  if (pendingRightTemp && pendingRightTemp.isConnected) {
+    try { document.body.removeChild(pendingRightTemp); } catch {}
+  }
+  pendingRightTemp = null;
+
+  if (!mon) { rightEl.innerHTML = ""; return; }
+
+  // Offscreen temp container that will pre-load the new opponent
+  const temp = document.createElement('div');
+  temp.style.position = 'absolute';
+  temp.style.left = '-9999px';
+  temp.style.top = '0';
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
+  document.body.appendChild(temp);
+  pendingRightTemp = temp;
+
+  const img = temp.querySelector('img');
+
+  const swapIn = () => {
+    if (!temp.isConnected) return;                      // already cleaned
+    rightEl.innerHTML = temp.innerHTML;                 // swap DOM in one go
+    try { document.body.removeChild(temp); } catch {}
+    pendingRightTemp = null;
+    lastRightKey = monKey(mon);
+  };
+
+  let swapped = false;
+  const done = () => { if (!swapped) { swapped = true; swapIn(); } };
+
+  if (img) {
+    // When the image actually finishes (after any fallback retries), we swap.
+    img.addEventListener('load', done, { once: true });
+
+    // If first URL fails, the inline onerror on the <img> will rotate through fallbacks.
+    // We attach a "safety cap" so we don't hang forever if everything 404s.
+    img.addEventListener('error', () => {
+      setTimeout(done, 1600); // cap — still better than flashing an empty slot
+    }, { once: true });
+  } else {
+    // No <img> tag (shouldn't happen), just swap
+    swapIn();
+  }
+}
+
+
 function displayMatchup(){
   const leftEl  = document.getElementById("left");
   const rightEl = document.getElementById("right");
@@ -777,13 +975,35 @@ function displayMatchup(){
     return;
   }
 
-  leftEl.innerHTML  = `${getImageTag(current)}${labelHTML(current)}`;
-  rightEl.innerHTML = `${getImageTag(next)}${labelHTML(next)}`;
+  const lk = monKey(current);
+  const rk = monKey(next);
 
-  // kick off lazy name fetches (non-blocking)
+  // LEFT: only re-render if mon changed (prevents the “champion” flash)
+  if (lk !== lastLeftKey) {
+    leftEl.innerHTML = `${getImageTag(current)}${labelHTML(current)}`;
+    lastLeftKey = lk;
+  } else {
+    updateLabelText(leftEl, current); // keep text fresh without touching the <img>
+  }
+
+  // RIGHT: do a flicker-free swap — keep the old one visible until the new image has fully loaded
+  if (rk !== lastRightKey) {
+    renderOpponentSmooth(next);
+  } else {
+    // same mon as before (rare), just refresh label
+    updateLabelText(rightEl, next);
+  }
+
+  // Lazy name fetches
   ensureName(current.id);
   ensureName(next.id);
+
+  // Prefetch the *upcoming* opponent to shrink perceived latency
+  const upcoming = remaining[remaining.length - 1];
+  if (upcoming) ensurePrefetch(upcoming);
 }
+
+
 function updateProgress(){
   const total = pool.length;
   if (total <= 1){

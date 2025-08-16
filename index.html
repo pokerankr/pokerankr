@@ -12,38 +12,36 @@
   <div id="loading-page" class="page active">
     <div class="logo">PokéRankr Logo (TBD)</div>
     <div class="menu-buttons">
-  <button id="btnStart" class="menu-button">Start</button>
-    <!-- NEW: appears only if at least one slot is used -->
-  <button id="btnManageSaves" class="menu-button" style="display:none;">Continue / Manage Saves</button>
-  <button onclick="window.location.href='saved.html'">Saved Rankings</button>
+      <button id="btnStart" class="menu-button">Start</button>
+      <!-- NEW: appears only if at least one slot is used -->
+      <button id="btnManageSaves" class="menu-button" style="display:none;">Continue / Manage Saves</button>
+      <button onclick="window.location.href='saved.html'">Saved Rankings</button>
 
-
-
-  <button id="btnDownload" class="menu-button">Download Rankings</button>
-  <input type="file" id="uploadInput" accept="application/json" style="display:none" />
-  <button id="btnUpload" class="menu-button">Upload Rankings</button>
-</div>
-
-<!-- Manage Saves Modal -->
-<div id="manageSavesModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
-  <div style="background:#fff; padding:16px; border-radius:12px; width: min(720px, 94%);">
-    <h3 style="margin-top:0;">Continue / Manage Saves</h3>
-    <p>Pick a slot to resume or delete. Starters saves resume on the Starters page.</p>
-    <div id="manageSlotsGrid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin:12px 0;">
-      <!-- populated by JS -->
+      <button id="btnDownload" class="menu-button">Download Rankings</button>
+      <input type="file" id="uploadInput" accept="application/json" style="display:none" />
+      <button id="btnUpload" class="menu-button">Upload Rankings</button>
     </div>
-    <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
-      <div>
-        <button id="btnExportSaves" class="alt">Export Save Slots</button>
-        <input type="file" id="importSavesInput" accept="application/json" style="display:none"/>
-        <button id="btnImportSaves" class="alt">Import Save Slots</button>
-      </div>
-      <div>
-        <button id="btnCloseManage">Close</button>
+
+    <!-- Manage Saves Modal -->
+    <div id="manageSavesModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:16px; border-radius:12px; width: min(720px, 94%);">
+        <h3 style="margin-top:0;">Continue / Manage Saves</h3>
+        <p>Pick a slot to resume or delete. Starters saves resume on the Starters page.</p>
+        <div id="manageSlotsGrid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin:12px 0;">
+          <!-- populated by JS -->
+        </div>
+        <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
+          <div>
+            <button id="btnExportSaves" class="alt">Export Save Slots</button>
+            <input type="file" id="importSavesInput" accept="application/json" style="display:none"/>
+            <button id="btnImportSaves" class="alt">Import Save Slots</button>
+          </div>
+          <div>
+            <button id="btnCloseManage">Close</button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
   </div> <!-- ✅ close loading-page -->
 
@@ -89,8 +87,8 @@
      App/version constants
      ========================= */
   const APP_NAME = 'PokeRankr';
-  const APP_VERSION = '1.0.0';      // shown in exports; handy for About later
-  const SCHEMA_VERSION = 1;         // export schema version
+  const APP_VERSION = '1.0.0';
+  const SCHEMA_VERSION = 1;
 
   const pageLoading = document.getElementById('loading-page');
   const pageConfig = document.getElementById('config-page');
@@ -118,20 +116,16 @@
     pageLoading.classList.remove('active');
     pageConfig.classList.add('active');
 
-    // ensure the dropdown starts blank so no category options are built yet
     categorySelect.value = '';
     extraOptions.innerHTML = '';
 
-    // NEW: tighten spacing + force scroll to top
     document.body.classList.add('config-mode');
-    window.scrollTo({ top: 0, behavior: 'instant' || 'auto' }); // 'instant' for Chrome compatibility
+    window.scrollTo({ top: 0, behavior: 'instant' || 'auto' });
   });
 
   document.getElementById('btnBackToMenu').addEventListener('click', () => {
     pageConfig.classList.remove('active');
     pageLoading.classList.add('active');
-
-    // NEW: restore normal spacing when leaving config
     document.body.classList.remove('config-mode');
   });
 
@@ -141,79 +135,129 @@
     extraOptions.innerHTML = '';
 
     if (cat === 'generation') {
-      const supportedGens = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-      extraOptions.innerHTML = `
-        <div>
-          <label>Select Generation:</label>
-          <div class="category-buttons" id="genButtons" role="group" aria-label="Select Generation">
-            ${supportedGens.map((g,i) => `
-              <button
-                type="button"
-                class="menu-button gen-btn${i===0 ? ' selected' : ''}"
-                data-gen="${g}"
-                aria-pressed="${i===0 ? 'true' : 'false'}"
-              >Gen ${g}</button>
-            `).join('')}
-          </div>
-        </div>
-      `;
-      const btns = extraOptions.querySelectorAll('.gen-btn');
-      extraOptions.dataset.selectedGen = supportedGens[0];
-      btns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          btns.forEach(b => { b.classList.remove('selected'); b.setAttribute('aria-pressed','false'); });
-          btn.classList.add('selected');
-          btn.setAttribute('aria-pressed','true');
-          extraOptions.dataset.selectedGen = btn.dataset.gen;
-        });
-      });
-    }
+  const supportedGens = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-    if (cat === 'legendaries') {
-      extraOptions.innerHTML = `
-        <div>
-          <label>
-            <input type="checkbox" id="include-mythicals">
-            Include Mythicals
-          </label>
-        </div>
-      `;
-    }
+  // Build Gen buttons + (hidden-by-default) toggles row
+  extraOptions.innerHTML = `
+    <div>
+      <label>Select Generation:</label>
+      <div class="category-buttons" id="genButtons" role="group" aria-label="Select Generation">
+        ${supportedGens.map((g,i) => `
+          <button
+            type="button"
+            class="menu-button gen-btn${i===0 ? ' selected' : ''}"
+            data-gen="${g}"
+            aria-pressed="${i===0 ? 'true' : 'false'}"
+          >Gen ${g}</button>
+        `).join('')}
+      </div>
+    </div>
 
-    if (cat === 'type') {
-      extraOptions.innerHTML = `
-        <div>
-          <label><input type="checkbox" id="chkMono" checked> Mono Type</label>
-          <label><input type="checkbox" id="chkDual" checked> Dual Type</label>
-        </div>
-        <div>
-          <label>Type 1:
-            <select id="type1"></select>
-          </label>
-          <label id="type2Wrap">Type 2:
-            <select id="type2"></select>
-          </label>
-        </div>
-      `;
+    <!-- Per-gen toggles (shown/hidden by JS) -->
+    <div class="settings" id="genToggleRow" style="display:none; margin-top:8px;">
+      <label id="lblToggleRegional" style="display:none;">
+        <input type="checkbox" id="toggle-regional" />
+        Include Regional Forms (Alola/Galar/Hisui)
+      </label>
+      <label id="lblToggleAltBattle" style="display:none;">
+        <input type="checkbox" id="toggle-altbattle" />
+        Include Alternate/Battle Forms (e.g., Lycanroc)
+      </label>
+    </div>
+  `;
 
-      const type1 = extraOptions.querySelector('#type1');
-      const type2 = extraOptions.querySelector('#type2');
-      [type1, type2].forEach(sel => {
-        sel.innerHTML = `<option value="">Any</option>` + TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
-      });
+  // Wire up gen selection
+  const btns = extraOptions.querySelectorAll('.gen-btn');
+  extraOptions.dataset.selectedGen = supportedGens[0];
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      btns.forEach(b => { b.classList.remove('selected'); b.setAttribute('aria-pressed','false'); });
+      btn.classList.add('selected');
+      btn.setAttribute('aria-pressed','true');
+      extraOptions.dataset.selectedGen = btn.dataset.gen;
 
-      const chkMono = extraOptions.querySelector('#chkMono');
-      const chkDual = extraOptions.querySelector('#chkDual');
-      const type2Wrap = extraOptions.querySelector('#type2Wrap');
+      // Re-evaluate which toggles should be visible for this gen
+      updateGenTogglesVisibility();
+    });
+  });
 
-      function updateTypeUI() {
-        if (!chkMono.checked && !chkDual.checked) chkMono.checked = true;
-        type2Wrap.style.display = chkDual.checked ? 'inline-block' : 'none';
-      }
-      chkMono.addEventListener('change', updateTypeUI);
-      chkDual.addEventListener('change', updateTypeUI);
-      updateTypeUI();
-    }
+  // Toggle visibility rules
+  const REGIONAL_MIN_GEN = 7;             // Regional forms (Alola/Galar/Hisui) start showing at Gen 7+
+  const ALT_BATTLE_GENS = new Set([7]);   // Only show Alt/Battle toggle for these gens (expand later if needed)
+
+  const row           = extraOptions.querySelector('#genToggleRow');
+  const chkRegional   = extraOptions.querySelector('#toggle-regional');
+  const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
+  const lblRegional   = extraOptions.querySelector('#lblToggleRegional');
+  const lblAltBattle  = extraOptions.querySelector('#lblToggleAltBattle');
+
+  function updateGenTogglesVisibility() {
+    const g = parseInt(extraOptions.dataset.selectedGen, 10);
+
+    const showRegional  = g >= REGIONAL_MIN_GEN;
+    const showAltBattle = ALT_BATTLE_GENS.has(g);
+
+    lblRegional.style.display  = showRegional  ? '' : 'none';
+    lblAltBattle.style.display = showAltBattle ? '' : 'none';
+
+    // Show the row only if at least one toggle is relevant
+    row.style.display = (showRegional || showAltBattle) ? '' : 'none';
+
+    // Reset hidden toggles to unchecked
+    if (!showRegional && chkRegional)   chkRegional.checked = false;
+    if (!showAltBattle && chkAltBattle) chkAltBattle.checked = false;
+  }
+
+  // Initialize visibility for the default selected gen
+  updateGenTogglesVisibility();
+}
+
+if (cat === 'legendaries') {
+  extraOptions.innerHTML = `
+    <div>
+      <label>
+        <input type="checkbox" id="include-mythicals">
+        Include Mythicals
+      </label>
+    </div>
+  `;
+}
+
+if (cat === 'type') {
+  extraOptions.innerHTML = `
+    <div>
+      <label><input type="checkbox" id="chkMono" checked> Mono Type</label>
+      <label><input type="checkbox" id="chkDual" checked> Dual Type</label>
+    </div>
+    <div>
+      <label>Type 1:
+        <select id="type1"></select>
+      </label>
+      <label id="type2Wrap">Type 2:
+        <select id="type2"></select>
+      </label>
+    </div>
+  `;
+
+  const type1 = extraOptions.querySelector('#type1');
+  const type2 = extraOptions.querySelector('#type2');
+  [type1, type2].forEach(sel => {
+    sel.innerHTML = `<option value="">Any</option>` + TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+  });
+
+  const chkMono = extraOptions.querySelector('#chkMono');
+  const chkDual = extraOptions.querySelector('#chkDual');
+  const type2Wrap = extraOptions.querySelector('#type2Wrap');
+
+  function updateTypeUI() {
+    if (!chkMono.checked && !chkDual.checked) chkMono.checked = true;
+    type2Wrap.style.display = chkDual.checked ? 'inline-block' : 'none';
+  }
+  chkMono.addEventListener('change', updateTypeUI);
+  chkDual.addEventListener('change', updateTypeUI);
+  updateTypeUI();
+}
+
   });
 
   // Helper for reading dynamic els
@@ -230,11 +274,20 @@
       filters: {}
     };
 
-    if (category === 'generation') {
-      const gen = extraOptions.dataset.selectedGen;
-      if (!gen) { alert('Choose a generation.'); return; }
-      config.filters.generation = parseInt(gen, 10);
-    }
+   if (category === 'generation') {
+  const gen = extraOptions.dataset.selectedGen;
+  if (!gen) { alert('Choose a generation.'); return; }
+  config.filters.generation = parseInt(gen, 10);
+
+  // NEW: pass toggles along
+  const chkRegional  = extraOptions.querySelector('#toggle-regional');
+  const chkAltBattle = extraOptions.querySelector('#toggle-altbattle');
+  config.toggles = {
+    regional: !!(chkRegional && chkRegional.checked),
+    altBattle: !!(chkAltBattle && chkAltBattle.checked),
+  };
+}
+
 
     if (category === 'starters') config.filters.starters = true;
 
@@ -284,12 +337,10 @@
   }
 
   function parseWhen(run){
-    // Prefer lastModified; fall back to date; fall back to now
     const s = run?.lastModified || run?.date || new Date().toISOString();
     return new Date(s).getTime();
   }
 
-  /* === Robust storage collectors/export/import (kept, but simplified to array) === */
   function collectAllRankingsFromLocal() {
     const map = {};
     const arr = loadSavedArray();
@@ -304,7 +355,6 @@
   function setAllRankingsToLocal(map) {
     const mergedArr = Object.values(map);
     saveSavedArray(mergedArr);
-    // also store a copy under a namespaced key (harmless, useful later)
     localStorage.setItem('pokeRankr.rankings', JSON.stringify(map));
   }
 
@@ -354,7 +404,6 @@
         out[id] = r;
         continue;
       }
-      // Compare lastModified (preferred) then date (fallback)
       const curWhen = parseWhen(cur);
       const newWhen = parseWhen(r);
       if (newWhen > curWhen){
@@ -396,185 +445,175 @@
   document.getElementById('btnDownload').addEventListener('click', downloadRankings);
 
   /* =========================
-   Save Slots (global: 3)
-   ========================= */
-const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
+     Save Slots (global: 3)
+     ========================= */
+  const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
 
-function slotsRead() {
-  try {
-    const arr = JSON.parse(localStorage.getItem(SAVE_SLOTS_KEY) || '[]');
-    const out = Array.isArray(arr) ? arr.slice(0, 3) : [];
-    while (out.length < 3) out.push(null);
-    return out;
-  } catch {
-    return [null, null, null];
+  function slotsRead() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(SAVE_SLOTS_KEY) || '[]');
+      const out = Array.isArray(arr) ? arr.slice(0, 3) : [];
+      while (out.length < 3) out.push(null);
+      return out;
+    } catch {
+      return [null, null, null];
+    }
   }
-}
-function slotsWrite(slots) {
-  localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
-}
-function anySlotUsed() {
-  return slotsRead().some(Boolean);
-}
+  function slotsWrite(slots) {
+    localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  }
+  function anySlotUsed() {
+    return slotsRead().some(Boolean);
+  }
 
-// Home button visibility
-(function initManageSavesButton(){
-  const btn = document.getElementById('btnManageSaves');
-  if (!btn) return;
-  if (anySlotUsed()) btn.style.display = '';
-  btn.addEventListener('click', openManageSavesModal);
-})();
+  (function initManageSavesButton(){
+    const btn = document.getElementById('btnManageSaves');
+    if (!btn) return;
+    if (anySlotUsed()) btn.style.display = '';
+    btn.addEventListener('click', openManageSavesModal);
+  })();
 
-// Modal open/close
-function openManageSavesModal() {
-  const m = document.getElementById('manageSavesModal');
-  if (!m) return;
-  m.style.display = 'flex';
-  renderManageSlots();
-}
-function closeManageSavesModal() {
-  const m = document.getElementById('manageSavesModal');
-  if (!m) return;
-  m.style.display = 'none';
-}
-document.getElementById('btnCloseManage')?.addEventListener('click', closeManageSavesModal);
+  function openManageSavesModal() {
+    const m = document.getElementById('manageSavesModal');
+    if (!m) return;
+    m.style.display = 'flex';
+    renderManageSlots();
+  }
+  function closeManageSavesModal() {
+    const m = document.getElementById('manageSavesModal');
+    if (!m) return;
+    m.style.display = 'none';
+  }
+  document.getElementById('btnCloseManage')?.addEventListener('click', closeManageSavesModal);
 
-// Render slot cards
-function spriteUrl(id, shiny) {
-  return shiny
-    ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${id}.png`
-    : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
-}
-function renderManageSlots() {
-  const grid = document.getElementById('manageSlotsGrid');
-  const slots = slotsRead();
+  function spriteUrl(id, shiny) {
+    return shiny
+      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${id}.png`
+      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
+  }
+  function renderManageSlots() {
+    const grid = document.getElementById('manageSlotsGrid');
+    const slots = slotsRead();
 
-  grid.innerHTML = slots.map((slot, i) => {
-    if (!slot) {
+    grid.innerHTML = slots.map((slot, i) => {
+      if (!slot) {
+        return `
+          <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">
+            <div style="height:120px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">Empty Slot</div>
+            <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
+              <button data-action="delete" data-idx="${i}" disabled>Delete</button>
+              <button data-action="resume" data-idx="${i}" disabled>Resume</button>
+            </div>
+          </div>
+        `;
+      }
+
+      const a = slot.currentMatchup?.a;
+      const b = slot.currentMatchup?.b;
+      const savedAt = new Date(slot.meta?.savedAt || Date.now()).toLocaleString();
+      const title = slot.label || 'Saved Run';
+      const hrefHint = slot.type === 'starters' ? 'starters.html' : 'ranker.html';
+
+      const rem = (slot.progress && typeof slot.progress.remaining === 'number')
+        ? slot.progress.remaining
+        : (Array.isArray(slot.state?.remaining) ? slot.state.remaining.length : null);
+
+      const remainingLine = (rem !== null && rem !== undefined)
+        ? `<div style="font-size:.8rem; color:#374151; margin-top:4px; text-align:center;">${rem} matchups remaining</div>`
+        : '';
+
       return `
         <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">
-          <div style="height:120px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">Empty Slot</div>
+          <div style="display:flex; align-items:center; gap:8px; justify-content:center; height:120px;">
+            ${a ? `<img src="${spriteUrl(a.id, a.shiny)}" alt="${a.name}" width="72" height="72">` : ''}
+            <span style="font-weight:700;">VS</span>
+            ${b ? `<img src="${spriteUrl(b.id, b.shiny)}" alt="${b.name}" width="72" height="72">` : ''}
+          </div>
+          <div style="font-size:.95rem; color:#111827; margin-top:4px; font-weight:600;">${title}</div>
+          <div style="font-size:.8rem; color:#6b7280;">Saved ${savedAt}</div>
+          ${remainingLine}
           <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
-            <button data-action="delete" data-idx="${i}" disabled>Delete</button>
-            <button data-action="resume" data-idx="${i}" disabled>Resume</button>
+            <button data-action="delete" data-idx="${i}">Delete</button>
+            <button data-action="resume" data-idx="${i}" data-href="${hrefHint}">Resume</button>
           </div>
         </div>
       `;
-    }
+    }).join('');
 
-    const a = slot.currentMatchup?.a;
-    const b = slot.currentMatchup?.b;
-    const savedAt = new Date(slot.meta?.savedAt || Date.now()).toLocaleString();
-    const title = slot.label || 'Saved Run';
-    const hrefHint = slot.type === 'starters' ? 'starters.html' : 'ranker.html';
+    grid.onclick = (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const idx = +btn.dataset.idx;
+      const action = btn.dataset.action;
+      const slotsArr = slotsRead();
 
-    // Compute remaining (prefer progress.remaining; fallback to state.remaining.length)
-    const rem = (slot.progress && typeof slot.progress.remaining === 'number')
-      ? slot.progress.remaining
-      : (Array.isArray(slot.state?.remaining) ? slot.state.remaining.length : null);
+      if (action === 'delete') {
+        if (slotsArr[idx] && !confirm('Delete this save slot?')) return;
+        slotsArr[idx] = null;
+        slotsWrite(slotsArr);
+        renderManageSlots();
+        if (!anySlotUsed()) document.getElementById('btnManageSaves').style.display = 'none';
+        return;
+      }
 
-    const remainingLine = (rem !== null && rem !== undefined)
-      ? `<div style="font-size:.8rem; color:#374151; margin-top:4px; text-align:center;">${rem} matchups remaining</div>`
-      : '';
-
-    return `
-      <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">
-        <div style="display:flex; align-items:center; gap:8px; justify-content:center; height:120px;">
-          ${a ? `<img src="${spriteUrl(a.id, a.shiny)}" alt="${a.name}" width="72" height="72">` : ''}
-          <span style="font-weight:700;">VS</span>
-          ${b ? `<img src="${spriteUrl(b.id, b.shiny)}" alt="${b.name}" width="72" height="72">` : ''}
-        </div>
-        <div style="font-size:.95rem; color:#111827; margin-top:4px; font-weight:600;">${title}</div>
-        <div style="font-size:.8rem; color:#6b7280;">Saved ${savedAt}</div>
-        ${remainingLine}
-        <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
-          <button data-action="delete" data-idx="${i}">Delete</button>
-          <button data-action="resume" data-idx="${i}" data-href="${hrefHint}">Resume</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // Delegate actions (unchanged)
-  grid.onclick = (e) => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const idx = +btn.dataset.idx;
-    const action = btn.dataset.action;
-    const slotsArr = slotsRead();
-
-    if (action === 'delete') {
-      if (slotsArr[idx] && !confirm('Delete this save slot?')) return;
-      slotsArr[idx] = null;
-      slotsWrite(slotsArr);
-      renderManageSlots();
-      // Hide button if no slots left
-      if (!anySlotUsed()) document.getElementById('btnManageSaves').style.display = 'none';
-      return;
-    }
-
-    if (action === 'resume') {
-      const s = slotsArr[idx];
-      if (!s) return;
-      localStorage.setItem('PR_PENDING_RESUME_SLOT', String(idx));
-      window.location.href = (s.type === 'starters') ? 'starters.html' : 'ranker.html';
-    }
-  };
-}
-
-
-// Export/Import of Save Slots
-function exportSaveSlots() {
-  const data = {
-    app: APP_NAME,
-    appVersion: APP_VERSION,
-    schemaVersion: SCHEMA_VERSION,
-    exportedAt: new Date().toISOString(),
-    saveSlots: slotsRead()
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `pokeRankr-saveSlots-${ts}.json`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-}
-function isValidSaveSlots(obj) {
-  return obj && typeof obj === 'object' && obj.app === APP_NAME && Array.isArray(obj.saveSlots);
-}
-document.getElementById('btnExportSaves')?.addEventListener('click', exportSaveSlots);
-
-const importSavesInput = document.getElementById('importSavesInput');
-document.getElementById('btnImportSaves')?.addEventListener('click', () => importSavesInput.click());
-importSavesInput?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    if (!isValidSaveSlots(data)) {
-      alert('Invalid save-slots file.');
-      importSavesInput.value = '';
-      return;
-    }
-    slotsWrite((data.saveSlots || []).slice(0,3));
-    renderManageSlots();
-    document.getElementById('btnManageSaves').style.display = anySlotUsed() ? '' : 'none';
-    alert('Save slots imported.');
-  } catch (err) {
-    console.error(err);
-    alert('Could not import that file.');
-  } finally {
-    importSavesInput.value = '';
+      if (action === 'resume') {
+        const s = slotsArr[idx];
+        if (!s) return;
+        localStorage.setItem('PR_PENDING_RESUME_SLOT', String(idx));
+        window.location.href = (s.type === 'starters') ? 'starters.html' : 'ranker.html';
+      }
+    };
   }
-});
 
+  function exportSaveSlots() {
+    const data = {
+      app: APP_NAME,
+      appVersion: APP_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      saveSlots: slotsRead()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `pokeRankr-saveSlots-${ts}.json`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+  function isValidSaveSlots(obj) {
+    return obj && typeof obj === 'object' && obj.app === APP_NAME && Array.isArray(obj.saveSlots);
+  }
+  document.getElementById('btnExportSaves')?.addEventListener('click', exportSaveSlots);
+
+  const importSavesInput = document.getElementById('importSavesInput');
+  document.getElementById('btnImportSaves')?.addEventListener('click', () => importSavesInput.click());
+  importSavesInput?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!isValidSaveSlots(data)) {
+        alert('Invalid save-slots file.');
+        importSavesInput.value = '';
+        return;
+      }
+      slotsWrite((data.saveSlots || []).slice(0,3));
+      renderManageSlots();
+      document.getElementById('btnManageSaves').style.display = anySlotUsed() ? '' : 'none';
+      alert('Save slots imported.');
+    } catch (err) {
+      console.error(err);
+      alert('Could not import that file.');
+    } finally {
+      importSavesInput.value = '';
+    }
+  });
 
   const uploadInput = document.getElementById('uploadInput');
   document.getElementById('btnUpload').addEventListener('click', () => {
-    // No overwrite prompt anymore — we always Keep Newest for v1.0.0
     uploadInput.click();
   });
 
