@@ -514,13 +514,41 @@ if (cat === 'type') {
       const title = slot.label || 'Saved Run';
       const hrefHint = slot.type === 'starters' ? 'starters.html' : 'ranker.html';
 
-      const rem = (slot.progress && typeof slot.progress.remaining === 'number')
-        ? slot.progress.remaining
-        : (Array.isArray(slot.state?.remaining) ? slot.state.remaining.length : null);
+      // Prefer new post-aware fields if present
+let displayLabel = slot?.progress?.displayLabel;
+let displayRemaining = slot?.progress?.displayRemaining;
 
-      const remainingLine = (rem !== null && rem !== undefined)
-        ? `<div style="font-size:.8rem; color:#374151; margin-top:4px; text-align:center;">${rem} matchups remaining</div>`
-        : '';
+// If not present (old saves), compute manually
+if (!displayLabel) {
+  const inPost = !!slot?.state?.postMode &&
+                 (slot?.state?.post?.phase === 'RU' || slot?.state?.post?.phase === 'THIRD');
+
+  if (inPost) {
+    const total = typeof slot?.state?.post?.totalMatches === 'number'
+      ? slot.state.post.totalMatches : 0;
+    const done  = typeof slot?.state?.post?.doneMatches === 'number'
+      ? slot.state.post.doneMatches : 0;
+    const left  = Math.max(0, total - done - 1);
+
+    displayLabel = (slot.state.post.phase === 'RU'
+      ? 'Runner-up bracket — ' : 'Third-place bracket — ')
+      + `${left} matchups remaining`;
+    displayRemaining = left;
+  } else {
+    const rem = (slot?.progress && typeof slot.progress.remaining === 'number')
+      ? slot.progress.remaining
+      : (Array.isArray(slot?.state?.remaining) ? slot.state.remaining.length : null);
+    if (rem !== null && rem !== undefined) {
+      displayLabel = `${rem} matchups remaining`;
+      displayRemaining = rem;
+    }
+  }
+}
+
+const remainingLine = displayLabel
+  ? `<div style="font-size:.8rem; color:#374151; margin-top:4px; text-align:center;">${displayLabel}</div>`
+  : '';
+
 
       return `
         <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">

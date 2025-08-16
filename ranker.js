@@ -692,10 +692,16 @@ function undoLast() {
   updateUndoButton();
 }
 
-
 // ----- Save & Exit (serializer + modal)
 function serializeRankerSession(){
   const rc = window.rankConfig || {};
+
+  // Post-aware progress for UIs (index.html + in-game modal)
+  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+  const totalMatches = inPost ? (typeof post.totalMatches === 'number' ? post.totalMatches : 0) : 0;
+  const doneMatches  = inPost ? (typeof post.doneMatches  === 'number' ? post.doneMatches  : 0) : 0;
+  const postLeft     = inPost ? Math.max(0, totalMatches - doneMatches - 1) : remaining.length;
+
   return {
     id: 'v1',
     type: 'ranker',
@@ -708,8 +714,16 @@ function serializeRankerSession(){
     progress: {
       totalMatchups: pool.length,
       completed: eliminated.length + (current ? (current.roundsSurvived || 0) : 0),
-      remaining: remaining.length,
-      currentIndex: eliminated.length
+      remaining: remaining.length,          // KOTH raw (kept for backward-compat)
+      currentIndex: eliminated.length,
+
+      // NEW — preferred fields for any UI
+      mode: inPost ? post.phase : 'KOTH',   // 'RU' | 'THIRD' | 'KOTH'
+      displayRemaining: postLeft,
+      displayLabel: inPost
+        ? ((post.phase === 'RU' ? 'Runner-up bracket — ' : 'Third-place bracket — ')
+           + `${postLeft} matchups remaining`)
+        : `${remaining.length} matchups remaining`,
     },
     state: {
       pool,
@@ -756,15 +770,39 @@ function renderSaveSlots(){
   const slots = slotsRead();
 
   grid.innerHTML = slots.map((slot, i) => {
-    const remainingText = (() => {
-      const rem =
-        (slot?.progress && typeof slot.progress.remaining === 'number')
-          ? slot.progress.remaining
-          : (Array.isArray(slot?.state?.remaining) ? slot.state.remaining.length : null);
-      return (rem !== null && rem !== undefined)
-        ? `<div style="text-align:center; font-size:.85rem; color:#374151; margin-top:6px;">${rem} matchups remaining</div>`
-        : '';
-    })();
+  const remainingText = (() => {
+  // Prefer new post-aware fields if present
+  let label = slot?.progress?.displayLabel;
+
+  // If missing (older saves), derive from saved state
+  if (!label) {
+    const inPost = !!slot?.state?.postMode &&
+                   (slot?.state?.post?.phase === 'RU' || slot?.state?.post?.phase === 'THIRD');
+
+    if (inPost) {
+      const total = (typeof slot?.state?.post?.totalMatches === 'number')
+        ? slot.state.post.totalMatches : 0;
+      const done  = (typeof slot?.state?.post?.doneMatches === 'number')
+        ? slot.state.post.doneMatches : 0;
+      const left  = Math.max(0, total - done - 1);
+
+      label = (slot.state.post.phase === 'RU'
+        ? 'Runner-up bracket — '
+        : 'Third-place bracket — ') + `${left} matchups remaining`;
+    } else {
+      const rem = (slot?.progress && typeof slot.progress.remaining === 'number')
+        ? slot.progress.remaining
+        : (Array.isArray(slot?.state?.remaining) ? slot.state.remaining.length : null);
+      if (rem !== null && rem !== undefined) {
+        label = `${rem} matchups remaining`;
+      }
+    }
+  }
+
+  return label
+    ? `<div style="text-align:center; font-size:.85rem; color:#374151; margin-top:6px;">${label}</div>`
+    : '';
+})();
 
     if (!slot) {
       return `
@@ -1964,6 +2002,6 @@ if (!current){
   showWinner(current);
 } else {
   displayMatchup();
-  updateProgress();
+  (postMode ? updatePostProgress() : updateProgress());
   updateUndoButton();
 }
