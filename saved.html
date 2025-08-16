@@ -128,12 +128,16 @@
       return `${count} ${count === 1 ? singular : plural}`;
     }
 
-    function sprite(id, shiny=false, alt="") {
-      const src = shiny
-        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
-        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
-      return `<img class="saved-sprite" src="${src}" alt="${alt}">`;
-    }
+   function sprite(mon) {
+  const id = (mon.formId || mon.id);
+  const shiny = !!mon.shiny;
+  const alt = mon.name || "";
+  const src = shiny
+    ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
+    : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+  return `<img class="saved-sprite" src="${src}" alt="${alt}">`;
+}
+
 
     function slot(label, mon) {
       if (!mon) {
@@ -166,7 +170,7 @@
         <div class="saved-slot">
           <span class="saved-label">${label}</span>
           <div class="saved-core">
-            ${sprite(mon.id, mon.shiny, mon.name)}
+            ${sprite(mon)}
             <div class="saved-text">
               <div class="saved-name">${mon.shiny ? "⭐ " : ""}${mon.name}</div>
               ${survivedLine}

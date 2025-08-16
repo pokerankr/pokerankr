@@ -120,7 +120,7 @@ function updatePostProgress() {
 
   container.style.display = "block";
 
-  const left = Math.max(0, post.totalMatches - post.doneMatches);
+  const left = Math.max(0, post.totalMatches - post.doneMatches - 1);
   const pct = post.totalMatches > 0 ? Math.round((post.doneMatches / post.totalMatches) * 100) : 0;
 
   bar.style.width = `${pct}%`;
@@ -565,31 +565,24 @@ function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
   if (!btn) return;
 
-  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+    const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
   if (inPost) {
-    // Enable if we can undo within post-phase OR jump back across the boundary
-    btn.disabled = !(post.lastSnap || history.length > 0);
+    // Only allow single-step undo within RU/THIRD — no cross-boundary jump
+    btn.disabled = !post.lastSnap;
   } else {
     btn.disabled = history.length === 0; // normal KOTH history
   }
+
 }
 
 function undoLast() {
-  // Post-phase undo
+   // Post-phase undo (single-step only; no cross-boundary jump)
   if (post.phase === 'RU' || post.phase === 'THIRD') {
-    if (post.lastSnap) {
-      postRestoreLastSnapshot();
-      return;
-    }
-    if (history.length > 0) {
-      postMode = null;
-      post.phase = null;
-      const prev = history.pop();
-      restoreState(prev);
-      updateUndoButton();
-    }
+    if (!post.lastSnap) return; // stay in RU/THIRD; nothing to undo
+    postRestoreLastSnapshot();
     return;
   }
+
 
   // KOTH undo (unchanged)
   if (history.length === 0) return;
@@ -865,8 +858,12 @@ function buildPairsAvoidingRematch(sortedArr, avoidSet) {
 function startThirdBracket(finalChampion){
   postMode = 'THIRD';
   post.phase = 'THIRD';
-  // Keep lastSnap from RU→Third boundary for cross-boundary undo
+  post.thirdWins = 0;
+  post.thirdWinsByMon = Object.create(null);
+  // Clear snapshot so Undo is disabled (faded) at THIRD start.
+  post.lastSnap = null;
   updateUndoButton();
+
 
   post.thirdWins = 0;
   post.thirdWinsByMon = Object.create(null);
@@ -1169,8 +1166,40 @@ document.getElementById("btnUndo")?.addEventListener("click", undoLast);
 document.getElementById('btnSaveExit')?.addEventListener('click', openSaveModal);
 document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveModal);
 
+// Create "Main Menu" button on the ranking screen
+(function addMainMenuButton(){
+  const container = document.getElementById('ingame-controls');
+  if (!container || document.getElementById('btnMainMenu')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'btnMainMenu';
+  btn.textContent = 'Main Menu';
+  btn.addEventListener('click', goToMainMenu);
+
+  // Put it at the end of the controls row
+  container.appendChild(btn);
+})();
+
+
 // Optional: expose resume helper globally if we decide to deep-link
 window._PR_loadStarterSession = loadStarterSession;
+
+function goToMainMenu(){
+  // Consider it "in progress" if you’ve done anything beyond the initial state
+  const atStart =
+    eliminated.length === 0 &&
+    !postMode &&
+    history.length === 0 &&
+    roundNum === 0 &&
+    remaining.length === (pool.length - 2);
+
+  if (!atStart) {
+    const ok = confirm("This session has not been saved! Are you sure you want to go back to the main menu?");
+    if (!ok) return;
+  }
+  window.location.href = 'index.html';
+}
+
 
 // Boot
 if (!current) {

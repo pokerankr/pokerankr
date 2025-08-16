@@ -463,14 +463,15 @@ function getImageTag(monOrId, shiny = false, alt = "") {
   const safeAlt = alt || (p.name || nameCache[p.id] || "");
 
   return `<img
-    src="${first}"
-    alt="${safeAlt}"
-    style="visibility:hidden"
-    data-variety="${variety || ''}"
-    data-shiny="${wantShiny ? '1' : '0'}"
-    data-step="0"
-    data-fallbacks='${JSON.stringify(chain.slice(1))}'
-    onload="this.style.visibility='visible'"
+  src="${first}"
+  alt="${safeAlt}"
+  style="visibility:hidden"
+  width="256" height="256"
+  data-variety="${variety || ''}"
+  data-shiny="${wantShiny ? '1' : '0'}"
+  data-step="0"
+  data-fallbacks='${JSON.stringify(chain.slice(1))}'
+  onload="this.style.visibility='visible'"
     onerror="
       try {
         this.style.visibility='hidden';
@@ -664,33 +665,24 @@ function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
   if (!btn) return;
 
-  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+    const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
   if (inPost) {
-    // Enable if we can undo within post-phase OR jump back across the boundary
-    btn.disabled = !(post.lastSnap || history.length > 0);
+    // Only allow single-step undo within RU/THIRD — no cross-boundary jump
+    btn.disabled = !post.lastSnap;
   } else {
     btn.disabled = history.length === 0; // normal KOTH history
   }
+
 }
 
 function undoLast() {
-  // Post-phase undo
+  // Post-phase undo (single-step only; no cross-boundary jump)
   if (post.phase === 'RU' || post.phase === 'THIRD') {
-    if (post.lastSnap) {
-      // Step back within the post-phase (RU↩ or THIRD↩)
-      postRestoreLastSnapshot();
-      return;
-    }
-    // No post snapshot yet → jump back across the boundary to KOTH
-    if (history.length > 0) {
-      postMode = null;
-      post.phase = null;
-      const prev = history.pop();   // last KOTH snapshot
-      restoreState(prev);           // re-renders KOTH matchup + progress
-      updateUndoButton();
-    }
+    if (!post.lastSnap) return; // stay in RU/THIRD; nothing to undo
+    postRestoreLastSnapshot();
     return;
   }
+
 
   // KOTH undo (unchanged single-step)
   if (history.length === 0) return;
@@ -873,6 +865,20 @@ function closeSaveModal(){
 // Wire buttons (added in ranker.html)
 document.getElementById('btnSaveExit')?.addEventListener('click', openSaveModal);
 document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveModal);
+// Create "Main Menu" button on the ranking screen
+(function addMainMenuButton(){
+  const container = document.getElementById('ingame-controls');
+  if (!container || document.getElementById('btnMainMenu')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'btnMainMenu';
+  btn.textContent = 'Main Menu';
+  btn.addEventListener('click', goToMainMenu);
+
+  // Put it at the end of the controls row
+  container.appendChild(btn);
+})();
+
 
 // ----- Rendering
 function labelHTML(p){
@@ -1025,7 +1031,7 @@ function updatePostProgress() {
   if (!bar || !txt || !container) return;
   container.style.display = "block";
 
-  const left = Math.max(0, post.totalMatches - post.doneMatches);
+  const left = Math.max(0, post.totalMatches - post.doneMatches - 1);
   const pct = post.totalMatches > 0 ? Math.round((post.doneMatches / post.totalMatches) * 100) : 0;
 
   bar.style.width = `${pct}%`;
@@ -1197,8 +1203,10 @@ function startThirdBracket(finalChampion){
   post.phase = 'THIRD';
   post.thirdWins = 0;
   post.thirdWinsByMon = Object.create(null);
-  // Do NOT clear post.lastSnap — it holds the RU→Third boundary snapshot
+  // Clear snapshot so Undo is disabled (faded) at THIRD start.
+  post.lastSnap = null;
   updateUndoButton();
+
 
   const champKey = monKey(finalChampion);
   const ruKey = post.runnerUp ? monKey(post.runnerUp) : null;
@@ -1415,7 +1423,7 @@ function showWinner(finalWinner){
   const g = window.rankConfig?.filters?.generation || 1;
 
   document.getElementById("result").innerHTML = `
-    <h2>Your Favorite (Gen ${g}) is:</h2>
+    <h2>Your Favorite (Gen ${g}) Pokemon is:</h2>
     <div class="champion-card">
       <div class="champion-image-wrapper">
         ${getImageTag(champion).replace('<img ', '<img class="champion-img" ')}
@@ -1442,18 +1450,35 @@ function showWinner(finalWinner){
   [champion, runnerUp, thirdPlace, honorable].filter(Boolean).forEach(m=>ensureName(m.id));
 }
 
+// Returns the numeric sprite id for 96×96 "game sprites".
+// Prefers a regional/alt *form id* if we have it in artIdCache; else falls back to species id.
+function formSpriteIdForMon(p){
+  const v = varietySlugFromMon(p);
+  if (!v) return p.id;
+  const id = artIdCache[v];
+  if (typeof id === 'number' && id > 0) return id;
+  // Kick off async resolve for next time; fallback to species for now.
+  ensureArtworkIdForVariety(v);
+  return p.id;
+}
+
 
 function saveResults(){
   const { champion, runnerUp, thirdPlace, honorable } = computeResults();
 
   const pack = (p, role) => {
     if (!p) return null;
+    const variety = varietySlugFromMon(p) || null;
     const obj = {
-      id: p.id,
-      name: nameCache[p.id] || p.name || null,
-      shiny: !!p.shiny,
-      roundsSurvived: p.roundsSurvived || 0
-    };
+  id: p.id,
+  formId: formSpriteIdForMon(p), // 👈 add this
+  name: nameCache[p.id] || p.name || null,
+  shiny: !!p.shiny,
+  roundsSurvived: p.roundsSurvived || 0,
+  variety, // keep for reference
+  sprite: spriteUrlForMon({ id: p.id, name: nameCache[p.id] || p.name || null, variety }, !!p.shiny)
+};
+
     if (role === 'RU') {
       const k = monKey(p);
       obj.bracketWins  = (post.ruWinsByMon && post.ruWinsByMon[k]) || 0;
@@ -1906,6 +1931,23 @@ function loadRankerSession(s){
     console.warn('Could not resume slot:', e);
   }
 })();
+
+function goToMainMenu(){
+  // Consider it "in progress" if you’ve done anything beyond the initial state
+  const atStart =
+    eliminated.length === 0 &&
+    !postMode &&
+    history.length === 0 &&
+    roundNum === 0 &&
+    remaining.length === (pool.length - 2);
+
+  if (!atStart) {
+    const ok = confirm("This session has not been saved! Are you sure you want to go back to the main menu?");
+    if (!ok) return;
+  }
+  window.location.href = 'index.html';
+}
+
 
 // ----- Boot
 if (!current){
