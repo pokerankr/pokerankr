@@ -45,18 +45,66 @@ const FRIENDLY_NAME_OVERRIDES = {
 // Images will use the slug; keys use (id + variety) so entries are distinct.
 const ALT_BATTLE_FORMS_BY_GEN = {
   7: [
-    // Lycanroc
-    { id: 745, variety: "lycanroc-midday"   },
+    // Lycanroc (default = Midday)
+    { id: 745, variety: "lycanroc-midday" },   // default
     { id: 745, variety: "lycanroc-midnight" },
-    { id: 745, variety: "lycanroc-dusk"     },
+    { id: 745, variety: "lycanroc-dusk" },
 
-    // Oricorio
-    { id: 741, variety: "oricorio-baile"   },
+    // Oricorio (default = Baile)
+    { id: 741, variety: "oricorio-baile" },    // default
     { id: 741, variety: "oricorio-pom-pom" },
-    { id: 741, variety: "oricorio-pau"     },
-    { id: 741, variety: "oricorio-sensu"   },
+    { id: 741, variety: "oricorio-pau" },
+    { id: 741, variety: "oricorio-sensu" },
+
+    // Necrozma (default = base Necrozma)
+    { id: 800, variety: "necrozma-dusk" },
+    { id: 800, variety: "necrozma-dawn" },
+    { id: 800, variety: "necrozma-ultra" },
+  ],
+
+  8: [
+    // Urshifu (default = Single-Strike)
+    { id: 892, variety: "urshifu-single-strike" },   // default
+    { id: 892, variety: "urshifu-rapid-strike" },
+
+    // Zarude (default = base Zarude)
+    { id: 893, variety: "zarude-dada" },
+
+    // Calyrex (default = base Calyrex)
+    { id: 898, variety: "calyrex-ice" },
+    { id: 898, variety: "calyrex-shadow" },
+
+    // Enamorus (default = Incarnate)
+    { id: 905, variety: "enamorus-incarnate" },      // default
+    { id: 905, variety: "enamorus-therian" },
+  ],
+
+  9: [
+    // Tauros (Paldea breeds) — FIXED slugs
+{ id: 128, variety: "tauros-paldea-combat-breed" },
+{ id: 128, variety: "tauros-paldea-blaze-breed"  },
+{ id: 128, variety: "tauros-paldea-aqua-breed"   },
+
+
+    // Oinkologne (default = Male)
+    { id: 916, variety: "oinkologne-male" },         // default
+    { id: 916, variety: "oinkologne-female" },
+
+    // Tatsugiri (default = Curly)
+    { id: 978, variety: "tatsugiri-curly" },         // default
+    { id: 978, variety: "tatsugiri-droopy" },
+    { id: 978, variety: "tatsugiri-stretchy" },
+
+    // Palafin (default = Zero Form)
+    { id: 964, variety: "palafin-zero" },            // default
+    { id: 964, variety: "palafin-hero" },
+
+    // Gimmighoul (default = Chest)
+    { id: 999, variety: "gimmighoul-chest" },        // default
+    { id: 999, variety: "gimmighoul-roaming" },
   ],
 };
+
 
 
 // Helper: build a nice display name for an alt/battle entry
@@ -178,18 +226,30 @@ if (includeAltBattle && ALT_BATTLE_FORMS_BY_GEN[gen]?.length) {
     // and this variety is the "default" one you want the base slot to represent
     // (for Lycanroc, we treat "midday" as default),
     // then rename/annotate that base entry instead of adding a duplicate.
-    const isDefaultLycanroc = (entry.id === 745 && entry.variety === 'lycanroc-midday');
-    const isDefaultOricorio = (entry.id === 741 && entry.variety === 'oricorio-baile');
+  const isDefaultLycanroc    = (entry.id === 745 && entry.variety === 'lycanroc-midday');
+const isDefaultOricorio    = (entry.id === 741 && entry.variety === 'oricorio-baile');
+const isDefaultUrshifu     = (entry.id === 892 && entry.variety === 'urshifu-single-strike');
+const isDefaultEnamorus    = (entry.id === 905 && entry.variety === 'enamorus-incarnate');
+const isDefaultTaurosPaldea = (entry.id === 128 && entry.variety === 'tauros-paldea-combat-breed');
+const isDefaultOinkologne  = (entry.id === 916 && entry.variety === 'oinkologne-male');
+const isDefaultTatsugiri   = (entry.id === 978 && entry.variety === 'tatsugiri-curly');
+const isDefaultPalafin     = (entry.id === 964 && entry.variety === 'palafin-zero');
+const isDefaultGimmighoul  = (entry.id === 999 && entry.variety === 'gimmighoul-chest');
 
-    if ((isDefaultLycanroc || isDefaultOricorio) && byId.has(entry.id)) {
-      const idxs = byId.get(entry.id) || [];
-      idxs.forEach(i => {
-        pool[i].name = display;          // curated label
-        pool[i].variety = entry.variety; // remember variety for images/keys
-      });
-      existingNames.add(display.toLowerCase());
-      return; // do not add a new entry for the default
-    }
+if (
+  (isDefaultLycanroc || isDefaultOricorio || isDefaultUrshifu ||
+   isDefaultEnamorus || isDefaultTaurosPaldea || isDefaultOinkologne ||
+   isDefaultTatsugiri || isDefaultPalafin || isDefaultGimmighoul) &&
+  byId.has(entry.id)
+) {
+  const idxs = byId.get(entry.id) || [];
+  idxs.forEach(i => {
+    pool[i].name = display;          // curated label (from friendlyNameForVariety or override)
+    pool[i].variety = entry.variety; // remember variety for sprites/keys
+  });
+  existingNames.add(display.toLowerCase());
+  return; // don’t add a duplicate entry for the default
+}
 
     // For non-default varieties: add a new entry if name not already present
     if (!existingNames.has(display.toLowerCase())) {
@@ -325,6 +385,34 @@ async function ensureNames(list){
     }
   }));
 }
+
+// Promise: resolve when we have a display name in cache (no UI updates)
+function awaitName(id){
+  if (nameCache[id]) return Promise.resolve(nameCache[id]);
+  return fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const nm = titleize(data?.name || "") || `#${String(id).padStart(3,"0")}`; // not shown directly
+      nameCache[id] = nm;
+      saveNameCache();
+      return nm;
+    })
+    .catch(() => nameCache[id] || `#${String(id).padStart(3,"0")}`);
+}
+
+// Promise: resolve when an <img> (with your fallback chain) has finished loading at least one source
+function awaitImgLoaded(img){
+  return new Promise(res => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; res(); } };
+    img.addEventListener('load', finish, { once: true });
+    img.addEventListener('error', () => {
+      // safety cap if all fallbacks fail; give it a moment for your inline onerror to advance
+      setTimeout(finish, 1600);
+    }, { once: true });
+  });
+}
+
 
 function updateLabelsIfVisible(id){
   const leftP  = document.querySelector("#left p");
@@ -972,36 +1060,59 @@ function renderOpponentSmooth(mon){
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
   temp.style.top = '0';
-  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`; // labelHTML will show blank if nameCache missing
   document.body.appendChild(temp);
   pendingRightTemp = temp;
 
   const img = temp.querySelector('img');
+  const pEl = temp.querySelector('p');
 
-  const swapIn = () => {
-    if (!temp.isConnected) return;                      // already cleaned
-    rightEl.innerHTML = temp.innerHTML;                 // swap DOM in one go
-    try { document.body.removeChild(temp); } catch {}
-    pendingRightTemp = null;
-    lastRightKey = monKey(mon);
-  };
+  // Kick off both async tasks in parallel
+  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
+  const pName = awaitName(mon.id);
 
-  let swapped = false;
-  const done = () => { if (!swapped) { swapped = true; swapIn(); } };
+  Promise.all([pImg, pName]).then(() => {
+    // Update the offscreen label to the final name (with shiny star if needed)
+    const nm = mon.name || nameCache[mon.id] || "";
+    if (pEl) pEl.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
 
-  if (img) {
-    // When the image actually finishes (after any fallback retries), we swap.
-    img.addEventListener('load', done, { once: true });
+    // Swap in one shot
+    if (temp.isConnected) {
+      rightEl.innerHTML = temp.innerHTML;
+      try { document.body.removeChild(temp); } catch {}
+      pendingRightTemp = null;
+      lastRightKey = monKey(mon);
+    }
+  });
+}
 
-    // If first URL fails, the inline onerror on the <img> will rotate through fallbacks.
-    // We attach a "safety cap" so we don't hang forever if everything 404s.
-    img.addEventListener('error', () => {
-      setTimeout(done, 1600); // cap — still better than flashing an empty slot
-    }, { once: true });
-  } else {
-    // No <img> tag (shouldn't happen), just swap
-    swapIn();
-  }
+function renderLeftSmooth(mon){
+  const leftEl = document.getElementById("left");
+  if (!mon) { leftEl.innerHTML = ""; return; }
+
+  const temp = document.createElement('div');
+  temp.style.position = 'absolute';
+  temp.style.left = '-9999px';
+  temp.style.top = '0';
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
+  document.body.appendChild(temp);
+
+  const img = temp.querySelector('img');
+  const pEl = temp.querySelector('p');
+
+  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
+  const pName = awaitName(mon.id);
+
+  Promise.all([pImg, pName]).then(() => {
+    const nm = mon.name || nameCache[mon.id] || "";
+    if (pEl) pEl.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+
+    if (temp.isConnected) {
+      leftEl.innerHTML = temp.innerHTML;
+      try { document.body.removeChild(temp); } catch {}
+      lastLeftKey = monKey(mon);
+    }
+  });
 }
 
 
@@ -1023,12 +1134,12 @@ function displayMatchup(){
   const rk = monKey(next);
 
   // LEFT: only re-render if mon changed (prevents the “champion” flash)
-  if (lk !== lastLeftKey) {
-    leftEl.innerHTML = `${getImageTag(current)}${labelHTML(current)}`;
-    lastLeftKey = lk;
-  } else {
-    updateLabelText(leftEl, current); // keep text fresh without touching the <img>
-  }
+if (lk !== lastLeftKey) {
+  renderLeftSmooth(current);           // wait for both name + image
+} else {
+  // no change; already synced on screen
+}
+
 
   // RIGHT: do a flicker-free swap — keep the old one visible until the new image has fully loaded
   if (rk !== lastRightKey) {
@@ -1038,9 +1149,10 @@ function displayMatchup(){
     updateLabelText(rightEl, next);
   }
 
-  // Lazy name fetches
-  ensureName(current.id);
-  ensureName(next.id);
+// Silent name prefetch (cache only; the smooth render will swap when ready)
+awaitName(current.id);
+awaitName(next.id);
+
 
   // Prefetch the *upcoming* opponent to shrink perceived latency
   const upcoming = remaining[remaining.length - 1];

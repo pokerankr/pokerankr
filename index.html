@@ -161,7 +161,7 @@
       </label>
       <label id="lblToggleAltBattle" style="display:none;">
         <input type="checkbox" id="toggle-altbattle" />
-        Include Alternate/Battle Forms (e.g., Lycanroc)
+        Include Alternate/Battle Forms
       </label>
     </div>
   `;
@@ -183,7 +183,7 @@
 
   // Toggle visibility rules
   const REGIONAL_MIN_GEN = 7;             // Regional forms (Alola/Galar/Hisui) start showing at Gen 7+
-  const ALT_BATTLE_GENS = new Set([7]);   // Only show Alt/Battle toggle for these gens (expand later if needed)
+  const ALT_BATTLE_GENS = new Set([7,8,9]);   // Only show Alt/Battle toggle for these gens (expand later if needed)
 
   const row           = extraOptions.querySelector('#genToggleRow');
   const chkRegional   = extraOptions.querySelector('#toggle-regional');
