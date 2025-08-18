@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PokéRankr - Ranking</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 id="modeTitle">PokéRankr</h1>
+
+    <div id="matchup" class="matchup-container">
+      <div id="left" class="pokemon-card" onclick="pick('left')"></div>
+      <div id="vs-text">VS</div>
+      <div id="right" class="pokemon-card" onclick="pick('right')"></div>
+    </div>
+
+    <div id="progress-container">
+      <div class="progress-wrap">
+        <div class="progress" id="progress"></div>
+      </div>
+      <p id="remaining-text">X matchups remaining</p>
+    </div>
+
+    <div class="button-row" id="ingame-controls">
+  <button id="btnUndo" disabled>Undo</button>
+  <button id="btnSaveExit">Save & Exit</button>
+</div>
+
+<!-- Save Slot Modal -->
+<div id="saveSlotModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; padding:16px; border-radius:12px; width: min(720px, 94%);">
+    <h3 style="margin-top:0;">Save Progress</h3>
+    <p>Choose a slot to save your current run. Saving will exit to the home page.</p>
+
+    <!-- Rows, not grid -->
+    <div id="saveSlotsGrid" style="display:flex; flex-direction:column; gap:12px; margin:12px 0;">
+      <!-- filled by JS -->
+    </div>
+
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button id="btnCancelSave">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+    <div id="result" class="result-container" style="display:none;"></div>
+  </div>
+
+  <script>
+    // make shiny settings + config available to ranker.js
+    window.includeShinies = localStorage.getItem('includeShinies') === 'true';
+    window.shinyOnly      = localStorage.getItem('shinyOnly') === 'true';
+    window.rankConfig     = JSON.parse(localStorage.getItem('rankConfig') || '{}');
+  </script>
+  <script src="js/ranker.js"></script>
+</body>
+</html>

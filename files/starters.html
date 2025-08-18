@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PokéRankr - Starters</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🔥 Starter Pokémon Face-Off 🔥</h1>
+
+    <!-- Matchup area -->
+    <div id="matchup" class="matchup-container">
+      <div
+        id="left"
+        class="pokemon-card"
+        role="button"
+        tabindex="0"
+        title="Pick left (or press ←)"
+        onclick="pick('left')"></div>
+
+      <div id="vs-text">VS</div>
+
+      <div
+        id="right"
+        class="pokemon-card"
+        role="button"
+        tabindex="0"
+        title="Pick right (or press →)"
+        onclick="pick('right')"></div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-container">
+      <div class="progress-wrap" aria-label="Progress">
+        <div class="progress" id="progress"></div>
+      </div>
+      <p id="remaining-text" aria-live="polite">X matchups remaining</p>
+    </div>
+
+    <!-- In-game controls -->
+    <div class="button-row" id="ingame-controls">
+      <button id="btnUndo" disabled title="Undo last pick (Backspace)">Undo</button>
+      <button id="btnSaveExit" title="Save & exit to menu">Save & Exit</button>
+    </div>
+
+    <!-- Save Slot Modal -->
+    <div
+      id="saveSlotModal"
+      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;"
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby="saveSlotsTitle">
+      <div style="background:#fff; padding:16px; border-radius:12px; width: min(520px, 90%);">
+        <h3 id="saveSlotsTitle" style="margin-top:0;">Save Progress</h3>
+        <p>Choose a slot to save your current Starters run. Saving will exit to the home page.</p>
+
+        <div id="saveSlotsGrid" style="display:flex; flex-direction:column; gap:12px; margin:12px 0;">
+          <!-- filled by JS -->
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="btnCancelSave">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final results -->
+    <div id="result" class="result-container" style="display: none;"></div>
+  </div>
+
+  <script>
+    // Grab shiny settings from localStorage and store globally (used by export image label)
+    window.includeShinies = localStorage.getItem('includeShinies') === 'true';
+    window.shinyOnly = localStorage.getItem('shinyOnly') === 'true';
+  </script>
+  <script src="js/starters.js"></script>
+</body>
+</html>
