@@ -1112,7 +1112,7 @@ function showWinner(finalWinner) {
     <div class="champion-card">
       <div class="champion-image-wrapper">
         ${getImageTag(champion, champion.shiny, champion.name).replace('<img ', '<img class="champion-img" ')}
-        <img src="confetti.gif" class="confetti" alt="Confetti">
+        <img src="assets/confetti.gif" class="confetti" alt="Confetti">
       </div>
       <h3>${champion.shiny ? "⭐ " : ""}${champion.name}</h3>
       <p class="champion-text">🏆 Champion</p>
