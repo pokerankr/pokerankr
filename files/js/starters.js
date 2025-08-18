@@ -514,6 +514,28 @@ const lostTo = Object.create(null);      // monKey(loser) -> monKey(winner)
 let roundNum = 0;                        // global match counter (main pass only)
 const roundIndex = Object.create(null);  // monKey(loser) -> round number lost
 
+// --- Engine sync: hydrate engine with current KOTH state (once) ---
+if (window.prEngine && typeof prEngine.hydrate === 'function') {
+  try {
+    prEngine.hydrate({
+      state: {
+        remaining:  remaining.map(p => ({ ...p })),
+        eliminated: eliminated.map(p => ({ ...p })),
+        current:    current ? { ...current } : null,
+        next:       next    ? { ...next }    : null,
+        leftHistory: leftHistory.map(p => ({ ...p })),
+        lostTo:     (() => { const o = {}; for (const k in lostTo) o[k] = lostTo[k]; return o; })(),
+        roundIndex: (() => { const o = {}; for (const k in roundIndex) o[k] = roundIndex[k]; return o; })(),
+        roundNum,
+        gameOver
+      }
+    });
+  } catch (e) {
+    console.warn('Engine hydrate failed (will continue without engine sync):', e);
+  }
+}
+
+
 // Post-bracket state (interactive)
 let postMode = null; // null | 'RU' | 'THIRD'
 const post = {
@@ -654,7 +676,48 @@ function undoLast() {
   }
 
 
-  // KOTH undo (unchanged)
+    // KOTH undo via engine
+  if (window.prEngine && typeof prEngine.undo === 'function') {
+    const state = prEngine.undo();
+
+    // --- sync mirrors (mutate const containers; do not reassign) ---
+    // let bindings (safe to reassign)
+    remaining  = state.remaining  || [];
+    eliminated = state.eliminated || [];
+    current    = state.current    || null;
+    next       = state.next       || null;
+    roundNum   = state.roundNum   || 0;
+    gameOver   = !!state.gameOver;
+
+    // const containers: clear then copy
+    if (state.lostTo) {
+      for (const k in lostTo) delete lostTo[k];
+      for (const k in state.lostTo) lostTo[k] = state.lostTo[k];
+    } else {
+      for (const k in lostTo) delete lostTo[k];
+    }
+
+    if (state.roundIndex) {
+      for (const k in roundIndex) delete roundIndex[k];
+      for (const k in state.roundIndex) roundIndex[k] = state.roundIndex[k];
+    } else {
+      for (const k in roundIndex) delete roundIndex[k];
+    }
+
+    const lh = Array.isArray(state.leftHistory) ? state.leftHistory : [];
+    leftHistory.splice(0, leftHistory.length, ...lh);
+
+    // keep your UI’s local history semantics: one step undone clears the stack
+    history = [];
+    withScrollLock(() => {
+      displayMatchup();
+      updateProgress();
+      updateUndoButton();
+    });
+    return;
+  }
+
+  // Fallback (shouldn’t be needed once engine is always present)
   if (history.length === 0) return;
   const prev = history.pop();
   restoreState(prev);
@@ -781,43 +844,65 @@ function pick(side) {
   if (gameOver) return;
   if (!current || !next) return;
 
+  // keep existing KOTH undo snapshot UX
   history.push(snapshotState());
   updateUndoButton();
 
-  const prevLeft = current;
-  const winner = side === "left" ? current : next;
-  const loser  = side === "left" ? next    : current;
-
-  // Record main-pass outcome (used to build post brackets)
-  const wKeyMain = monKey(winner), lKeyMain = monKey(loser);
-  lostTo[lKeyMain] = wKeyMain;
-  roundNum += 1;
-  roundIndex[lKeyMain] = roundNum;
-
-  loser.roundsSurvived = loser.roundsSurvived || 0;
-  eliminated.push(loser);
-  winner.roundsSurvived = (winner.roundsSurvived || 0) + 1;
-
-  if (monKey(winner) !== monKey(prevLeft)) {
-    leftHistory.push(winner);
-  }
-
-  current = winner;
-
-  if (remaining.length === 0) {
-    startRunnerUpBracket(winner);
+  // ---- delegate the decision to the engine ----
+  if (!window.prEngine || typeof prEngine.choose !== 'function') {
+    console.error("Engine not ready; falling back not implemented in this milestone.");
     return;
   }
 
-  next = remaining.pop();
-  next.roundsSurvived = 0;
+  const state = prEngine.choose(side === "left" ? "left" : "right");
 
+  // Sync Starters’ local mirrors from engine so the rest of the file keeps working
+  if (state) {
+  // 'let' bindings (safe to reassign)
+  remaining  = state.remaining  || [];
+  eliminated = state.eliminated || [];
+  current    = state.current    || null;
+  next       = state.next       || null;
+  roundNum   = state.roundNum   || 0;
+  gameOver   = !!state.gameOver;
+
+  // --- 'const' containers: mutate in place (do NOT reassign) ---
+
+  // lostTo: clear then copy
+  if (state.lostTo) {
+    for (const k in lostTo) { delete lostTo[k]; }
+    for (const k in state.lostTo) { lostTo[k] = state.lostTo[k]; }
+  } else {
+    for (const k in lostTo) { delete lostTo[k]; }
+  }
+
+  // roundIndex: clear then copy
+  if (state.roundIndex) {
+    for (const k in roundIndex) { delete roundIndex[k]; }
+    for (const k in state.roundIndex) { roundIndex[k] = state.roundIndex[k]; }
+  } else {
+    for (const k in roundIndex) { delete roundIndex[k]; }
+  }
+
+  // leftHistory: replace contents without reassigning the array reference
+  const lh = Array.isArray(state.leftHistory) ? state.leftHistory : [];
+  leftHistory.splice(0, leftHistory.length, ...lh);
+}
+
+  // If main pass is complete, start RU bracket with the champion
+  if ((remaining?.length ?? 0) === 0 || gameOver) {
+    if (current) startRunnerUpBracket(current);
+    return;
+  }
+
+  // normal repaint
   withScrollLock(() => {
     displayMatchup();
     updateProgress();
     updateUndoButton();
   });
 }
+
 
 function startRunnerUpBracket(finalChampion){
   updateUndoButton();
