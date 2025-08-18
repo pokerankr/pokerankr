@@ -2,6 +2,16 @@
 // PokéRankr — starters.js
 // =========================
 
+// --- Engine bootstrap (no behavior change yet) ---
+/**
+ * We create a global engine instance now so future steps can
+ * gradually delegate to it. For the moment, we do NOT call any
+ * engine methods from the existing code — this is just plumbing.
+ */
+window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === 'function')
+  ? PokeRankrEngine.create()
+  : null;
+
 // ----- Data: base-form starters (Gen 1–9)
 const baseStarters = [
   { id: 1, name: "Bulbasaur" }, { id: 4, name: "Charmander" }, { id: 7, name: "Squirtle" },
@@ -30,6 +40,25 @@ if (shinyOnly) {
   ];
 } else {
   pool = baseStarters.map(p => ({ ...p, shiny: false }));
+}
+
+// --- Engine v0 init (no behavior change) ---
+if (window.prEngine && typeof prEngine.init === 'function') {
+  prEngine.init({
+    pool: [...pool], // pass a copy to avoid accidental mutation later
+    options: {
+      includeShinies,
+      shinyOnly,
+      // future options go here (seedStrategy, includeForms, etc.)
+    },
+    seed: null, // we'll add deterministic seeding later
+    callbacks: {
+      onMatchReady:  () => {}, // UI hooks to be filled when we migrate
+      onProgress:    () => {},
+      onPhaseChange: () => {},
+      onResults:     () => {},
+    }
+  });
 }
 
 // ===== Sprite helpers (no-flash + fallback chain) =====
