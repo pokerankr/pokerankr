@@ -124,7 +124,7 @@ function postAliveEntrantsCount() {
       };
     }
 
-    function restore(s) {
+function restore(s) {
       phase = s.phase || "KOTH";
 
       pool = deepCopyArr(s.pool || []);
@@ -158,7 +158,11 @@ post.thirdWinsByMon = { ...(P.thirdWinsByMon || {}) };
 post.lastSnap = null;
 // Keep (or hydrate) the RU Round-1 pairs
 post.ruR1Pairs = new Set(Array.isArray(P.ruR1Pairs) ? P.ruR1Pairs : []);
-    }
+// After hydrating state, ensure a visible pair if we’re in RU/THIRD
+if ((post.phase === 'RU' || post.phase === 'THIRD') && (!current || !next)) {
+  try { scheduleNextPostMatch(); } catch {}
+}
+}
 
     function emitMatchReady() {
       try { _callbacks.onMatchReady?.({ phase, current, next, roundNum }); } catch {}
@@ -604,7 +608,17 @@ emitPhaseChange();
       },
 
       serialize() { return snapshot(); },
-      hydrateSnapshot(snap) { restore(snap || {}); emitMatchReady(); emitProgress(); return this; },
+      hydrateSnapshot(snap) {
+  restore(snap || {});
+  // If resuming in RU/THIRD with no visible pair yet, schedule one now.
+  if (phase !== "KOTH" && (!current || !next)) {
+    scheduleNextPostMatch(); // will emit match + progress
+  } else {
+    emitMatchReady();
+    emitProgress();
+  }
+  return this;
+},
 
       // Optional: engine-native results (Starters already has computeResults; you can keep using that)
       computeResults() {

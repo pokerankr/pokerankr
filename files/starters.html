@@ -70,12 +70,38 @@
     <div id="result" class="result-container" style="display: none;"></div>
   </div>
 
-  <script>
+   <script>
     // Grab shiny settings from localStorage and store globally (used by export image label)
     window.includeShinies = localStorage.getItem('includeShinies') === 'true';
     window.shinyOnly = localStorage.getItem('shinyOnly') === 'true';
   </script>
   <script src="engine/rankingEngine.js"></script>
   <script src="js/starters.js"></script>
+
+  <!-- Auto-resume from Index's "Continue / Manage Saves" -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const pending = localStorage.getItem('PR_PENDING_RESUME_SLOT');
+        if (pending !== null) {
+          localStorage.removeItem('PR_PENDING_RESUME_SLOT');
+          const slots = (typeof readSlots === 'function') ? readSlots() : [];
+          const idx = parseInt(pending, 10);
+          const s = Array.isArray(slots) ? slots[idx] : null;
+          if (s && s.type === 'starters' && typeof loadStarterSession === 'function') {
+            loadStarterSession(s);
+            return; // stop; loadStarterSession will render the correct screen
+          }
+        }
+      } catch (e) {
+        console.warn('Pending resume check failed:', e);
+      }
+
+      // No pending resume → render a fresh run
+      if (typeof displayMatchup === 'function') displayMatchup();
+      if (typeof updateProgress === 'function') updateProgress();
+      if (typeof updateUndoButton === 'function') updateUndoButton();
+    });
+  </script>
 </body>
 </html>
