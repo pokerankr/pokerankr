@@ -93,7 +93,7 @@ function spriteUrlChain(id, shiny = false) {
 }
 
 // Returns an <img> string that stays hidden until loaded and walks the fallback list on error.
-function getImageTag(pOrId, shiny = false, alt = "") {
+function getImageTag(pOrId, shiny = false, alt = "", forResults = false) {
   const p = (typeof pOrId === 'object' && pOrId) ? pOrId : { id: pOrId, shiny, name: alt || "" };
   const wantShiny = !!(p.shiny ?? shiny);
   const chain = spriteUrlChain(p.id, wantShiny);
@@ -101,23 +101,16 @@ function getImageTag(pOrId, shiny = false, alt = "") {
   const fallbacks = JSON.stringify(chain.slice(1));
   const safeAlt = alt || p.name || "";
 
-  return `<img
+   return `<img
     src="${first}"
     alt="${safeAlt}"
     style="visibility:hidden"
-    width="256" height="256"
+    width="256"${forResults ? "" : " height=\"256\""}
     data-step="0"
     data-fallbacks='${fallbacks}'
     onload="this.style.visibility='visible'"
-    onerror="
-      try {
-        this.style.visibility='hidden';
-        const steps = JSON.parse(this.dataset.fallbacks||'[]');
-        let i = parseInt(this.dataset.step||'0',10);
-        if (i < steps.length) { this.dataset.step = String(++i); this.src = steps[i-1]; }
-        else { this.onerror=null; }
-      } catch(e) { this.onerror=null; }
-    ">`;
+    onerror=" … "
+  >`;
 }
 
 // ----- Utils
@@ -920,17 +913,24 @@ function buildOrUpdateSide(sideId, mon){
   const container = document.getElementById(sideId);
   if (!container) return;
 
-  // create once
+  // create once (now with a square wrapper to prevent layout shift)
   let img = container.querySelector('img[data-role="poke"]');
   let nameP = container.querySelector('p[data-role="label"]');
   if (!img) {
+    // clear any old junk
+    container.innerHTML = '';
+
+    // square wrapper reserves space immediately (CSS uses aspect-ratio)
+    const wrap = document.createElement('div');
+    wrap.className = 'matchup-img-wrap';
+
     img = document.createElement('img');
     img.setAttribute('data-role', 'poke');
     img.setAttribute('width', '256');
     img.setAttribute('height', '256');
     img.style.visibility = 'hidden'; // will show onload
-    container.innerHTML = ''; // clear any old junk
-    container.appendChild(img);
+    wrap.appendChild(img);
+    container.appendChild(wrap);
 
     nameP = document.createElement('p');
     nameP.setAttribute('data-role', 'label');
@@ -980,6 +980,7 @@ function buildOrUpdateSide(sideId, mon){
 
   if (isLeft) _prevLeftKey = key; else _prevRightKey = key;
 }
+
 
 function displayMatchup() {
   if (!current && !next) {
@@ -1471,7 +1472,7 @@ function showWinner(finalWinner) {
 
       return `
         <div class="pokemon-card compact-card">
-          ${getImageTag(p, p.shiny, p.name)}
+         ${getImageTag(p, p.shiny, p.name, true)}
           <p>${p.shiny ? "⭐ " : ""}${p.name}</p>
           ${survivedLine}
           ${winsLine}
@@ -1481,15 +1482,15 @@ function showWinner(finalWinner) {
     }
 
     // Hon. Mention keeps alignment with an invisible placeholder line
-    return `
-      <div class="pokemon-card compact-card">
-        ${getImageTag(p, p.shiny, p.name)}
-        <p>${p.shiny ? "⭐ " : ""}${p.name}</p>
-        ${survivedLine}
-        <p class="rounds-text" style="visibility:hidden;">placeholder</p>
-        <p class="placement-tag">${title}</p>
-      </div>
-    `;
+return `
+  <div class="pokemon-card compact-card">
+    ${getImageTag(p, p.shiny, p.name, true)}
+    <p>${p.shiny ? "⭐ " : ""}${p.name}</p>
+    ${survivedLine}
+    <p class="rounds-text" style="visibility:hidden;">placeholder</p>
+    <p class="placement-tag">${title}</p>
+  </div>
+`;
   };
 
   document.getElementById("result").innerHTML = `

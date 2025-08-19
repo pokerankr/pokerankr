@@ -10,16 +10,15 @@
 
   <!-- ====== LOADING PAGE ====== -->
   <div id="loading-page" class="page active">
-    <div class="logo">PokéRankr Logo (TBD)</div>
+    <div class="logo">
+  <img src="assets/logo.png" alt="PokéRankr Logo">
+</div>
     <div class="menu-buttons">
-      <button id="btnStart" class="menu-button">Start</button>
-      <!-- NEW: appears only if at least one slot is used -->
-      <button id="btnManageSaves" class="menu-button" style="display:none;">Continue / Manage Saves</button>
-      <button onclick="window.location.href='saved.html'">Saved Rankings</button>
-
-      <button id="btnDownload" class="menu-button">Download Rankings</button>
-      <input type="file" id="uploadInput" accept="application/json" style="display:none" />
-      <button id="btnUpload" class="menu-button">Upload Rankings</button>
+      <button id="btnStart" class="menu-button"><span class="button_top">Start</span></button>
+      <button id="btnManageSaves" class="menu-button" style="display:none;"><span class="button_top">Continue / Manage Saves</span></button>
+      <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
+      <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
+      <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
     </div>
 
     <!-- Manage Saves Modal -->
@@ -32,12 +31,12 @@
         </div>
         <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
           <div>
-            <button id="btnExportSaves" class="alt">Export Save Slots</button>
+            <button id="btnExportSaves" class="alt"><span class="button_top">Export Save Slots</span></button>
             <input type="file" id="importSavesInput" accept="application/json" style="display:none"/>
-            <button id="btnImportSaves" class="alt">Import Save Slots</button>
+            <button id="btnImportSaves" class="alt"><span class="button_top">Import Save Slots</span></button>
           </div>
           <div>
-            <button id="btnCloseManage">Close</button>
+            <button id="btnCloseManage"><span class="button_top">Close</span></button>
           </div>
         </div>
       </div>
@@ -47,7 +46,7 @@
 
   <!-- ====== CONFIGURATION PAGE ====== -->
   <div id="config-page" class="page">
-    <h1>Build Your Battle Pool</h1>
+    <h1>Build Your Matchup!</h1>
 
     <!-- Global Shiny Settings -->
     <div class="settings">
@@ -77,11 +76,10 @@
     <div id="extra-options"></div>
 
     <div class="button-row">
-      <button id="btnStartRanking">Start Ranking</button>
-      <button id="btnBackToMenu" class="alt">Back</button>
+      <button id="btnStartRanking"><span class="button_top">Start Ranking</span></button>
+      <button id="btnBackToMenu" class="alt"><span class="button_top">Back</span></button>
     </div>
   </div>
-
   <script>
   /* =========================
      App/version constants
@@ -137,34 +135,37 @@
     if (cat === 'generation') {
   const supportedGens = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-  // Build Gen buttons + (hidden-by-default) toggles row
-  extraOptions.innerHTML = `
-    <div>
-      <label>Select Generation:</label>
-      <div class="category-buttons" id="genButtons" role="group" aria-label="Select Generation">
-        ${supportedGens.map((g,i) => `
-          <button
-            type="button"
-            class="menu-button gen-btn${i===0 ? ' selected' : ''}"
-            data-gen="${g}"
-            aria-pressed="${i===0 ? 'true' : 'false'}"
-          >Gen ${g}</button>
-        `).join('')}
-      </div>
+// Build Gen buttons + (hidden-by-default) toggles row
+extraOptions.innerHTML = `
+  <div>
+    <label>Select Generation:</label>
+    <div class="category-buttons" id="genButtons" role="group" aria-label="Select Generation">
+      ${supportedGens.map((g,i) => `
+        <button
+          type="button"
+          class="menu-button gen-btn${i===0 ? ' selected' : ''}"
+          data-gen="${g}"
+          aria-pressed="${i===0 ? 'true' : 'false'}"
+        >
+          <span class="button_top">Gen ${g}</span>
+        </button>
+      `).join('')}
     </div>
+  </div>
 
-    <!-- Per-gen toggles (shown/hidden by JS) -->
-    <div class="settings" id="genToggleRow" style="display:none; margin-top:8px;">
-      <label id="lblToggleRegional" style="display:none;">
-        <input type="checkbox" id="toggle-regional" />
-        Include Regional Forms (Alola/Galar/Hisui)
-      </label>
-      <label id="lblToggleAltBattle" style="display:none;">
-        <input type="checkbox" id="toggle-altbattle" />
-        Include Alternate/Battle Forms
-      </label>
-    </div>
-  `;
+  <!-- Per-gen toggles (shown/hidden by JS) -->
+  <div class="settings" id="genToggleRow" style="display:none; margin-top:8px;">
+    <label id="lblToggleRegional" style="display:none;">
+      <input type="checkbox" id="toggle-regional" />
+      Include Regional Forms (Alola/Galar/Hisui)
+    </label>
+    <label id="lblToggleAltBattle" style="display:none;">
+      <input type="checkbox" id="toggle-altbattle" />
+      Include Alternate/Battle Forms
+    </label>
+  </div>
+`;
+
 
   // Wire up gen selection
   const btns = extraOptions.querySelectorAll('.gen-btn');

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PokéRankr - Starters</title>
+  <title>PokéRankr - Legendaries</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -41,13 +41,9 @@
 
     <!-- In-game controls -->
     <div class="button-row" id="ingame-controls">
-  <button id="btnUndo" disabled title="Undo last pick (Backspace)">
-    <span class="button_top">Undo</span>
-  </button>
-  <button id="btnSaveExit" title="Save & exit to menu">
-    <span class="button_top">Save & Exit</span>
-  </button>
-</div>
+      <button id="btnUndo" disabled title="Undo last pick (Backspace)">Undo</button>
+      <button id="btnSaveExit" title="Save & exit to menu">Save & Exit</button>
+    </div>
 
     <!-- Save Slot Modal -->
     <div
@@ -58,17 +54,14 @@
       aria-labelledby="saveSlotsTitle">
       <div style="background:#fff; padding:16px; border-radius:12px; width: min(520px, 90%);">
         <h3 id="saveSlotsTitle" style="margin-top:0;">Save Progress</h3>
-        <p>Choose a slot to save your current Starters run. Saving will exit to the home page.</p>
+        <p>Choose a slot to save your current Legendaries run. Saving will exit to the home page.</p>
 
         <div id="saveSlotsGrid" style="display:flex; flex-direction:column; gap:12px; margin:12px 0;">
           <!-- filled by JS -->
         </div>
 
         <div style="display:flex; gap:8px; justify-content:flex-end;">
-  <button id="btnCancelSave">
-    <span class="button_top">Cancel</span>
-  </button>
-</div>
+          <button id="btnCancelSave">Cancel</button>
         </div>
       </div>
     </div>
@@ -83,7 +76,7 @@
     window.shinyOnly = localStorage.getItem('shinyOnly') === 'true';
   </script>
   <script src="engine/rankingEngine.js"></script>
-  <script src="js/starters.js"></script>
+  <script src="js/legendaries.js"></script>
 
   <!-- Auto-resume from Index's "Continue / Manage Saves" -->
   <script>
@@ -110,32 +103,5 @@
       if (typeof updateUndoButton === 'function') updateUndoButton();
     });
   </script>
-  <script>
-  // Wrap any <button> missing .button_top with a span, preserving text/HTML.
-  function upgradeButtons(root = document){
-    root.querySelectorAll('button:not(:has(.button_top))').forEach(btn => {
-      const span = document.createElement('span');
-      span.className = 'button_top';
-      // Move existing nodes into the span
-      while (btn.firstChild) span.appendChild(btn.firstChild);
-      btn.appendChild(span);
-    });
-  }
-
-  // Initial pass
-  document.addEventListener('DOMContentLoaded', () => upgradeButtons());
-
-  // Watch for dynamically inserted buttons (e.g., modals, grids)
-  const mo = new MutationObserver(muts => {
-    for (const m of muts){
-      m.addedNodes.forEach(node => {
-        if (node.nodeType !== 1) return;
-        if (node.tagName === 'BUTTON') upgradeButtons(node.parentNode);
-        else upgradeButtons(node);
-      });
-    }
-  });
-  mo.observe(document.documentElement, { childList: true, subtree: true });
-</script>
 </body>
 </html>

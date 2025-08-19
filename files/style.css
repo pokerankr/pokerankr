@@ -16,21 +16,24 @@
   --text:#0d1b2a;
   --text-soft:#5a6a8a;
   --shadow:0 12px 24px rgba(27,56,120,.15);
+  --btn-lift: 3px;
+  --btn-lift-hover: 5px;
 }
 
 /* BASE */
 *{box-sizing:border-box}
 html,body{height:100%}
-body{
-  margin:0;
-  padding:24px;
-  font-family:var(--font);
-  color:var(--text);
-  background:radial-gradient(1200px 700px at 10% -10%, var(--bg-2), transparent 60%),
-             radial-gradient(1200px 700px at 110% 10%, var(--bg-2), transparent 60%),
-             linear-gradient(180deg,var(--bg-1),#d5e3ff);
-  text-align:center;
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: var(--font);
+  color: var(--text);
+  text-align: center;
+
+  background: linear-gradient(180deg, #e9f0ff 0%, #c9dcff 50%, #3a6ff8 100%);
 }
+
+
 
 .container{max-width:1100px;margin:0 auto}
 
@@ -52,28 +55,87 @@ p{margin:.25rem 0}
 }
 .category-buttons{margin-top:18px}
 
-.category-button,.menu-button,button{
-  appearance:none;border:none;cursor:pointer;text-decoration:none;
-  background:var(--primary);color:#fff;border-radius:14px;
-  padding:12px 22px;font-weight:700;letter-spacing:.2px;
-  box-shadow:var(--shadow);transition:transform .05s ease, background .2s ease;
-}
-.category-button:hover,.menu-button:hover,button:hover{background:var(--primary-600)}
-.category-button:active,.menu-button:active,button:active{transform:translateY(1px)}
-/* Selected/active button look */
-.menu-button.selected,
-.gen-btn.selected{
-  background:#fff;
-  color:var(--primary);
-  border:2px solid var(--primary);
-  box-shadow:none;
-}
-.menu-button.selected:focus-visible,
-.gen-btn.selected:focus-visible{
-  outline:3px solid #aac3ff;
-  outline-offset:2px;
+/* =========================================================
+   NEW 3‑D BUTTONS (no HTML changes required)
+   Works for: button, .menu-button, .category-button, .gen-btn
+   ========================================================= */
+/* === Modern Button Styling (requires <span class="button_top">) === */
+button,
+.menu-button,
+.category-button,
+.gen-btn {
+  --button_radius: 0.75em;
+  --button_color: #e8e8e8;
+  --button_outline_color: #000000;
+  font-size: 17px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--button_radius);
+  background: var(--button_outline_color);
+  padding: 0; /* padding is handled on .button_top */
 }
 
+button .button_top,
+.menu-button .button_top,
+.category-button .button_top,
+.gen-btn .button_top {
+  display: block;
+  box-sizing: border-box;
+  border: 2px solid var(--button_outline_color);
+  border-radius: var(--button_radius);
+  padding: 0.75em 1.5em;
+  background: var(--button_color);
+  color: var(--button_outline_color);
+  transform: translateY(calc(-1 * var(--btn-lift)));        /* exact lift */
+  transition: transform 0.1s ease;
+}
+
+button:hover .button_top,
+.menu-button:hover .button_top,
+.category-button:hover .button_top,
+.gen-btn:hover .button_top {
+  transform: translateY(calc(-1 * var(--btn-lift-hover)));  /* exact hover lift */
+}
+
+button:active .button_top,
+.menu-button:active .button_top,
+.category-button:active .button_top,
+.gen-btn:active .button_top {
+  transform: translateY(0);
+}
+
+
+/* Selected buttons */
+.menu-button.selected .button_top,
+.gen-btn.selected .button_top {
+  background:#fff;
+  color:var(--primary);
+  border-color:var(--primary);
+}
+
+/* Alt variant */
+.button-row .alt {
+  --button_color:#ffffff;
+  --button_outline_color:var(--primary);
+}
+.button-row .alt .button_top {
+  color: var(--primary);
+  padding: 0.75em 1.5em;
+  border-radius: var(--button_radius);
+  vertical-align: middle;
+  transform: translateY(calc(-1 * var(--btn-lift)));        /* same lift */
+  transition: transform 0.1s ease;
+}
+.button-row .alt:hover .button_top {
+  transform: translateY(calc(-1 * var(--btn-lift-hover)));  /* same hover lift */
+}
+.button-row .alt:active .button_top {
+  transform: translateY(0);
+}
+
+
+/* ========================================================= */
 
 /* MATCHUP LAYOUT */
 .matchup-container,#matchup{
@@ -97,7 +159,22 @@ p{margin:.25rem 0}
   transition:transform .1s ease, box-shadow .1s ease;
 }
 .pokemon-card:hover{transform:translateY(-2px)}
-.pokemon-card img{width:220px;max-width:65vw;height:auto;display:block;margin:0 auto}
+/* Reserve a square box so images can't push layout around */
+.matchup-img-wrap{
+  width: min(65vw, 220px);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+}
+/* Make the image fit without distortion */
+.matchup-img-wrap > img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .pokemon-card p{font-weight:700;margin-top:10px}
 
 /* PROGRESS BAR */
@@ -131,16 +208,13 @@ p{margin:.25rem 0}
 
 /* BUTTONS FOOTER */
 .button-row{margin-top:18px}
-.button-row .alt{
-  background:#fff;color:var(--primary);border:2px solid var(--primary)
-}
-.button-row .alt:hover{background:#f5f7ff}
 
 /* breathing room under result action buttons */
 .result-container .button-group{
   margin-top: 18px;
   margin-bottom: 28px;
 }
+.button-row { align-items: flex-end; }
 
 /* UTILS */
 .panel-soft{background:var(--panel-soft)}
@@ -148,7 +222,7 @@ p{margin:.25rem 0}
 
 /* RESPONSIVE — small tweaks */
 @media (max-width:700px){
-  .pokemon-card img{width:180px}
+  .matchup-img-wrap{ width:180px }
   .champion-img{width:280px}
   #vs-text{font-size:1.3rem}
 } /* <-- fixed: properly close this media query */
@@ -168,13 +242,25 @@ p{margin:.25rem 0}
 #loading-page.active{
   display:flex;
 }
-.logo{
-  font-weight:800;font-size:2rem;letter-spacing:.5px;
-  background:#fff;border:4px solid #d2deff;outline:1px solid #eef3ff;
-  border-radius:18px;padding:20px 26px;box-shadow:var(--shadow)
+.logo {
+  display: block;       /* just a wrapper */
+  margin: 0 auto 0px;  /* center horizontally, add space below */
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
+
+.logo img {
+  display: block;
+  max-width: 600px;   /* increase this to make it “slightly larger” */
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+
 .menu-buttons{margin-top:6px}
-button[disabled]{opacity:.55;cursor:not-allowed}
 
 /* ====== CONFIG PAGE ====== */
 #config-page{max-width:880px;margin:0 auto}
@@ -235,15 +321,17 @@ input[type="checkbox"]{
 }
 .compact-card img{
   width:140px;
+  height:auto;          /* ← prevents “tall” stretch from height=256 */
   max-width:100%;
 }
+
 .compact-grid .rounds-text{font-size:.85rem;margin-top:4px}
 .placement-tag{font-size:.85rem;color:var(--accent);font-weight:700;margin-top:4px}
 
 /* Mobile: stack neatly */
 @media (max-width:700px){
   .compact-card{ width:46%; }
-  .compact-card img{ width:120px; }
+  .compact-card img{ width:120px; height:auto; }  /* ← keep aspect on mobile */
 }
 
 /* ===== Saved Rankings horizontal bars ===== */
@@ -400,11 +488,10 @@ input[type="checkbox"]{
     width: min(92vw, 440px); 
     padding: 14px 14px 12px; 
   }
-  .pokemon-card img { 
-    width: min(70vw, 260px); 
-    max-width: 100%; 
-    height: auto; 
+  .matchup-img-wrap { 
+  width: min(70vw, 260px); 
   }
+
 
   /* Progress bar fills width */
   .progress-wrap { width: 100%; margin-left: 0; margin-right: 0; }
@@ -511,8 +598,31 @@ input[type="checkbox"]{
   .matchup-container, #matchup { gap: 10px; margin-top: 6px; }
   #vs-text { font-size: .95rem; padding: .22rem .5rem; }
   .pokemon-card { width: min(88vw, 380px); padding: 12px 12px 10px; border-width: 3px; border-radius: 14px; }
-  .pokemon-card img { width: min(58vw, 220px); max-width: 100%; height: auto; }
+  .matchup-img-wrap { width: min(58vw, 220px); }
   .pokemon-card p { font-size: .95rem; margin-top: 8px; }
   .progress-wrap { width: 100%; height: 18px; margin: 12px auto 6px; }
   body { padding: 12px; }
+}
+/* Apply 3-D hover/press behavior to mini-btns and saved.html buttons */
+.mini-btn,
+#btnClearFilters,
+#btnClearAll,
+#saved-rows button {
+  position: relative;
+  transform: translateY(-0.2em);
+  transition: transform 0.1s ease;
+}
+
+.mini-btn:hover,
+#btnClearFilters:hover,
+#btnClearAll:hover,
+#saved-rows button:hover {
+  transform: translateY(-0.33em);
+}
+
+.mini-btn:active,
+#btnClearFilters:active,
+#btnClearAll:active,
+#saved-rows button:active {
+  transform: translateY(0);
 }
