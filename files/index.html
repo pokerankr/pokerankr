@@ -14,12 +14,14 @@
   <img src="assets/logo.png" alt="PokéRankr Logo">
 </div>
     <div class="menu-buttons">
-      <button id="btnStart" class="menu-button"><span class="button_top">Start</span></button>
-      <button id="btnManageSaves" class="menu-button" style="display:none;"><span class="button_top">Continue / Manage Saves</span></button>
-      <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
-      <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
-      <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
-    </div>
+  <button id="btnStart" class="menu-button"><span class="button_top">Start</span></button>
+  <button id="btnManageSaves" class="menu-button" style="display:none;"><span class="button_top">Continue / Manage Saves</span></button>
+  <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
+  <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
+  <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
+  <!-- NEW: hidden input specifically for Upload Rankings -->
+  <input type="file" id="uploadInput" accept="application/json" style="display:none" />
+</div>
 
     <!-- Manage Saves Modal -->
     <div id="manageSavesModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
@@ -499,13 +501,18 @@ if (cat === 'type') {
     grid.innerHTML = slots.map((slot, i) => {
       if (!slot) {
         return `
-          <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">
-            <div style="height:120px; display:flex; align-items:center; justify-content:center; color:#9ca3af;">Empty Slot</div>
-            <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
-              <button data-action="delete" data-idx="${i}" disabled>Delete</button>
-              <button data-action="resume" data-idx="${i}" disabled>Resume</button>
-            </div>
-          </div>
+          <div class="slot-card" data-idx="${i}">
+  <div class="slot-body">Empty Slot</div>
+  <div class="slot-actions">
+    <button class="compact delete-btn" data-action="delete" data-idx="${i}" disabled>
+      <span class="button_top">Delete</span>
+    </button>
+    <button class="compact resume-btn" data-action="resume" data-idx="${i}" disabled>
+      <span class="button_top">Resume</span>
+    </button>
+  </div>
+</div>
+
         `;
       }
 
@@ -547,26 +554,32 @@ if (!displayLabel) {
 }
 
 const remainingLine = displayLabel
-  ? `<div style="font-size:.8rem; color:#374151; margin-top:4px; text-align:center;">${displayLabel}</div>`
+  ? `<div style="font-size:.8rem; color:#374151; margin:6px 0 10px; text-align:center;">${displayLabel}</div>`
   : '';
+return `
+  <div class="slot-card" data-idx="${i}">
+    <div class="slot-body" style="flex-direction:column; gap:4px;">
+      <div style="display:flex; align-items:center; gap:8px; justify-content:center; min-height:120px;">
+        ${a ? `<img src="${spriteUrl(a.id, a.shiny)}" alt="${a.name}" width="72" height="72">` : ''}
+        <span style="font-weight:700;">VS</span>
+        ${b ? `<img src="${spriteUrl(b.id, b.shiny)}" alt="${b.name}" width="72" height="72">` : ''}
+      </div>
+      <div style="font-size:.95rem; color:#111827; font-weight:600;">${title}</div>
+      <div style="font-size:.8rem; color:#6b7280;">Saved ${savedAt}</div>
+      ${remainingLine}
+    </div>
+    <div class="slot-actions">
+      <button class="compact delete-btn" data-action="delete" data-idx="${i}">
+        <span class="button_top">Delete</span>
+      </button>
+      <button class="compact resume-btn" data-action="resume" data-idx="${i}" data-href="${hrefHint}">
+        <span class="button_top">Resume</span>
+      </button>
+    </div>
+  </div>
+`;
 
 
-      return `
-        <div class="slot-card" data-idx="${i}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">
-          <div style="display:flex; align-items:center; gap:8px; justify-content:center; height:120px;">
-            ${a ? `<img src="${spriteUrl(a.id, a.shiny)}" alt="${a.name}" width="72" height="72">` : ''}
-            <span style="font-weight:700;">VS</span>
-            ${b ? `<img src="${spriteUrl(b.id, b.shiny)}" alt="${b.name}" width="72" height="72">` : ''}
-          </div>
-          <div style="font-size:.95rem; color:#111827; margin-top:4px; font-weight:600;">${title}</div>
-          <div style="font-size:.8rem; color:#6b7280;">Saved ${savedAt}</div>
-          ${remainingLine}
-          <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
-            <button data-action="delete" data-idx="${i}">Delete</button>
-            <button data-action="resume" data-idx="${i}" data-href="${hrefHint}">Resume</button>
-          </div>
-        </div>
-      `;
     }).join('');
 
     grid.onclick = (e) => {
@@ -641,10 +654,11 @@ const remainingLine = displayLabel
     }
   });
 
-  const uploadInput = document.getElementById('uploadInput');
-  document.getElementById('btnUpload').addEventListener('click', () => {
-    uploadInput.click();
-  });
+const uploadInput = document.getElementById('uploadInput');
+const btnUpload = document.getElementById('btnUpload');
+
+if (btnUpload && uploadInput) {
+  btnUpload.addEventListener('click', () => uploadInput.click());
 
   uploadInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
@@ -652,6 +666,9 @@ const remainingLine = displayLabel
     handleFileUpload(file);
     uploadInput.value = '';
   });
+} else {
+  console.warn('Upload UI is missing: #btnUpload or #uploadInput not found.');
+}
   </script>
 </body>
 </html>

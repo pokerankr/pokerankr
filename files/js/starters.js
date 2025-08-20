@@ -269,9 +269,6 @@ function spriteUrl(id, shiny) {
   return (spriteUrlChain(id, shiny))[0]; // just the primary for small previews
 }
 
-// Per-Pokémon total bracket wins (for THIRD seeding)
-const bracketWinsByMon = Object.create(null); // monKey -> count
-
 function serializeStarterSession() {
   const includeShinies = localStorage.getItem("includeShinies") === "true";
   const shinyOnly      = localStorage.getItem("shinyOnly") === "true";
@@ -327,9 +324,6 @@ function serializeStarterSession() {
       lostTo:      { ...(lostTo || {}) },
       roundIndex:  { ...(roundIndex || {}) },
       roundNum:    typeof roundNum === 'number' ? roundNum : 0,
-
-      // (optional) keeps future seeding parity consistent if you use it elsewhere
-      bracketWinsByMon: { ...(bracketWinsByMon || {}) },
 
       // ✅ Post-phase
       postMode, // null | 'RU' | 'THIRD'  (kept for compatibility, not used for UI gates)
@@ -653,13 +647,6 @@ function loadStarterSession(s) {
     console.warn('Mirror from engine failed (continuing anyway):', e);
   }
 
-  // keep THIRD seeding stable after resume
-  for (const k of Object.keys(bracketWinsByMon)) delete bracketWinsByMon[k];
-  Object.assign(
-    bracketWinsByMon,
-    s?.state?.bracketWinsByMon || post.ruWinsByMon || {}
-  );
-
   // 3) Render — NEVER call engine internals like scheduleNextPostMatch() here unless needed to build a missing pair
   const resultBox = document.getElementById("result");
   if (resultBox) resultBox.style.display = "none";
@@ -668,24 +655,11 @@ function loadStarterSession(s) {
     // Normalize to an even index and ensure we have a pair to show
     if (Number.isFinite(post.index)) post.index -= (post.index % 2);
 
-    const needsScheduling =
-      !current || !next ||
-      post.index >= post.currentRound.length ||
-      !post.currentRound[post.index + 1];
-
-    if (needsScheduling) {
-      scheduleNextPostMatch();     // schedules + renders + updates progress/undo
-    } else {
-      displayMatchup();
-      updatePostProgress();
-      updateUndoButton();
-    }
-    return;
-  }
-
-  // KOTH-only: if nothing is on screen and nothing remains, go to RU
-  if (!current && remaining.length === 0 && pool.length > 0) {
-    startRunnerUpBracket(null);
+   // Engine hydrateSnapshot() already schedules a visible pair if needed.
+    // Just render and update UI mirrors.
+    displayMatchup();
+    updatePostProgress();
+    updateUndoButton();
     return;
   }
 
@@ -755,70 +729,6 @@ function computeResults(finalWinner){
   }
 
   return { champion, runnerUp, thirdPlace, honorable };
-}
-
-// --- UNDO state ---
-let history = [];
-function snapshotState() {
-  return {
-    remaining: remaining.map(p => ({ ...p })),
-    eliminated: eliminated.map(p => ({ ...p })),
-    current: current ? { ...current } : null,
-    next: next ? { ...next } : null,
-    leftHistory: leftHistory.map(p => ({ ...p })),
-  };
-}
-function restoreState(s) {
-  remaining  = s.remaining.map(p => ({ ...p }));
-  eliminated = s.eliminated.map(p => ({ ...p }));
-  current    = s.current ? { ...s.current } : null;
-  next       = s.next ? { ...s.next } : null;
-
-  leftHistory.length = 0;
-  leftHistory.push(...s.leftHistory.map(p => ({ ...p })));
-  // Sync the engine to this save (so choose/undo work correctly)
-  try {
-    if (window.prEngine && typeof prEngine.restore === 'function') {
-      prEngine.restore({
-        // Derive engine phase (KOTH/RU/THIRD) from the saved postMode/phase
-        phase: (s.state?.postMode && s.state?.post?.phase) ? s.state.post.phase : 'KOTH',
-
-        pool:        (s.state?.pool || []).map(x => ({ ...x })),
-        remaining:   (s.state?.remaining || []).map(x => ({ ...x })),
-        eliminated:  (s.state?.eliminated || []).map(x => ({ ...x })),
-        current:      s.state?.current ? { ...s.state.current } : null,
-        next:         s.state?.next    ? { ...s.state.next }    : null,
-        leftHistory: (s.state?.leftHistory || []).map(x => ({ ...x })),
-        lostTo:      { ...(s.state?.lostTo || {}) },
-        roundIndex:  { ...(s.state?.roundIndex || {}) },
-        roundNum:     typeof s.state?.roundNum === 'number' ? s.state.roundNum : 0,
-        gameOver:     false,
-
-        post: {
-          phase: s.state?.post?.phase || null,
-          currentRound: Array.isArray(s.state?.post?.currentRound) ? s.state.post.currentRound.map(x => ({ ...x })) : [],
-          nextRound:    Array.isArray(s.state?.post?.nextRound)    ? s.state.post.nextRound.map(x => ({ ...x }))    : [],
-          index:        typeof s.state?.post?.index        === 'number' ? s.state.post.index        : 0,
-          totalMatches: typeof s.state?.post?.totalMatches === 'number' ? s.state.post.totalMatches : 0,
-          doneMatches:  typeof s.state?.post?.doneMatches  === 'number' ? s.state.post.doneMatches  : 0,
-          ruTotal:      typeof s.state?.post?.ruTotal      === 'number' ? s.state.post.ruTotal      : 0,
-          thirdTotal:   typeof s.state?.post?.thirdTotal   === 'number' ? s.state.post.thirdTotal   : 0,
-          ruWins:       typeof s.state?.post?.ruWins       === 'number' ? s.state.post.ruWins       : 0,
-          thirdWins:    typeof s.state?.post?.thirdWins    === 'number' ? s.state.post.thirdWins    : 0,
-          runnerUp:     s.state?.post?.runnerUp ? { ...s.state.post.runnerUp } : null,
-          third:        s.state?.post?.third    ? { ...s.state.post.third }    : null,
-          ruWinsByMon:  { ...(s.state?.post?.ruWinsByMon || {}) },
-          thirdWinsByMon: { ...(s.state?.post?.thirdWinsByMon || {}) }
-        }
-      });
-    }
-  } catch (e) {
-    console.warn('Engine restore failed (continuing anyway):', e);
-  }
-
-  displayMatchup();
-  updateProgress();
-  updateUndoButton();
 }
 
 // --- UNDO state (single-step everywhere) ---
@@ -1155,14 +1065,6 @@ function seedCmp(a, b) {
   return String(a?.name||'').localeCompare(String(b?.name||'')); // stable tiebreak
 }
 
-// Third reseeding: more RU bracket wins first, then seedCmp
-function thirdSeedCmp(a, b) {
-  const wa = bracketWinsByMon[monKey(a)] || 0;
-  const wb = bracketWinsByMon[monKey(b)] || 0;
-  if (wa !== wb) return wb - wa;
-  return seedCmp(a, b);
-}
-
 // Helpers to pluck mons by key
 function findByKey(key){
   if (!key) return null;
@@ -1170,272 +1072,6 @@ function findByKey(key){
   if (next && monKey(next) === key) return next;
   const e = eliminated.find(p => monKey(p) === key);
   return e || null;
-}
-
-function pairKey(a, b) {
-  const ak = monKey(a), bk = monKey(b);
-  return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
-}
-
-function startRunnerUpBracket(finalChampion){
-  updateUndoButton();
-
-  // Enter RU bracket
-  postMode = 'RU';
-  post.phase = 'RU';
-
-  post.ruWins = 0;
-  post.ruWinsByMon = Object.create(null);
-  post.lastSnap = null;
-  updateUndoButton();
-
-  const champKey = monKey(finalChampion);
-
-  // Everyone who lost directly to the champion
-  const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
-  let poolRU = lostKeys.map(findByKey).filter(Boolean);
-
-  // De-dupe
-  {
-    const seen = new Set();
-    poolRU = poolRU.filter(p => {
-      const k = monKey(p);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  }
-
-  // Honorable Mention candidate (highest unique survivals > 0)
-  const placedNow = new Set([champKey]);
-  const hmPool = eliminated.filter(p => !placedNow.has(monKey(p)));
-  hmPool.sort(seedCmp);
-
-  let hmCandidate = null;
-  if (hmPool.length) {
-    const top = hmPool[0];
-    const topSurvivals = (top?.roundsSurvived || 0);
-    const tiedForTop = hmPool.filter(p => (p.roundsSurvived || 0) === topSurvivals);
-    if (topSurvivals > 0 && tiedForTop.length === 1) hmCandidate = top;
-  }
-  if (hmCandidate) {
-    const hmKey = monKey(hmCandidate);
-    const inRU = poolRU.some(p => monKey(p) === hmKey);
-    if (!inRU) poolRU.push(hmCandidate);
-  }
-
-  post.totalMatches = Math.max(0, poolRU.length - 1);
-  post.doneMatches  = 0;
-  post.thirdWins = 0;
-
-  if (poolRU.length === 0) {
-    post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
-    return startThirdBracket(finalChampion);
-  }
-  if (poolRU.length === 1) {
-    post.runnerUp = poolRU[0];
-    return startThirdBracket(finalChampion);
-  }
-
-  const seededRU = [...poolRU].sort(seedCmp);
-  post.nextRound = [];
-  post.index = 0;
-
-  // If odd, top seed gets a bye into next round
-  let round1List = [...seededRU];
-  if (round1List.length % 2 === 1) {
-    const bye = round1List.shift();
-    post.nextRound.push(bye);
-  }
-
-  // Build Round 1 pairs (1 vs N, 2 vs N-1, ...)
-  post.currentRound = round1List;
-
-  // Record RU Round-1 pairs to avoid rematches in Third bracket
-  post.ruR1Pairs.clear();
-  for (let i = 0; i < post.currentRound.length; i += 2) {
-    const a = post.currentRound[i];
-    const b = post.currentRound[i + 1];
-    if (b) post.ruR1Pairs.add(pairKey(a, b));
-  }
-
-  updatePostProgress();
-  scheduleNextPostMatch();
-}
-
-function buildPairsAvoidingRematch(sortedArr, avoidSet) {
-  const arr = [...sortedArr];
-  for (let i = 0; i < arr.length - 1; i += 2) {
-    const a = arr[i];
-    let b = arr[i + 1];
-    if (!b) break;
-
-    if (avoidSet.has(pairKey(a, b))) {
-      for (let j = i + 2; j < arr.length; j++) {
-        if (!arr[j]) continue;
-        if (!avoidSet.has(pairKey(a, arr[j]))) {
-          [arr[i + 1], arr[j]] = [arr[j], arr[i + 1]];
-          break;
-        }
-      }
-    }
-  }
-  return arr;
-}
-
-function startThirdBracket(finalChampion){
-  postMode = 'THIRD';
-  post.phase = 'THIRD';
-  post.thirdWins = 0;
-  post.thirdWinsByMon = Object.create(null);
-  // Clear snapshot so Undo is disabled (faded) at THIRD start.
-  post.lastSnap = null;
-  updateUndoButton();
-
-  post.thirdWins = 0;
-  post.thirdWinsByMon = Object.create(null);
-
-  const champKey = monKey(finalChampion);
-  const ruKey = post.runnerUp ? monKey(post.runnerUp) : null;
-
-  const lostToChampKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
-  const lostToChampList = lostToChampKeys.map(findByKey).filter(Boolean);
-
-  const lostToRunnerUp = ruKey
-    ? Object.keys(lostTo).filter(k => lostTo[k] === ruKey).map(findByKey).filter(Boolean)
-    : [];
-
-  const poolThird = [
-    ...lostToRunnerUp,
-    ...lostToChampList.filter(p => monKey(p) !== ruKey)
-  ];
-
-  const placedKeys = new Set([champKey, ruKey].filter(Boolean));
-  const dedup = [];
-  const seen = new Set();
-  for (const p of poolThird) {
-    const k = monKey(p);
-    if (placedKeys.has(k) || seen.has(k)) continue;
-    seen.add(k);
-    dedup.push(p);
-  }
-
-  if (dedup.length === 0) { post.third = null; return finishToResults(finalChampion); }
-  if (dedup.length === 1) { post.third = dedup[0]; return finishToResults(finalChampion); }
-
-  post.totalMatches = Math.max(0, dedup.length - 1);
-  post.doneMatches  = 0;
-
-  const seeded = dedup.sort(thirdSeedCmp);
-
-  post.nextRound = [];
-  post.index = 0;
-
-  let round1List = seeded;
-  if (seeded.length % 2 === 1) {
-    const bye = round1List.shift();
-    post.nextRound.push(bye);
-  }
-
-  // Avoid RU Round-1 rematches
-  post.currentRound = buildPairsAvoidingRematch(round1List, post.ruR1Pairs);
-
-  updatePostProgress();
-  scheduleNextPostMatch();
-}
-
-function scheduleNextPostMatch(){
-  // Finish a round -> roll into next or finish bracket
-  while (post.index >= post.currentRound.length) {
-    if (post.nextRound.length <= 1) {
-      const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
-      if (post.phase === 'RU') {
-        post.runnerUp = bracketWinner;
-        // Do NOT keep a boundary snapshot — THIRD should start with Undo disabled
-        return startThirdBracket(leftHistory[leftHistory.length - 1]);
-      } else {
-        post.third = bracketWinner;
-        return finishToResults(leftHistory[leftHistory.length - 1]);
-      }
-    }
-
-    // Reseed each round
-    let seededNext = (post.phase === 'THIRD')
-      ? post.nextRound.sort(thirdSeedCmp)
-      : post.nextRound.sort(seedCmp);
-
-    post.nextRound = [];
-    post.index = 0;
-
-    if (seededNext.length % 2 === 1) {
-      const byeTop = seededNext.shift();
-      post.nextRound.push(byeTop);
-    }
-
-    post.currentRound = seededNext;
-    updatePostProgress();
-  }
-
-  // Schedule next pair in this round
-  const i = post.index;
-  const a = post.currentRound[i];
-  const b = post.currentRound[i + 1];
-
-  // Guard against accidental mirror pair (treat as a bye)
-  if (a && b && monKey(a) === monKey(b)) {
-    post.nextRound.push(a);
-    post.index += 2;
-    return scheduleNextPostMatch();
-  }
-
-  if (!b) {
-    // Bye -> advance
-    post.nextRound.push(a);
-    post.index += 2;
-    return scheduleNextPostMatch();
-  }
-
-  // Render bracket match in main UI
-  current = a;
-  next = b;
-  displayMatchup();
-  updatePostProgress();
-  updateUndoButton();
-}
-
-function handlePostPick(side){
-  // Save snapshot BEFORE mutation so Undo rolls back one step
-  if (isInPost()) {
-    postSaveLastSnapshot();
-    updateUndoButton();
-  }
-
-  const winner = (side === 'left') ? current : next;
-
-  // Count bracket win for the actual mon (RU or THIRD only)
-  const wKey = monKey(winner);
-  bracketWinsByMon[wKey] = (bracketWinsByMon[wKey] || 0) + 1;
-
-  if (post.phase === 'RU') {
-    post.ruWins += 1;
-    post.ruWinsByMon[wKey] = (post.ruWinsByMon[wKey] || 0) + 1;
-  } else if (post.phase === 'THIRD') {
-    post.thirdWins += 1;
-    post.thirdWinsByMon[wKey] = (post.thirdWinsByMon[wKey] || 0) + 1;
-  }
-
-  post.doneMatches += 1;
-  updatePostProgress();
-
-  post.nextRound.push(winner);
-  post.index += 2;
-
-  scheduleNextPostMatch();
-  updateUndoButton();
-}
-
-function finishToResults(finalChampion){
-  showWinner(finalChampion);
 }
 
 // ----- Results (page UI)

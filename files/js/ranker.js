@@ -991,20 +991,33 @@ function closeSaveModal(){
 // Wire buttons (added in ranker.html)
 document.getElementById('btnSaveExit')?.addEventListener('click', openSaveModal);
 document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveModal);
-// Create "Main Menu" button on the ranking screen
-(function addMainMenuButton(){
+
+// ✅ Ensure Main Menu works whether the button is in HTML or created dynamically
+document.getElementById('btnMainMenu')?.addEventListener('click', goToMainMenu);
+
+// Keep the dynamic fallback for pages that don't include the button
+(function ensureMainMenuButton(){
   const container = document.getElementById('ingame-controls');
-  if (!container || document.getElementById('btnMainMenu')) return;
-
-  const btn = document.createElement('button');
-  btn.id = 'btnMainMenu';
-  btn.textContent = 'Main Menu';
-  btn.addEventListener('click', goToMainMenu);
-
-  // Put it at the end of the controls row
-  container.appendChild(btn);
+  if (!container) return;
+  let btn = document.getElementById('btnMainMenu');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'btnMainMenu';
+    btn.innerHTML = '<span class="button_top">Main Menu</span>';
+    container.appendChild(btn);
+  } else if (!btn.querySelector('.button_top')) {
+    // match styling if the HTML button lacks the .button_top span
+    const span = document.createElement('span');
+    span.className = 'button_top';
+    while (btn.firstChild) span.appendChild(btn.firstChild);
+    btn.appendChild(span);
+  }
+  // guard against double-binding
+  if (!btn.dataset.wired) {
+    btn.addEventListener('click', goToMainMenu);
+    btn.dataset.wired = '1';
+  }
 })();
-
 
 // ----- Rendering
 function labelHTML(p){

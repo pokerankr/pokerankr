@@ -105,6 +105,21 @@ button:active .button_top,
   transform: translateY(0);
 }
 
+/* Compact variant for popup action buttons */
+button.compact,
+.menu-button.compact,
+.category-button.compact,
+.gen-btn.compact {
+  --button_radius: 0.5em;
+  font-size: 13px;
+}
+
+button.compact .button_top,
+.menu-button.compact .button_top,
+.category-button.compact .button_top,
+.gen-btn.compact .button_top {
+  padding: 0.45em 0.9em;
+}
 
 /* Selected buttons */
 .menu-button.selected .button_top,
@@ -371,6 +386,37 @@ input[type="checkbox"]{
   pointer-events:none;
 }
 
+/* Manage Saves modal: make each slot a column and pin actions to bottom */
+#manageSavesModal .slot-card{
+  display:flex;
+  flex-direction:column;
+  height:100%;
+  min-height: 240px;      /* tweak to taste */
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  padding:12px;
+}
+
+/* main content area inside the card */
+#manageSavesModal .slot-body{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:120px;       /* space for VS/art or "Empty Slot" */
+  text-align:center;
+  color:#9ca3af;
+}
+
+/* actions pinned to bottom & centered */
+#manageSavesModal .slot-actions{
+  margin-top:auto;        /* pushes actions to bottom */
+  display:flex;
+  justify-content:center; /* center horizontally */
+  gap:8px;
+}
+
+
 /* Core content sits on one line: sprite + text */
 .saved-core{
   display:flex;
@@ -625,4 +671,14 @@ input[type="checkbox"]{
 #btnClearAll:active,
 #saved-rows button:active {
   transform: translateY(0);
+}
+.skel {
+  background: rgba(0,0,0,0.06);
+  border-radius: 12px;
+  height: 280px;
+  width: 280px;
+  animation: pulse 1s infinite ease-in-out;
+}
+@keyframes pulse {
+  0% { opacity: .6 } 50% { opacity: .3 } 100% { opacity: .6 }
 }
