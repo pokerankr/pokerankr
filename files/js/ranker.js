@@ -404,16 +404,30 @@ function awaitName(id){
     .catch(() => nameCache[id] || `#${String(id).padStart(3,"0")}`);
 }
 
-// Promise: resolve when an <img> (with your fallback chain) has finished loading at least one source
+// Resolve when an <img> actually loads, or when all fallbacks are exhausted—no fixed delay.
 function awaitImgLoaded(img){
-  return new Promise(res => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; res(); } };
-    img.addEventListener('load', finish, { once: true });
-    img.addEventListener('error', () => {
-      // safety cap if all fallbacks fail; give it a moment for your inline onerror to advance
-      setTimeout(finish, 1600);
-    }, { once: true });
+  return new Promise((resolve) => {
+    if (!img) return resolve();
+    if (img.complete && img.naturalWidth > 0) return resolve();
+
+    const onLoad = () => { cleanup(); resolve(); };
+    const onError = () => {
+      // If there are still fallback URLs to try, the inline onerror will advance img.src.
+      // Keep listening. If there are no more, resolve so UI can continue gracefully.
+      try {
+        const steps = JSON.parse(img.dataset.fallbacks || '[]');
+        const i = parseInt(img.dataset.step || '0', 10);
+        if (i < steps.length) return; // more fallbacks pending; wait
+      } catch {}
+      cleanup(); resolve();
+    };
+    const cleanup = () => {
+      img.removeEventListener('load', onLoad);
+      img.removeEventListener('error', onError);
+    };
+
+    img.addEventListener('load', onLoad);
+    img.addEventListener('error', onError);
   });
 }
 
@@ -1163,13 +1177,16 @@ function ensurePrefetch(mon){
   } catch {}
 }
 
-// --- Right-side smooth swap: keep old visible until the new one is fully loaded ---
+// --- Right-side smooth swap (versioned): keep card visible, hide only the image during preload ---
 let pendingRightTemp = null;
+let rightRenderVersion = 0;
 
 function renderOpponentSmooth(mon){
   const rightEl = document.getElementById("right");
+  rightRenderVersion = (typeof rightRenderVersion === 'number' ? rightRenderVersion : 0) + 1;
+  const myVersion = rightRenderVersion;
 
-  // Clean up any previous offscreen pre-render
+  // Clean previous offscreen prerender
   if (pendingRightTemp && pendingRightTemp.isConnected) {
     try { document.body.removeChild(pendingRightTemp); } catch {}
   }
@@ -1177,36 +1194,74 @@ function renderOpponentSmooth(mon){
 
   if (!mon) { rightEl.innerHTML = ""; return; }
 
-  // Offscreen temp container that will pre-load the new opponent
+  // Keep current image in-flow but invisible (prevents layout jump)
+  const liveImg = rightEl.querySelector('img');
+  const prevOpacity = liveImg ? liveImg.style.opacity : null;
+  if (liveImg) liveImg.style.opacity = '0';
+
+  // Lock height so the white frame never shrinks during the swap
+  const lockedHeight = rightEl.offsetHeight;
+  const prevMinHeight = rightEl.style.minHeight;
+  rightEl.style.minHeight = lockedHeight ? `${lockedHeight}px` : prevMinHeight;
+
+  // Offscreen prerender (real nodes, not strings)
   const temp = document.createElement('div');
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
   temp.style.top = '0';
-  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`; // labelHTML will show blank if nameCache missing
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
   document.body.appendChild(temp);
   pendingRightTemp = temp;
 
   const img = temp.querySelector('img');
-  const pEl = temp.querySelector('p');
+  const label = temp.querySelector('p');
 
-  // Kick off both async tasks in parallel
-  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
-  const pName = awaitName(mon.id);
+  const pImg = img ? awaitImgLoaded(img) : Promise.resolve();
 
-  Promise.all([pImg, pName]).then(() => {
-    // Update the offscreen label to the final name (with shiny star if needed)
-    const nm = mon.name || nameCache[mon.id] || "";
-    if (pEl) pEl.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
-
-    // Swap in one shot
-    if (temp.isConnected) {
-      rightEl.innerHTML = temp.innerHTML;
+  pImg.then(() => {
+    if (myVersion !== rightRenderVersion) {
       try { document.body.removeChild(temp); } catch {}
-      pendingRightTemp = null;
-      lastRightKey = monKey(mon);
+      return;
     }
+
+    // Make sure label is populated with whatever we know now
+    const nm = mon.name || nameCache[mon.id] || "";
+    if (label) label.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+
+    // IMPORTANT: move the already-loaded nodes; do NOT use innerHTML.
+    while (rightEl.firstChild) rightEl.removeChild(rightEl.firstChild);
+    while (temp.firstChild) {
+      const node = temp.firstChild;
+      temp.removeChild(node);
+      // If this is the img and it's already fully loaded, ensure it's visible immediately.
+      if (node.tagName === 'IMG') {
+        // Inline onload handler may have already run offscreen; still force-visible.
+        node.style.visibility = 'visible';
+      }
+      rightEl.appendChild(node);
+    }
+
+    try { document.body.removeChild(temp); } catch {}
+    pendingRightTemp = null;
+    lastRightKey = monKey(mon);
+
+    // Cache the name asynchronously for future swaps
+    ensureName(mon.id);
+  }).catch(() => {
+    if (myVersion === rightRenderVersion && liveImg) liveImg.style.opacity = prevOpacity || '';
+    try { document.body.removeChild(temp); } catch {}
+  }).finally(() => {
+    requestAnimationFrame(() => {
+      rightEl.style.minHeight = prevMinHeight || '';
+      if (myVersion !== rightRenderVersion && liveImg) {
+        liveImg.style.opacity = prevOpacity || '';
+      }
+    });
   });
 }
+
+
+
 
 function renderLeftSmooth(mon){
   const leftEl = document.getElementById("left");
@@ -1222,10 +1277,9 @@ function renderLeftSmooth(mon){
   const img = temp.querySelector('img');
   const pEl = temp.querySelector('p');
 
-  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
-  const pName = awaitName(mon.id);
+  const pImg = img ? awaitImgLoaded(img) : Promise.resolve();
 
-  Promise.all([pImg, pName]).then(() => {
+  pImg.then(() => {
     const nm = mon.name || nameCache[mon.id] || "";
     if (pEl) pEl.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
 
@@ -1234,6 +1288,7 @@ function renderLeftSmooth(mon){
       try { document.body.removeChild(temp); } catch {}
       lastLeftKey = monKey(mon);
     }
+    ensureName(mon.id); // upgrade label later if needed
   });
 }
 

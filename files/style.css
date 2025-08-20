@@ -682,3 +682,10 @@ input[type="checkbox"]{
 @keyframes pulse {
   0% { opacity: .6 } 50% { opacity: .3 } 100% { opacity: .6 }
 }
+
+/* ensures the image area inside each card always reserves space */
+#right img {
+  width: 256px;
+  height: 256px;        /* already present via attributes, but CSS reinforces it */
+  display: block;
+}
