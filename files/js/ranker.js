@@ -2,6 +2,10 @@
 // PokéRankr — ranker.js
 // Purpose: run generic rankings (Gen 1 & Gen 2)
 // =========================
+// --- Engine bootstrap (shared logic engine) ---
+window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === 'function')
+  ? PokeRankrEngine.create()
+  : null;
 
 // ----- Title / Mode label
 (function setTitle(){
@@ -727,17 +731,73 @@ if (next)    next.roundsSurvived    = 0;
 const leftHistory = [];
 if (current) leftHistory.push(current);
 
-// Undo stack
+// Undo stack (legacy KOTH stack — we’ll keep it defined for compatibility)
 let history = [];
-function snapshotState(){
-  return {
-    remaining: remaining.map(p=>({...p})),
-    eliminated: eliminated.map(p=>({...p})),
-    current: current ? {...current}:null,
-    next:    next    ? {...next}:null,
-    leftHistory: leftHistory.map(p=>({...p})),
-  };
+
+// Single-step undo flag for KOTH when using the engine (mirrors starters.js)
+let kothLastSnap = false;
+
+// --- Engine init + hydrate with your current state ---
+if (window.prEngine && typeof prEngine.init === 'function') {
+  prEngine.init({
+    pool: [...pool], // pass a copy
+    options: {
+      includeShinies: !!window.includeShinies,
+      shinyOnly: !!window.shinyOnly,
+      // (ranker has more toggles, but these two are enough for now)
+    },
+    seed: null,
+    callbacks: {
+      onMatchReady: () => { /* no-op; we re-render after mirroring */ },
+      onProgress:   () => { /* no-op */ },
+      onPhaseChange: ({ phase }) => {
+        // keep your postMode in sync for existing UI
+        if (phase === 'RU' || phase === 'THIRD') {
+          postMode = phase;
+        } else if (phase === 'DONE') {
+          postMode = null;
+        }
+      },
+      onResults: ({ champion }) => {
+        try {
+          // use your existing winner UI
+          showWinner(champion || (leftHistory?.[leftHistory.length - 1]) || current);
+        } catch {}
+      }
+    }
+  });
+
+  if (typeof prEngine.hydrate === 'function') {
+    try {
+      prEngine.hydrate({
+        state: {
+          // KOTH
+          remaining, eliminated, current, next,
+          leftHistory,
+          lostTo, roundIndex, roundNum,
+          // post-phase (mirror your existing structure)
+          post: {
+            phase: post.phase,
+            currentRound: post.currentRound,
+            nextRound:    post.nextRound,
+            index:        post.index,
+            totalMatches: post.totalMatches,
+            doneMatches:  post.doneMatches,
+            ruWins:       post.ruWins,
+            thirdWins:    post.thirdWins,
+            ruWinsByMon:    post.ruWinsByMon,
+            thirdWinsByMon: post.thirdWinsByMon,
+            runnerUp: post.runnerUp,
+            third:    post.third,
+            ruTotal:  post.ruTotal,
+            thirdTotal: post.thirdTotal,
+          }
+        }
+      });
+    } catch {}
+  }
 }
+
 function restoreState(s){
   remaining  = s.remaining.map(p=>({...p}));
   eliminated = s.eliminated.map(p=>({...p}));
@@ -753,104 +813,79 @@ function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
   if (!btn) return;
 
-    const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
+  const inPost = (post.phase === 'RU' || post.phase === 'THIRD');
   if (inPost) {
-    // Only allow single-step undo within RU/THIRD — no cross-boundary jump
+    // RU/THIRD uses one-step snapshot
     btn.disabled = !post.lastSnap;
   } else {
-    btn.disabled = history.length === 0; // normal KOTH history
+    // KOTH uses one-step engine-undo flag now (not the old stack)
+    btn.disabled = !kothLastSnap;
   }
-
 }
+
 
 function undoLast() {
-  // Post-phase undo (single-step only; no cross-boundary jump)
-  if (post.phase === 'RU' || post.phase === 'THIRD') {
-    if (!post.lastSnap) return; // stay in RU/THIRD; nothing to undo
-    postRestoreLastSnapshot();
-    return;
+  if (!window.prEngine || typeof prEngine.undo !== 'function') return;
+
+  const state = prEngine.undo();
+  if (!state) return;
+
+  // ---- Mirror engine → local ----
+  remaining  = state.remaining  || [];
+  eliminated = state.eliminated || [];
+  current    = state.current    || null;
+  next       = state.next       || null;
+  roundNum   = state.roundNum   || 0;
+  gameOver   = !!state.gameOver;
+
+  // containers: clear then copy
+  if (state.lostTo) {
+    for (const k in lostTo) delete lostTo[k];
+    Object.assign(lostTo, state.lostTo);
+  } else {
+    for (const k in lostTo) delete lostTo[k];
   }
 
+  if (state.roundIndex) {
+    for (const k in roundIndex) delete roundIndex[k];
+    Object.assign(roundIndex, state.roundIndex);
+  } else {
+    for (const k in roundIndex) delete roundIndex[k];
+  }
 
-  // KOTH undo (unchanged single-step)
-  if (history.length === 0) return;
-  const prev = history.pop();
-  restoreState(prev);
-  history = [];
-  updateUndoButton();
-}
+  const lh = Array.isArray(state.leftHistory) ? state.leftHistory : [];
+  leftHistory.splice(0, leftHistory.length, ...lh);
 
-// ----- Save & Exit (serializer + modal)
-function serializeRankerSession(){
-  const rc = window.rankConfig || {};
+  // post-phase mirror
+  const p = state.post || {};
+  postMode          = (state.phase === 'RU' || state.phase === 'THIRD') ? state.phase : null;
+  post.phase        = p.phase || null;
+  post.currentRound = Array.isArray(p.currentRound) ? p.currentRound.map(x => ({...x})) : [];
+  post.nextRound    = Array.isArray(p.nextRound)    ? p.nextRound.map(x => ({...x}))    : [];
+  post.index        = Number.isFinite(p.index) ? p.index : 0;
+  post.totalMatches = Number.isFinite(p.totalMatches) ? p.totalMatches : 0;
+  post.doneMatches  = Number.isFinite(p.doneMatches)  ? p.doneMatches  : 0;
+  post.ruWins       = Number.isFinite(p.ruWins)       ? p.ruWins       : 0;
+  post.thirdWins    = Number.isFinite(p.thirdWins)    ? p.thirdWins    : 0;
+  post.runnerUp     = p.runnerUp ? { ...p.runnerUp } : null;
+  post.third        = p.third ? { ...p.third } : null;
+  post.ruWinsByMon    = { ...(p.ruWinsByMon || {}) };
+  post.thirdWinsByMon = { ...(p.thirdWinsByMon || {}) };
 
-  // Post-aware progress for UIs (index.html + in-game modal)
-  const inPost = !!postMode && (post.phase === 'RU' || post.phase === 'THIRD');
-  const totalMatches = inPost ? (typeof post.totalMatches === 'number' ? post.totalMatches : 0) : 0;
-  const doneMatches  = inPost ? (typeof post.doneMatches  === 'number' ? post.doneMatches  : 0) : 0;
-  const postLeft     = inPost ? Math.max(0, totalMatches - doneMatches - 1) : remaining.length;
+  // If we undid into the start of a bracket, leave undo disabled
+  if ((state.phase === 'RU' || state.phase === 'THIRD') &&
+      post.doneMatches === 0 && post.index === 0) {
+    post.lastSnap = null;
+  }
 
-  return {
-    id: 'v1',
-    type: 'ranker',
-    label: rankerLabel(),
-    context: {
-      config: rc,
-      includeShinies: !!window.includeShinies,
-      shinyOnly: !!window.shinyOnly,
-    },
-    progress: {
-      totalMatchups: pool.length,
-      completed: eliminated.length + (current ? (current.roundsSurvived || 0) : 0),
-      remaining: remaining.length,          // KOTH raw (kept for backward-compat)
-      currentIndex: eliminated.length,
+  // After an undo, clear KOTH one-step flag so button disables
+  kothLastSnap = false;
 
-      // NEW — preferred fields for any UI
-      mode: inPost ? post.phase : 'KOTH',   // 'RU' | 'THIRD' | 'KOTH'
-      displayRemaining: postLeft,
-      displayLabel: inPost
-        ? ((post.phase === 'RU' ? 'Runner-up bracket — ' : 'Third-place bracket — ')
-           + `${postLeft} matchups remaining`)
-        : `${remaining.length} matchups remaining`,
-    },
-    state: {
-      pool,
-      remaining,
-      eliminated,
-      current,
-      next,
-      leftHistory,
-      // Persist KOTH trackers & round counter
-      lostTo,
-      roundIndex,
-      roundNum,
-      // Persist per-mon bracket wins (for results after resume)
-      bracketWinsByMon,
-      // Persist post-bracket state (if any)
-      postMode,
-      post: {
-        phase: post.phase,
-        currentRound: post.currentRound,
-        nextRound: post.nextRound,
-        index: post.index,
-        totalMatches: post.totalMatches,
-        doneMatches: post.doneMatches,
-        ruWins: post.ruWins,
-        thirdWins: post.thirdWins,
-        runnerUp: post.runnerUp,
-        third: post.third,
-        ruWinsByMon: post.ruWinsByMon,
-        thirdWinsByMon: post.thirdWinsByMon,
-        ruTotal: post.ruTotal,
-        thirdTotal: post.thirdTotal,
-      }
-    },
-    currentMatchup: (current && next) ? {
-      a: { id: current.id, name: current.name || nameCache[current.id], shiny: !!current.shiny },
-      b: { id: next.id,    name: next.name    || nameCache[next.id],    shiny: !!next.shiny }
-    } : null,
-    meta: { savedAt: Date.now() }
-  };
+  withScrollLock(() => {
+    displayMatchup();
+    (state.phase === 'RU' || state.phase === 'THIRD') ? updatePostProgress() : updateProgress();
+    updateUndoButton();
+  });
 }
 
 function renderSaveSlots(){
@@ -903,7 +938,10 @@ function renderSaveSlots(){
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px; color:#9ca3af;">Empty</div>
             <div style="display:flex; gap:8px;">
-              <button data-action="save" data-idx="${i}" style="flex:1;">Save Here</button>
+              <button class="button" data-action="save" data-idx="${i}" style="flex:1;">
+  <span class="button_top">Save Here</span>
+</button>
+
             </div>
           </div>
         </div>
@@ -928,8 +966,12 @@ function renderSaveSlots(){
             ${b ? `<img src="${spriteUrl(b.id, b.shiny)}" alt="${b.name || ''}" width="56" height="56">` : ''}
           </div>
           <div style="display:flex; gap:8px;">
-            <button data-action="save" data-idx="${i}" style="flex:1;">Overwrite</button>
-            <button data-action="delete" data-idx="${i}" style="flex:1;">Delete</button>
+            <button class="button" data-action="save" data-idx="${i}" style="flex:1;">
+  <span class="button_top">Overwrite</span>
+</button>
+<button class="button" data-action="delete" data-idx="${i}" style="flex:1;">
+  <span class="button_top">Delete</span>
+</button>
           </div>
         </div>
         ${remainingText}
@@ -956,6 +998,73 @@ function renderSaveSlots(){
     }
   };
 }
+
+// ---- Build a portable save payload for Ranker (Gen) ----
+function serializeRankerSession(){
+  return {
+    type: 'ranker',
+    label: rankerLabel(),
+    context: {
+      includeShinies: !!window.includeShinies,
+      shinyOnly: !!window.shinyOnly,
+      config: window.rankConfig || {}
+    },
+    state: {
+      // --- KOTH
+      remaining, eliminated, current, next, leftHistory,
+      lostTo, roundIndex, roundNum,
+
+      // 👇 NEW: persist the engine phase at the root
+      phase: (post.phase || null),
+
+      // --- Post (RU/THIRD)
+      postMode, // optional mirror
+      post: {
+        phase: post.phase || null,
+        currentRound: [...(post.currentRound || [])],
+        nextRound:    [...(post.nextRound || [])],
+        index:        Number(post.index || 0),
+        totalMatches: Number(post.totalMatches || 0),
+        doneMatches:  Number(post.doneMatches  || 0),
+        ruWins:       Number(post.ruWins || 0),
+        thirdWins:    Number(post.thirdWins || 0),
+        runnerUp:     post.runnerUp ? { ...post.runnerUp } : null,
+        third:        post.third    ? { ...post.third }    : null,
+        ruWinsByMon:   { ...(post.ruWinsByMon   || {}) },
+        thirdWinsByMon:{ ...(post.thirdWinsByMon|| {}) },
+        ruTotal:       Number(post.ruTotal || 0),
+        thirdTotal:    Number(post.thirdTotal || 0),
+      },
+
+      // used for THIRD seeding on export
+      bracketWinsByMon: { ...(bracketWinsByMon || {}) }
+    },
+    meta: {
+      savedAt: Date.now()
+    },
+    // for the Save Slots grid preview
+    currentMatchup: {
+      a: current || null,
+      b: next || null
+    },
+    progress: (() => {
+      if (post.phase === 'RU' || post.phase === 'THIRD') {
+        const left = Math.max(0, (post.totalMatches || 0) - (post.doneMatches || 0) - 1);
+        return {
+          displayLabel: (post.phase === 'RU'
+            ? 'Runner-up bracket — '
+            : 'Third-place bracket — ') + `${left} matchups remaining`
+        };
+      }
+      return { displayLabel: `${remaining.length} matchups remaining` };
+    })()
+  };
+}
+
+
+// Also expose globally (some pages may call it)
+window.serializeRankerSession = serializeRankerSession;
+
 
 function saveToSlot(idx){
   const slots = slotsRead();
@@ -1214,152 +1323,84 @@ function onKeydown(e){
 document.addEventListener("keydown", onKeydown);
 document.getElementById("btnUndo")?.addEventListener("click", undoLast);
 
-// ----- Game loop
-function pick(side){
-  if (postMode) { handlePostPick(side); return; }
+function pick(side) {
+  if (!window.prEngine || typeof prEngine.choose !== 'function') return;
   if (gameOver) return;
-  if (!current || !next) return;
 
-  history.push(snapshotState());
+  const inPost = (post.phase === 'RU' || post.phase === 'THIRD');
+
+  if (inPost) {
+    // RU/THIRD: snapshot so Undo enables immediately
+    postSaveLastSnapshot();
+  } else {
+    // KOTH: arm one-step undo
+    kothLastSnap = true;
+  }
   updateUndoButton();
 
-  const prevLeft = current;
-  const winner = (side === "left") ? current : next;
-  const loser  = (side === "left") ? next    : current;
+  const state = prEngine.choose(side === 'left' ? 'left' : 'right');
+  if (!state) return;
 
-  // Record main-pass outcome (used to build post brackets)
-  const wKeyMain = monKey(winner), lKeyMain = monKey(loser);
-  lostTo[lKeyMain] = wKeyMain;
-  roundNum += 1;
-  roundIndex[lKeyMain] = roundNum;
+  // ---- Mirror engine → local ----
+  remaining  = state.remaining  || [];
+  eliminated = state.eliminated || [];
+  current    = state.current    || null;
+  next       = state.next       || null;
+  roundNum   = state.roundNum   || 0;
+  gameOver   = !!state.gameOver;
 
-  loser.roundsSurvived  = loser.roundsSurvived  || 0;
-  eliminated.push(loser);
-  winner.roundsSurvived = (winner.roundsSurvived|| 0) + 1;
+  // containers: clear then copy
+  if (state.lostTo) {
+    for (const k in lostTo) delete lostTo[k];
+    Object.assign(lostTo, state.lostTo);
+  } else {
+    for (const k in lostTo) delete lostTo[k];
+  }
 
-  if (monKey(winner) !== monKey(prevLeft)) leftHistory.push(winner);
-  current = winner;
+  if (state.roundIndex) {
+    for (const k in roundIndex) delete roundIndex[k];
+    Object.assign(roundIndex, state.roundIndex);
+  } else {
+    for (const k in roundIndex) delete roundIndex[k];
+  }
 
-  if (remaining.length === 0){
-    startRunnerUpBracket(winner);
+  const lh = Array.isArray(state.leftHistory) ? state.leftHistory : [];
+  leftHistory.splice(0, leftHistory.length, ...lh);
+
+  // post-phase mirror
+  const p = state.post || {};
+  postMode          = (state.phase === 'RU' || state.phase === 'THIRD') ? state.phase : null;
+  post.phase        = p.phase || null;
+  post.currentRound = Array.isArray(p.currentRound) ? p.currentRound.map(x => ({...x})) : [];
+  post.nextRound    = Array.isArray(p.nextRound)    ? p.nextRound.map(x => ({...x}))    : [];
+  post.index        = Number.isFinite(p.index) ? p.index : 0;
+  post.totalMatches = Number.isFinite(p.totalMatches) ? p.totalMatches : 0;
+  post.doneMatches  = Number.isFinite(p.doneMatches)  ? p.doneMatches  : 0;
+  post.ruWins       = Number.isFinite(p.ruWins)       ? p.ruWins       : 0;
+  post.thirdWins    = Number.isFinite(p.thirdWins)    ? p.thirdWins    : 0;
+  post.runnerUp     = p.runnerUp ? { ...p.runnerUp } : null;
+  post.third        = p.third ? { ...p.third } : null;
+  post.ruWinsByMon    = { ...(p.ruWinsByMon || {}) };
+  post.thirdWinsByMon = { ...(p.thirdWinsByMon || {}) };
+
+  // If we just entered a bracket with no matches played yet, keep undo disabled
+  if ((state.phase === 'RU' || state.phase === 'THIRD') &&
+      post.doneMatches === 0 && post.index === 0) {
+    post.lastSnap = null;
+  }
+
+  if (state.phase === 'DONE') {
+    showWinner(leftHistory[leftHistory.length - 1] || current);
     return;
   }
-  next = remaining.pop();
-  next.roundsSurvived = 0;
 
   withScrollLock(() => {
     displayMatchup();
-    updateProgress();
+    (state.phase === 'RU' || state.phase === 'THIRD') ? updatePostProgress() : updateProgress();
     updateUndoButton();
   });
 }
 
-function startRunnerUpBracket(finalChampion){
-  // Keep KOTH history so Undo can return across the boundary
-  updateUndoButton();
-
-  // Enter RU bracket
-  postMode = 'RU';
-  post.phase = 'RU';
-
-  // reset per-phase wins and maps for RU
-  post.ruWins = 0;
-  post.ruWinsByMon = Object.create(null);
-  post.lastSnap = null;  // single-step undo starts clean for RU
-  updateUndoButton();
-
-  const champKey = monKey(finalChampion);
-
-  // --- Build base RU pool: everyone who lost directly to the champion
-  const lostKeys = Object.keys(lostTo).filter(k => lostTo[k] === champKey);
-  let poolRU = lostKeys.map(k => {
-    if (current && monKey(current) === k) return current;
-    if (next && monKey(next) === k) return next;
-    return eliminated.find(p => monKey(p) === k);
-  }).filter(Boolean);
-
-  // De-duplicate RU pool by monKey to prevent mirror matches
-  {
-    const seen = new Set();
-    poolRU = poolRU.filter(p => {
-      const k = monKey(p);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  }
-
-  // --- Inject Honorable Mention (highest unique roundsSurvived > 0), if eligible
-  const placedNow = new Set([champKey]);
-  const hmPool = eliminated.filter(p => !placedNow.has(monKey(p)));
-  hmPool.sort(seedCmp);
-
-  let hmCandidate = null;
-  if (hmPool.length) {
-    const top = hmPool[0];
-    const topSurvivals = (top?.roundsSurvived || 0);
-    const tiedForTop = hmPool.filter(p => (p.roundsSurvived || 0) === topSurvivals);
-    if (topSurvivals > 0 && tiedForTop.length === 1) {
-      hmCandidate = top;
-    }
-  }
-  if (hmCandidate) {
-    const hmKey = monKey(hmCandidate);
-    const inRU = poolRU.some(p => monKey(p) === hmKey);
-    if (!inRU) poolRU.push(hmCandidate);
-  }
-
-  // --- Proceed as before
-  post.totalMatches = Math.max(0, poolRU.length - 1);
-  post.doneMatches  = 0;
-  post.ruTotal      = post.totalMatches;
-
-  if (poolRU.length === 0) {
-    post.runnerUp = [...eliminated].sort(seedCmp)[0] || null;
-    return startThirdBracket(finalChampion);
-  }
-  if (poolRU.length === 1) {
-    post.runnerUp = poolRU[0];
-    return startThirdBracket(finalChampion);
-  }
-
-  const seededRU = [...poolRU].sort(seedCmp);
-  post.nextRound = [];
-  post.index = 0;
-
-  // If odd, top seed gets a bye into next round (same as today)
-  let round1List = [...seededRU];
-  if (round1List.length % 2 === 1) {
-    const bye = round1List.shift();         // highest seed gets bye
-    post.nextRound.push(bye);
-  }
-
-  // Build 1 vs N, 2 vs N-1, ...
-  const pairs = [];
-  for (let i = 0, j = round1List.length - 1; i < j; i++, j--) {
-    pairs.push(round1List[i], round1List[j]);
-  }
-  if (round1List.length % 2 === 1) {
-    post.nextRound.push(round1List[Math.floor(round1List.length / 2)]);
-  }
-  post.currentRound = pairs;
-
-  if (seededRU.length % 2 === 1) {
-    const bye = seededRU.shift();   // highest seed
-    post.nextRound.push(bye);       // pre-seed into next round
-  }
-  post.currentRound = seededRU;
-
-  post.ruR1Pairs.clear();
-  for (let i = 0; i < post.currentRound.length; i += 2) {
-    const a = post.currentRound[i];
-    const b = post.currentRound[i + 1];
-    if (b) post.ruR1Pairs.add(pairKey(a, b));
-  }
-
-  updatePostProgress();
-  scheduleNextPostMatch();
-}
 
 function startThirdBracket(finalChampion){
   postMode = 'THIRD';
@@ -1486,38 +1527,6 @@ function scheduleNextPostMatch(){
   updatePostProgress();
 }
 
-function handlePostPick(side){
-  const winner = (side === 'left') ? current : next;
-  // Save snapshot BEFORE mutation so Undo rolls back one step
-  if (post.phase === 'RU' || post.phase === 'THIRD') {
-    postSaveLastSnapshot();
-  }
-
-  // Count bracket win for the actual mon (RU or THIRD only)
-  const wKey = monKey(winner);
-  bracketWinsByMon[wKey] = (bracketWinsByMon[wKey] || 0) + 1;
-
-  if (post.phase === 'RU') {
-    post.ruWins += 1;
-    post.ruWinsByMon[wKey] = (post.ruWinsByMon[wKey] || 0) + 1;
-  } else if (post.phase === 'THIRD') {
-    post.thirdWins += 1;
-    post.thirdWinsByMon[wKey] = (post.thirdWinsByMon[wKey] || 0) + 1;
-  }
-
-  post.doneMatches += 1;
-  updatePostProgress();
-
-  post.nextRound.push(winner);
-  post.index += 2;
-
-  scheduleNextPostMatch();
-}
-
-function finishToResults(finalChampion){
-  showWinner(finalChampion);
-}
-
 // ----- Results + save
 function showWinner(finalWinner){
   gameOver = true;
@@ -1539,27 +1548,21 @@ function showWinner(finalWinner){
   const { champion, runnerUp, thirdPlace, honorable } = computeResults(finalWinner);
 
   function bracketWinsFor(title, mon) {
-    const key = monKey(mon);
-    if (title === "Runner-up") {
-      return (post.ruWinsByMon && post.ruWinsByMon[key]) || 0;
-    }
-    if (title === "Third Place") {
-      return (post.thirdWinsByMon && post.thirdWinsByMon[key]) || 0;
-    }
+    const k = monKey(mon);
+    if (title === "Runner-up")  return (post.ruWinsByMon && post.ruWinsByMon[k]) || 0;
+    if (title === "Third Place")return (post.thirdWinsByMon && post.thirdWinsByMon[k]) || 0;
     return 0;
   }
 
   const renderCard = (title, p) => {
     if (!p) return "";
     const survivedLine = `<p class="rounds-text">Survived ${pluralize(p.roundsSurvived || 0, "Round", "Rounds")}</p>`;
-
     if (title === "Runner-up" || title === "Third Place") {
-      let wins = bracketWinsFor(title, p);
+      const wins = bracketWinsFor(title, p);
       const total = (title === "Runner-up") ? (post.ruTotal || 0) : (post.thirdTotal || 0);
       const winsLine = (wins > 0)
         ? `<p class="rounds-text">Won ${pluralize(wins, "Match", "Matches")}</p>`
         : `<p class="rounds-text">Auto-advanced</p>`;
-
       return `
         <div class="pokemon-card compact-card">
           ${getImageTag(p)}
@@ -1570,8 +1573,6 @@ function showWinner(finalWinner){
         </div>
       `;
     }
-
-    // Honorable: keep alignment with hidden placeholder line
     return `
       <div class="pokemon-card compact-card">
         ${getImageTag(p)}
@@ -1602,15 +1603,22 @@ function showWinner(finalWinner){
       ${renderCard("Honorable Mention", honorable)}
     </div>
     <div class="button-group">
-      <button onclick="restart()">Start Over</button>
-      <button onclick="window.location.href='index.html'">Back to Menu</button>
-      <button onclick="saveResults()">Save Results</button>
-      <button onclick="exportRankingImage()">Export Image</button>
+      <button id="btnRestart" type="button"><span class="button_top">Start Over</span></button>
+      <button id="btnBack" type="button"><span class="button_top">Back to Menu</span></button>
+      <button id="btnSaveResults" type="button"><span class="button_top">Save Results</span></button>
+      <button id="btnExport" type="button"><span class="button_top">Export Image</span></button>
     </div>
   `;
   document.getElementById("result").style.display = "block";
 
-  [champion, runnerUp, thirdPlace, honorable].filter(Boolean).forEach(m=>ensureName(m.id));
+  // Wire result-screen buttons
+  document.getElementById('btnRestart')?.addEventListener('click', restart);
+  document.getElementById('btnBack')?.addEventListener('click', () => { window.location.href = 'index.html'; });
+  document.getElementById('btnSaveResults')?.addEventListener('click', saveResults);
+  document.getElementById('btnExport')?.addEventListener('click', exportRankingImage);
+
+  // Ensure names fill in if they weren’t cached yet
+  [champion, runnerUp, thirdPlace, honorable].filter(Boolean).forEach(m => ensureName(m.id));
 }
 
 // Returns the numeric sprite id for 96×96 "game sprites".
@@ -2012,7 +2020,7 @@ window.pick = pick;
 function loadRankerSession(s){
   if (!s || s.type !== 'ranker') return;
 
-  // Restore settings
+  // 1) Restore settings first (so pool/labels make sense)
   window.includeShinies = !!s.context?.includeShinies;
   window.shinyOnly      = !!s.context?.shinyOnly;
   window.rankConfig     = s.context?.config || window.rankConfig || {};
@@ -2022,59 +2030,123 @@ function loadRankerSession(s){
     localStorage.setItem('rankConfig', JSON.stringify(window.rankConfig));
   } catch {}
 
-  // Restore state
-  restoreState({
-    remaining:   s.state?.remaining   || [],
-    eliminated:  s.state?.eliminated  || [],
-    current:     s.state?.current     || null,
-    next:        s.state?.next        || null,
-    leftHistory: s.state?.leftHistory || [],
-  });
+  // 2) Restore KOTH core state (arrays + current/next + leftHistory)
+  //    Do NOT render yet; we’ll render after engine hydrate.
+  const sRemaining   = s.state?.remaining   || [];
+  const sEliminated  = s.state?.eliminated  || [];
+  const sCurrent     = s.state?.current     || null;
+  const sNext        = s.state?.next        || null;
+  const sLeftHistory = s.state?.leftHistory || [];
 
- // Restore KOTH trackers
-  if (s.state?.lostTo) {
-    for (const k of Object.keys(lostTo)) delete lostTo[k];
-    Object.assign(lostTo, s.state.lostTo);
-  }
-  if (s.state?.roundIndex) {
-    for (const k of Object.keys(roundIndex)) delete roundIndex[k];
-    Object.assign(roundIndex, s.state.roundIndex);
-  }
-  if (typeof s.state?.roundNum === 'number') roundNum = s.state.roundNum;
+  remaining  = sRemaining.map(p => ({ ...p }));
+  eliminated = sEliminated.map(p => ({ ...p }));
+  current    = sCurrent   ? { ...sCurrent } : null;
+  next       = sNext      ? { ...sNext }    : null;
 
-  // Restore per-mon bracket wins
-  if (s.state?.bracketWinsByMon) {
-    for (const k of Object.keys(bracketWinsByMon)) delete bracketWinsByMon[k];
-    Object.assign(bracketWinsByMon, s.state.bracketWinsByMon);
-  }
+  leftHistory.length = 0;
+  leftHistory.push(...sLeftHistory.map(p => ({ ...p })));
 
-  // Restore post-bracket state
+  // 3) Restore KOTH trackers (lostTo / roundIndex / roundNum)
+  for (const k of Object.keys(lostTo)) delete lostTo[k];
+  Object.assign(lostTo, s.state?.lostTo || {});
+
+  for (const k of Object.keys(roundIndex)) delete roundIndex[k];
+  Object.assign(roundIndex, s.state?.roundIndex || {});
+
+  roundNum = Number.isFinite(s.state?.roundNum) ? s.state.roundNum : 0;
+
+  // 4) Restore per‑mon post‑bracket wins (affects THIRD reseeding + exports)
+  for (const k of Object.keys(bracketWinsByMon)) delete bracketWinsByMon[k];
+  Object.assign(bracketWinsByMon, s.state?.bracketWinsByMon || {});
+
+  // 5) Restore post‑bracket state COMPLETELY before hydrating engine
   postMode = s.state?.postMode || null;
+
+  // Reset post object to clean defaults, then apply saved values
+  post.phase        = null;
+  post.currentRound = [];
+  post.nextRound    = [];
+  post.index        = 0;
+  post.totalMatches = 0;
+  post.doneMatches  = 0;
+  post.ruWins       = 0;
+  post.thirdWins    = 0;
+  post.runnerUp     = null;
+  post.third        = null;
+  post.ruWinsByMon   = Object.create(null);
+  post.thirdWinsByMon= Object.create(null);
+  post.ruTotal       = 0;
+  post.thirdTotal    = 0;
+  post.lastSnap      = null;   // no pending undo on resume
+
   if (s.state?.post) {
     const P = s.state.post;
-    post.phase        = P.phase || null;
-    post.currentRound = Array.isArray(P.currentRound) ? P.currentRound.map(x => ({...x})) : [];
-    post.nextRound    = Array.isArray(P.nextRound)    ? P.nextRound.map(x => ({...x}))    : [];
-    post.index        = typeof P.index === 'number' ? P.index : 0;
-    post.totalMatches = typeof P.totalMatches === 'number' ? P.totalMatches : 0;
-    post.doneMatches  = typeof P.doneMatches  === 'number' ? P.doneMatches  : 0;
-    post.ruWins       = typeof P.ruWins       === 'number' ? P.ruWins       : 0;
-    post.thirdWins    = typeof P.thirdWins    === 'number' ? P.thirdWins    : 0;
-    post.runnerUp     = P.runnerUp ? {...P.runnerUp} : null;
-    post.third        = P.third    ? {...P.third}    : null;
-    post.ruWinsByMon   = P.ruWinsByMon   ? { ...P.ruWinsByMon }   : Object.create(null);
-    post.thirdWinsByMon= P.thirdWinsByMon? { ...P.thirdWinsByMon}: Object.create(null);
-    post.ruTotal       = typeof P.ruTotal === 'number' ? P.ruTotal : 0;
-    post.thirdTotal    = typeof P.thirdTotal === 'number' ? P.thirdTotal : 0;
+    post.phase         = P.phase || null;
+    post.currentRound  = Array.isArray(P.currentRound) ? P.currentRound.map(x => ({ ...x })) : [];
+    post.nextRound     = Array.isArray(P.nextRound)    ? P.nextRound.map(x => ({ ...x }))    : [];
+    post.index         = Number.isFinite(P.index)         ? P.index         : 0;
+    post.totalMatches  = Number.isFinite(P.totalMatches)  ? P.totalMatches  : 0;
+    post.doneMatches   = Number.isFinite(P.doneMatches)   ? P.doneMatches   : 0;
+    post.ruWins        = Number.isFinite(P.ruWins)        ? P.ruWins        : 0;
+    post.thirdWins     = Number.isFinite(P.thirdWins)     ? P.thirdWins     : 0;
+    post.runnerUp      = P.runnerUp ? { ...P.runnerUp } : null;
+    post.third         = P.third    ? { ...P.third }    : null;
+    post.ruWinsByMon    = { ...(P.ruWinsByMon   || {}) };
+    post.thirdWinsByMon = { ...(P.thirdWinsByMon|| {}) };
+    post.ruTotal        = Number.isFinite(P.ruTotal)    ? P.ruTotal    : 0;
+    post.thirdTotal     = Number.isFinite(P.thirdTotal) ? P.thirdTotal : 0;
   }
 
-  // If resuming mid-post, ensure matchup is displayed
-  if (postMode === 'RU' || postMode === 'THIRD') {
-    displayMatchup();
-    updatePostProgress();
-    if (!next || !current) scheduleNextPostMatch();
-  }
+  // 6) Hydrate engine with the FULLY RESTORED state
+ if (window.prEngine && typeof prEngine.hydrate === 'function') {
+  prEngine.hydrate({
+    state: {
+      // 👇 NEW: tell the engine which phase we’re in (null | 'RU' | 'THIRD' | 'DONE')
+      phase: post.phase || null,
+
+      // KOTH mirrors
+      remaining, eliminated, current, next, leftHistory,
+      lostTo, roundIndex, roundNum,
+
+      // Post phase mirrors
+      post: {
+        phase: post.phase,
+        currentRound: post.currentRound,
+        nextRound:    post.nextRound,
+        index:        post.index,
+        totalMatches: post.totalMatches,
+        doneMatches:  post.doneMatches,
+        ruWins:       post.ruWins,
+        thirdWins:    post.thirdWins,
+        ruWinsByMon:    post.ruWinsByMon,
+        thirdWinsByMon: post.thirdWinsByMon,
+        runnerUp:     post.runnerUp,
+        third:        post.third,
+        ruTotal:      post.ruTotal,
+        thirdTotal:   post.thirdTotal,
+      }
+    }
+  });
 }
+
+
+  // 7) Now render the correct screen
+  //    If resuming in RU/THIRD and no current pair is set, schedule one.
+  if (postMode === 'RU' || postMode === 'THIRD' || post.phase === 'RU' || post.phase === 'THIRD') {
+    if (!current || !next) {
+      scheduleNextPostMatch();
+    } else {
+      displayMatchup();
+      updatePostProgress();
+    }
+  } else {
+    displayMatchup();
+    updateProgress();
+  }
+
+  updateUndoButton();
+}
+
 
 // Auto-resume if index.html set a pending slot for ranker
 (function tryAutoResumeRanker(){
