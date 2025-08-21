@@ -682,3 +682,9 @@ input[type="checkbox"]{
 @keyframes pulse {
   0% { opacity: .6 } 50% { opacity: .3 } 100% { opacity: .6 }
 }
+.pkr-label{
+  min-height: 1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

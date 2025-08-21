@@ -843,8 +843,9 @@ function buildOrUpdateSide(sideId, mon){
     container.appendChild(wrap);
 
     nameP = document.createElement('p');
-    nameP.setAttribute('data-role', 'label');
-    container.appendChild(nameP);
+nameP.setAttribute('data-role', 'label');
+nameP.className = 'pkr-label';
+container.appendChild(nameP);
   }
 
   const key = _monKeyForSide(mon);

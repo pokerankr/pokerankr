@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+(function () {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('rankConfig') || 'null');
+    const valid = new Set(['generation', 'starters', 'legendaries']);
+    const ok = cfg && typeof cfg === 'object' && cfg.category && valid.has(cfg.category);
+
+    if (!ok) {
+      window.location.replace(`${location.origin}/index.html`);
+    }
+  } catch {
+    window.location.replace(`${location.origin}/index.html`);
+  }
+})();
+</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <!-- 🔥 Preconnects: warm up TLS/DNS for image + API domains -->
@@ -57,11 +72,12 @@
   </div>
 
   <script>
-    // make shiny settings + config available to ranker.js
-    window.includeShinies = localStorage.getItem('includeShinies') === 'true';
-    window.shinyOnly      = localStorage.getItem('shinyOnly') === 'true';
-    window.rankConfig     = JSON.parse(localStorage.getItem('rankConfig') || '{}');
-  </script>
+  // make shiny settings + config available to ranker.js
+  window.includeShinies = localStorage.getItem('includeShinies') === 'true';
+  window.shinyOnly      = localStorage.getItem('shinyOnly') === 'true';
+  window.rankConfig     = JSON.parse(localStorage.getItem('rankConfig') || '{}');
+</script>
+
   <script src="engine/rankingengine.js"></script>
   <script src="js/ranker.js"></script>
 </body>

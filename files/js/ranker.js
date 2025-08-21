@@ -42,6 +42,8 @@ const FRIENDLY_NAME_OVERRIDES = {
   "oricorio-pom-pom":  "Oricorio (Pom-Pom)",
   "oricorio-pau":      "Oricorio (Pa'u)",
   "oricorio-sensu":    "Oricorio (Sensu)",
+
+  "tauros-paldea-combat-breed":    "Combat Paldean Tauros",
 };
 
 // Minimal starter set for Alternate/Battle forms by generation.
@@ -479,22 +481,38 @@ function varietySlugFromMon(p) {
   return null;
 }
 
+// Slug aliases for API lookups and file attempts
+const VARIETY_SLUG_ALIASES = {
+  "gimmighoul-chest": "gimmighoul",
+  "palafin-zero": "palafin",
+  // add more here if needed
+};
 
-// Resolve numeric artwork id for a variety slug via PokeAPI /pokemon/{slug}, cache it, then refresh any matching <img>s.
+
 async function ensureArtworkIdForVariety(varietySlug){
-  if (!varietySlug || artIdCache[varietySlug]) return artIdCache[varietySlug];
+  if (!varietySlug) return null;
+
+  // Use alias for lookup if we have one (e.g., gimmighoul-chest → gimmighoul)
+  const key = VARIETY_SLUG_ALIASES[varietySlug] || varietySlug;
+
+  // If we’ve already resolved (number) or marked as missing (-1), return it
+  if (Object.prototype.hasOwnProperty.call(artIdCache, key)) return artIdCache[key];
 
   try {
-    const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${varietySlug}`, { cache: 'force-cache' });
-    if (!resp.ok) return null;
+    const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${key}`, { cache: 'force-cache' });
+    if (!resp.ok) {
+      artIdCache[key] = -1; // negative cache: don’t keep retrying this slug
+      saveArtIdCache();
+      return null;
+    }
     const data = await resp.json();
     const id = data?.id;
     if (typeof id === 'number' && id > 0) {
-      artIdCache[varietySlug] = id;
+      artIdCache[key] = id;
       saveArtIdCache();
 
       // Update any imgs already on the page that were waiting on this id
-      const nodes = document.querySelectorAll(`img[data-variety="${varietySlug}"]`);
+      const nodes = document.querySelectorAll(`img[data-variety="${varietySlug}"], img[data-variety="${key}"]`);
       nodes.forEach(img => {
         const shiny = img.dataset.shiny === '1';
         const chain = buildOfficialChainFromId(id, shiny);
@@ -506,9 +524,13 @@ async function ensureArtworkIdForVariety(varietySlug){
       });
       return id;
     }
-  } catch {}
+  } catch {
+    artIdCache[key] = -1;
+    saveArtIdCache();
+  }
   return null;
 }
+
 
 // Helper: construct official-artwork fallback chain from a numeric id
 function buildOfficialChainFromId(numId, shiny){
@@ -549,17 +571,21 @@ function getImageTag(monOrId, shiny = false, alt = "") {
 
   let chain = [];
 
-  if (variety) {
-    const artId = artIdCache[variety] || null;
-    if (artId) {
-      chain.push(...buildOfficialChainFromId(artId, wantShiny));
-    } else {
-      const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`;
-      const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`;
-      chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
-      ensureArtworkIdForVariety(variety);
-    }
+if (variety) {
+  const cached = artIdCache[variety];
+  if (typeof cached === 'number' && cached > 0) {
+    chain.push(...buildOfficialChainFromId(cached, wantShiny));
+  } else if (cached === -1) {
+    // Known-bad slug → skip slug URLs entirely (go straight to base numeric below)
+  } else {
+    // Try alias for prettier slug hit (then fall back to base)
+    const slug = VARIETY_SLUG_ALIASES[variety] || variety;
+    const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${slug}.png`;
+    const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${slug}.png`;
+    chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
+    ensureArtworkIdForVariety(variety);
   }
+}
 
   const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
   const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
@@ -1145,9 +1171,9 @@ document.getElementById('btnMainMenu')?.addEventListener('click', goToMainMenu);
 // ----- Rendering
 function labelHTML(p){
   const nm = p.name || nameCache[p.id] || "";
-  const text = nm ? (p.shiny ? `⭐ ${nm}` : nm) : ""; // no "#NNN" placeholder
-  // keep the height stable a bit with &nbsp; if totally empty
-  return `<p data-id="${p.id}">${text || "&nbsp;"}</p>`;
+  const text = nm ? (p.shiny ? `⭐ ${nm}` : nm) : "";
+  // Reserve one line and prevent wrapping so height never changes between blank → name
+  return `<p data-id="${p.id}" class="pkr-label">${text || "&nbsp;"}</p>`;
 }
 
 // 🔹 Track last rendered mon on each side to skip left re-renders
@@ -1159,7 +1185,10 @@ function updateLabelText(containerEl, mon){
   const p = containerEl.querySelector('p');
   if (p) {
     const nm = mon?.name || nameCache[mon?.id] || "";
-    p.textContent = mon?.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+    if (nm) {
+  p.textContent = mon?.shiny ? `⭐ ${nm}` : nm;
+}
+// else: keep whatever is there (likely the &nbsp; placeholder)
   }
 }
 
@@ -1194,12 +1223,7 @@ function renderOpponentSmooth(mon){
 
   if (!mon) { rightEl.innerHTML = ""; return; }
 
-  // Keep current image in-flow but invisible (prevents layout jump)
-  const liveImg = rightEl.querySelector('img');
-  const prevOpacity = liveImg ? liveImg.style.opacity : null;
-  if (liveImg) liveImg.style.opacity = '0';
-
-  // Lock height so the white frame never shrinks during the swap
+  // 🔒 Lock height so the white frame never changes during the swap
   const lockedHeight = rightEl.offsetHeight;
   const prevMinHeight = rightEl.style.minHeight;
   rightEl.style.minHeight = lockedHeight ? `${lockedHeight}px` : prevMinHeight;
@@ -1213,10 +1237,9 @@ function renderOpponentSmooth(mon){
   document.body.appendChild(temp);
   pendingRightTemp = temp;
 
-  const img = temp.querySelector('img');
+  const img   = temp.querySelector('img');
   const label = temp.querySelector('p');
-
-  const pImg = img ? awaitImgLoaded(img) : Promise.resolve();
+  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
 
   pImg.then(() => {
     if (myVersion !== rightRenderVersion) {
@@ -1224,19 +1247,20 @@ function renderOpponentSmooth(mon){
       return;
     }
 
-    // Make sure label is populated with whatever we know now
+    // Ensure label text is populated before we move the nodes in
     const nm = mon.name || nameCache[mon.id] || "";
-    if (label) label.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+// Only update if we actually have a name; otherwise keep the &nbsp; placeholder
+if (label && nm) {
+  label.textContent = mon.shiny ? `⭐ ${nm}` : nm;
+}
 
-    // IMPORTANT: move the already-loaded nodes; do NOT use innerHTML.
+    // Move the already-loaded nodes into place (no innerHTML)
     while (rightEl.firstChild) rightEl.removeChild(rightEl.firstChild);
     while (temp.firstChild) {
       const node = temp.firstChild;
       temp.removeChild(node);
-      // If this is the img and it's already fully loaded, ensure it's visible immediately.
       if (node.tagName === 'IMG') {
-        // Inline onload handler may have already run offscreen; still force-visible.
-        node.style.visibility = 'visible';
+        node.style.visibility = 'visible'; // force-visible if onload fired offscreen
       }
       rightEl.appendChild(node);
     }
@@ -1247,15 +1271,9 @@ function renderOpponentSmooth(mon){
 
     // Cache the name asynchronously for future swaps
     ensureName(mon.id);
-  }).catch(() => {
-    if (myVersion === rightRenderVersion && liveImg) liveImg.style.opacity = prevOpacity || '';
-    try { document.body.removeChild(temp); } catch {}
   }).finally(() => {
     requestAnimationFrame(() => {
       rightEl.style.minHeight = prevMinHeight || '';
-      if (myVersion !== rightRenderVersion && liveImg) {
-        liveImg.style.opacity = prevOpacity || '';
-      }
     });
   });
 }
@@ -1281,7 +1299,9 @@ function renderLeftSmooth(mon){
 
   pImg.then(() => {
     const nm = mon.name || nameCache[mon.id] || "";
-    if (pEl) pEl.textContent = mon.shiny ? (nm ? `⭐ ${nm}` : "") : nm;
+if (pEl && nm) {
+  pEl.textContent = mon.shiny ? `⭐ ${nm}` : nm;
+}
 
     if (temp.isConnected) {
       leftEl.innerHTML = temp.innerHTML;
