@@ -488,6 +488,9 @@ if (!pool.length) {
   throw new Error("No pool selected for ranker.js");
 }
 
+// Fire-and-forget: warm the local names map
+loadNamesMapOnce().catch(()=>{});
+
 // 🔥 Warm the name cache in the background so labels appear instantly
 try {
   // Non-blocking; uses force-cache and local cache inside ensureNames
@@ -581,6 +584,24 @@ function normalizeFormHyphen(name){
   if (changed) saveNameCache();
 })();
 
+// ---- Local names dictionary (fetched once from data/names.en.min.json)
+let NAMES_MAP = null;
+async function loadNamesMapOnce(){
+  if (NAMES_MAP) return NAMES_MAP;
+  try {
+    const res = await fetch('data/names.en.min.json', { cache: 'force-cache' });
+    if (res.ok) {
+      NAMES_MAP = await res.json();
+    } else {
+      NAMES_MAP = {};
+    }
+  } catch {
+    NAMES_MAP = {};
+  }
+  return NAMES_MAP;
+}
+
+
 // Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
 const ART_ID_CACHE_KEY = "artIdCache";
 const artIdCache = (() => {
@@ -593,13 +614,30 @@ function saveArtIdCache(){
 
 // UI display name (uses p.name, then cache, else #NNN)
 function displayName(p){
-  const nm = p.name || nameCache[p.id];
-  return (p.shiny ? "⭐ " : "") + (nm || `#${String(p.id).padStart(3,"0")}`);
+  const id = p.id;
+  const fromCache = p.name || nameCache[id];
+  const fromMap = NAMES_MAP && NAMES_MAP[id];
+  const nm = fromCache || fromMap;
+  return (p.shiny ? "⭐ " : "") + (nm || `#${String(id).padStart(3,"0")}`);
 }
 
 // Lazy fetch for on-screen labels (non-blocking)
 async function ensureName(id){
   if (nameCache[id]) return;
+
+  // 1) Try the local names dictionary
+  try {
+    const map = await loadNamesMapOnce();
+    const hit = map && map[id];
+    if (hit) {
+      nameCache[id] = hit;
+      saveNameCache();
+      updateLabelsIfVisible(id);
+      return;
+    }
+  } catch {}
+
+  // 2) Fallback to PokeAPI (edge cases / forms)
   try {
     const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' });
     if (!resp.ok) return;
@@ -614,21 +652,35 @@ async function ensureName(id){
 // ensure a list of mons have names (used by exporter)
 async function ensureNames(list){
   const mons = (list || []).filter(Boolean);
+  const map = await loadNamesMapOnce().catch(()=> ({}));
+
   await Promise.all(mons.map(async p => {
     if (p.name) return;
-    if (nameCache[p.id]) { p.name = nameCache[p.id]; return; }
+
+    const id = p.id;
+    if (nameCache[id]) { p.name = nameCache[id]; return; }
+
+    // 1) Local map first
+    if (map && map[id]) {
+      p.name = map[id];
+      nameCache[id] = p.name;
+      return;
+    }
+
+    // 2) Fallback to API
     try {
-      const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${p.id}`, { cache: 'force-cache' });
+      const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' });
       const data = await resp.json();
-      const nm = titleize(data?.name || "");
-      p.name = nm || `#${String(p.id).padStart(3,"0")}`;
-      nameCache[p.id] = p.name;
+      const nm = normalizeFormHyphen(titleize(data?.name || ""));
+      p.name = nm || `#${String(id).padStart(3,"0")}`;
+      nameCache[id] = p.name;
       saveNameCache();
     } catch {
-      p.name = `#${String(p.id).padStart(3,"0")}`;
+      p.name = `#${String(id).padStart(3,"0")}`;
     }
   }));
 }
+
 
 // Promise: resolve when we have a display name in cache (no UI updates)
 function awaitName(id){
@@ -2254,14 +2306,25 @@ const MODE = (window.shinyOnly ? 'Shiny-only✨' : (window.includeShinies ? '+Sh
 
 let TITLE = 'PokéRankr';
 let fileStub = 'pokerankr';
+
 if (rc?.category === 'generation') {
   const g = rc?.filters?.generation || 1;
-  TITLE = `PokéRankr — Gen ${g}`;
-  fileStub = `pokerankr-gen${g}`;
+  if (g === "ALL") {
+    TITLE = 'PokéRankr — All Generations';
+    fileStub = 'pokerankr-all';
+  } else {
+    const regionByGen = {
+      1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
+      6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
+    };
+    TITLE = `PokéRankr — Gen ${g} (${regionByGen[g] || "??"})`;
+    fileStub = `pokerankr-gen${g}`;
+  }
 } else if (rc?.category === 'legendaries') {
-  TITLE = 'PokéRankr — Legendaries';
+  TITLE = 'PokéRankr — Legendary Pokémon';
   fileStub = 'pokerankr-legendaries';
 }
+
 
 ctx.textAlign = 'center';
 ctx.fillStyle = '#0d1b2a';
