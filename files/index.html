@@ -217,14 +217,35 @@ extraOptions.innerHTML = `
 
 if (cat === 'legendaries') {
   extraOptions.innerHTML = `
-    <div>
-      <label>
-        <input type="checkbox" id="include-mythicals">
-        Include Mythicals
-      </label>
+    <div class="legendary-row" style="margin-bottom:12px;">
+      <div class="toggle-row" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <label for="mythicals" style="font-weight:600;">Mythicals:</label>
+        <select id="mythicals">
+          <option value="none">Excluded</option>
+          <option value="include">Included</option>
+          <option value="only">Only</option>
+        </select>
+
+        <label><input type="checkbox" id="ultraBeastsToggle"> Ultra Beasts</label>
+        <label><input type="checkbox" id="formsToggle"> Forms</label>
+      </div>
     </div>
   `;
+
+  // When "Mythicals = Only", disable Ultra Beasts toggle (only Forms may remain)
+  const ub    = extraOptions.querySelector('#ultraBeastsToggle');
+  const myth  = extraOptions.querySelector('#mythicals');
+
+  function syncMythicalDependencies() {
+    const mode = myth.value || 'none';
+    ub.disabled = (mode === 'only');
+    if (ub.disabled) ub.checked = false;
+  }
+
+  myth.addEventListener('change', syncMythicalDependencies);
+  syncMythicalDependencies();
 }
+
 
 if (cat === 'type') {
   extraOptions.innerHTML = `
@@ -295,9 +316,22 @@ if (cat === 'type') {
     if (category === 'starters') config.filters.starters = true;
 
     if (category === 'legendaries') {
-      config.filters.legendaries = true;
-      config.filters.includeMythicals = !!getEl('include-mythicals')?.checked;
-    }
+  config.filters.legendaries = true;
+
+  // Pull new UI state (dropdown + checkboxes)
+  const mythSel = extraOptions.querySelector('#mythicals');
+  const forms   = !!extraOptions.querySelector('#formsToggle')?.checked;
+  const ubs     = !!extraOptions.querySelector('#ultraBeastsToggle')?.checked;
+
+  const mythMode = (mythSel?.value || 'none'); // 'none' | 'include' | 'only'
+
+  // Store in toggles (ranker.js reads these)
+  config.toggles = {
+    mythMode,        // 'none' | 'include' | 'only'
+    forms,           // boolean
+    ultraBeasts: ubs // boolean (ignored automatically in ranker if mythMode === 'only')
+  };
+}
 
     if (category === 'type') {
       const mono = !!getEl('chkMono')?.checked;

@@ -20,9 +20,11 @@ window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === '
       6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
     };
     if (g) label = `Generation ${g} (${regionByGen[g] || "??"})`;
+  } else if (rc?.category === "legendaries") {
+    label = "Legendaries";
   }
 
-  titleEl.textContent = label + (window.shinyOnly ? " • Shiny-only" : window.includeShinies ? " • +Shinies" : " • No Shinies");
+  titleEl.textContent = label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 })();
 
 // ----- Regional form name suffixes used by PokeAPI "pokemon" endpoint
@@ -129,7 +131,156 @@ function friendlyNameForVariety(variety){
 
   return `${cap(base)} (${capWords(form)})`;
 }
+// ---------- Legendaries data (IDs only, no Paradox, no Megas) ----------
+const LEGENDS_CORE = [
+  // Gen 1
+  144,145,146,150,
+  // Gen 2
+  243,244,245,249,250,
+  // Gen 3
+  377,378,379,380,381,382,383,384,
+  // Gen 4
+  480,481,482,483,484,485,486,487,488,
+  // Gen 5
+  638,639,640,641,642,643,644,645,646,
+  // Gen 6
+  716,717,718,
+  // Gen 7 (not UBs, not Mythicals)
+  785,786,787,788,789,790,791,792,800,
+  // Gen 8
+  888,889,890,894,895,896,897,898,905,
+  // Gen 9 (no Paradox here; include Treasures of Ruin + box legends)
+  1001,1002,1003,1004,1007,1008
+];
 
+const LEGENDS_MYTHICALS = [
+  151,251,385,386,490,491,492,493,494,647,648,649,719,720,721,801,802,807,808,809,893,1020
+];
+
+const LEGENDS_ULTRA_BEASTS = [
+  793,794,795,796,797,798,799,803,804,805,806
+];
+
+// Forms to include when "Forms" toggle is ON (variety slugs line up with PokeAPI)
+const LEGENDARY_FORMS = [
+  // Tornadus/Thundurus/Landorus Therian
+  { id: 641, variety: "tornadus-therian" },
+  { id: 642, variety: "thundurus-therian" },
+  { id: 645, variety: "landorus-therian" },
+
+    // Deoxys forms (Mythical)
+  { id: 386, variety: "deoxys-attack" },
+  { id: 386, variety: "deoxys-defense" },
+  { id: 386, variety: "deoxys-speed" },
+
+  // Zygarde 10% and Complete
+  { id: 718, variety: "zygarde-10" },
+  { id: 718, variety: "zygarde-complete" },
+
+  // Giratina Origin
+  { id: 487, variety: "giratina-origin" },
+
+  // Kyurem forms
+  { id: 646, variety: "kyurem-black" },
+  { id: 646, variety: "kyurem-white" },
+
+  // Necrozma (also listed for Gen7 alt forms; harmless duplicate guard below)
+  { id: 800, variety: "necrozma-dusk" },
+  { id: 800, variety: "necrozma-dawn" },
+  { id: 800, variety: "necrozma-ultra" },
+
+  // Enamorus Therian
+  { id: 905, variety: "enamorus-therian" },
+
+  // Calyrex riders
+  { id: 898, variety: "calyrex-ice" },
+  { id: 898, variety: "calyrex-shadow" },
+
+  // Shaymin Sky (only appears if Mythicals toggle is also ON; we’ll gate it later)
+  { id: 492, variety: "shaymin-sky" }
+];
+
+// Some form names look nicer with overrides; we already have the mechanism in this file.
+FRIENDLY_NAME_OVERRIDES["tornadus-therian"]  = "Tornadus (Therian)";
+FRIENDLY_NAME_OVERRIDES["thundurus-therian"] = "Thundurus (Therian)";
+FRIENDLY_NAME_OVERRIDES["landorus-therian"]  = "Landorus (Therian)";
+FRIENDLY_NAME_OVERRIDES["tornadus-incarnate"]  = "Tornadus (Incarnate)";
+FRIENDLY_NAME_OVERRIDES["thundurus-incarnate"] = "Thundurus (Incarnate)";
+FRIENDLY_NAME_OVERRIDES["landorus-incarnate"]  = "Landorus (Incarnate)";
+FRIENDLY_NAME_OVERRIDES["enamorus-incarnate"] = "Enamorus (Incarnate)";
+FRIENDLY_NAME_OVERRIDES["enamorus-therian"]  = "Enamorus (Therian)";
+FRIENDLY_NAME_OVERRIDES["zygarde-10"]        = "Zygarde (10%)";
+FRIENDLY_NAME_OVERRIDES["zygarde-complete"]  = "Zygarde (Complete)";
+FRIENDLY_NAME_OVERRIDES["giratina-origin"]   = "Giratina (Origin)";
+FRIENDLY_NAME_OVERRIDES["kyurem-black"]      = "Kyurem (Black)";
+FRIENDLY_NAME_OVERRIDES["kyurem-white"]      = "Kyurem (White)";
+FRIENDLY_NAME_OVERRIDES["shaymin-sky"]       = "Shaymin (Sky)";
+FRIENDLY_NAME_OVERRIDES["deoxys-attack"]  = "Deoxys (Attack)";
+FRIENDLY_NAME_OVERRIDES["deoxys-defense"] = "Deoxys (Defense)";
+FRIENDLY_NAME_OVERRIDES["deoxys-speed"]   = "Deoxys (Speed)";
+
+function buildLegendariesPool() {
+  const toggles = (window.rankConfig && window.rankConfig.toggles) || {};
+  const mythMode = toggles.mythMode || (toggles.mythicals ? 'include' : 'off'); // backwards compat
+  const wantMyth = (mythMode === 'include' || mythMode === 'only');
+  const mythOnly = (mythMode === 'only');
+  const wantUBs  = !mythOnly && !!toggles.ultraBeasts; // ignore UBs if Mythicals Only
+  const wantForms = !!toggles.forms;
+
+
+  // Helper uses global shiny settings exactly like generation builder
+  function entriesFor(id, name) {
+    const base = { id, name: name || null };
+    if (window.shinyOnly)         return [{ ...base, shiny: true }];
+    if (window.includeShinies)    return [{ ...base, shiny: false }, { ...base, shiny: true }];
+    return [{ ...base, shiny: false }];
+  }
+
+  // Base IDs (Paradox + Megas are simply not present in these lists)
+  let ids = mythOnly ? [...LEGENDS_MYTHICALS] : [...LEGENDS_CORE];
+  if (wantMyth && !mythOnly) ids = ids.concat(LEGENDS_MYTHICALS);
+  if (wantUBs)               ids = ids.concat(LEGENDS_ULTRA_BEASTS);
+
+
+  // Build base pool
+  const pool = [];
+  const seen = new Set();
+  ids.forEach(id => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    pool.push(...entriesFor(id, null));
+  });
+
+  if (wantForms) {
+  // Build forms respecting Mythicals toggle
+  const forms = LEGENDARY_FORMS.filter(f => {
+    // Shaymin-Sky requires Mythicals to be on at all
+    if (f.id === 492 && !wantMyth) return false;
+    // If Mythicals Only, include only Mythical species’ forms
+    if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+    return true;
+  });
+
+
+    const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+    forms.forEach(entry => {
+      const display = friendlyNameForVariety(entry.variety);
+      if (existingNames.has(display.toLowerCase())) return;
+
+      const base = { id: entry.id, name: display, variety: entry.variety };
+      if (window.shinyOnly) {
+        pool.push({ ...base, shiny: true });
+      } else if (window.includeShinies) {
+        pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+      } else {
+        pool.push({ ...base, shiny: false });
+      }
+      existingNames.add(display.toLowerCase());
+    });
+  }
+
+  return pool;
+}
 
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
@@ -274,10 +425,23 @@ if (
   return pool;
 }
 
-// ----- Choose pool from config
+// Registry: add new categories here → no duplication elsewhere.
+const POOL_BUILDERS = {
+  generation: (rc) => buildGenPool(rc?.filters?.generation),
+  legendaries: () => buildLegendariesPool(),
+  // type: (rc) => buildTypePool(rc?.filters?.types),  // (coming soon)
+  // region: (rc) => buildRegionPool(rc?.filters?.region),
+  // etc...
+};
+
 let pool = [];
-if (window.rankConfig?.category === "generation") {
-  const g = window.rankConfig?.filters?.generation;
+const rc = window.rankConfig || {};
+const builder = POOL_BUILDERS[rc.category];
+if (builder) {
+  pool = builder(rc);
+} else {
+  // Fallback (keeps current behavior if category unknown)
+  const g = rc?.filters?.generation;
   pool = buildGenPool(g);
 }
 
@@ -323,7 +487,10 @@ function rankerLabel(){
     };
     if (g) label = `Generation ${g} (${regionByGen[g] || "??"})`;
   }
-  return label + (window.shinyOnly ? " • Shiny-only" : window.includeShinies ? " • +Shinies" : " • No Shinies");
+  else if (rc?.category === "legendaries") {
+  label = "Legendaries";
+}
+  return label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 }
 
 function spriteUrl(id, shiny){
@@ -342,6 +509,38 @@ function saveNameCache(){
   try { localStorage.setItem(NAME_CACHE_KEY, JSON.stringify(nameCache)); } catch {}
 }
 function titleize(s){ return (s||"").split("-").map(w=>w? w[0].toUpperCase()+w.slice(1):w).join("-"); }
+
+function normalizeFormHyphen(name){
+  return String(name || '')
+    .replace(/-Incarnate$/i, ' (Incarnate)')
+    .replace(/-Therian$/i,   ' (Therian)')
+    .replace(/-Midday$/i,    ' (Midday)')
+    .replace(/-Midnight$/i,  ' (Midnight)')
+    .replace(/-Dusk$/i,      ' (Dusk)')
+    .replace(/-Baile$/i,     ' (Baile)')
+    .replace(/-Pom-Pom$/i,   ' (Pom-Pom)')
+    .replace(/-Pau$/i,       " (Pa'u)")
+    .replace(/-Sensu$/i,     ' (Sensu)')
+    .replace(/-Altered$/i, ' (Altered)')
+    .replace(/-Land$/i, ' (Land)')
+    .replace(/^Meloetta-Aria$/i, 'Meloetta (Aria)')
+    .replace(/-Ordinary$/i, ' (Ordinary)')
+    .replace(/^Zygarde-50$/i, 'Zygarde (50%)')
+    .replace(/^Deoxys-Normal$/i, 'Deoxys (Normal)');
+}
+// One-time normalization pass over existing cached names
+(function migrateNameCache(){
+  let changed = false;
+  for (const k in nameCache){
+    const oldVal = nameCache[k];
+    const newVal = normalizeFormHyphen(oldVal);
+    if (oldVal !== newVal){
+      nameCache[k] = newVal;
+      changed = true;
+    }
+  }
+  if (changed) saveNameCache();
+})();
 
 // Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
 const ART_ID_CACHE_KEY = "artIdCache";
@@ -366,7 +565,7 @@ async function ensureName(id){
     const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' });
     if (!resp.ok) return;
     const data = await resp.json();
-    const pretty = titleize(data?.name || "");
+    const pretty = normalizeFormHyphen(titleize(data?.name || ""));
     nameCache[id] = pretty || `#${String(id).padStart(3,"0")}`;
     saveNameCache();
     updateLabelsIfVisible(id);
@@ -398,7 +597,7 @@ function awaitName(id){
   return fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' })
     .then(r => r.ok ? r.json() : null)
     .then(data => {
-      const nm = titleize(data?.name || "") || `#${String(id).padStart(3,"0")}`; // not shown directly
+      const nm = normalizeFormHyphen(titleize(data?.name || "")) || `#${String(id).padStart(3,"0")}`;
       nameCache[id] = nm;
       saveNameCache();
       return nm;
@@ -587,9 +786,19 @@ if (variety) {
   }
 }
 
-  const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
-  const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
-  chain.push(...(wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm]));
+    // Only append base species artwork when:
+  // - there is NO variety at all, OR
+  // - the variety has a known numeric id (so base is just a safety next), OR
+  // - we have a known-bad variety (-1) and must fall back.
+  const cached = variety ? artIdCache[variety] : undefined;
+  const shouldAppendBase =
+    !variety || (typeof cached === 'number' && cached > 0) || cached === -1;
+
+  if (shouldAppendBase) {
+    const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
+    const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+    chain.push(...(wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm]));
+  }
 
   const first = chain[0];
   const safeAlt = alt || (p.name || nameCache[p.id] || "");
@@ -1659,10 +1868,13 @@ function showWinner(finalWinner){
     `;
   };
 
-  const g = window.rankConfig?.filters?.generation || 1;
-
-  document.getElementById("result").innerHTML = `
-    <h2>Your Favorite (Gen ${g}) Pokemon is:</h2>
+  const rc = window.rankConfig || {};
+const g  = rc?.filters?.generation || 1;
+const headerText = (rc?.category === 'legendaries')
+  ? 'Your Favorite Legendary Pokémon is:'
+  : `Your Favorite (Gen ${g}) Pokémon is:`;
+document.getElementById("result").innerHTML = `
+  <h2>${headerText}</h2>
     <div class="champion-card">
       <div class="champion-image-wrapper">
         ${getImageTag(champion).replace('<img ', '<img class="champion-img" ')}
@@ -1737,9 +1949,15 @@ function saveResults(){
     return obj;
   };
 
-  const g = window.rankConfig?.filters?.generation || 1;
-  const category = `Gen ${g}`;
-  const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
+  const rc = window.rankConfig || {};
+let category = 'PokéRankr';
+if (rc?.category === 'generation') {
+  const g = rc?.filters?.generation || 1;
+  category = `Gen ${g}`;
+} else if (rc?.category === 'legendaries') {
+  category = 'Legendaries';
+}
+const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
   const nowIso = new Date().toISOString();
 
   let saved = [];
@@ -1760,7 +1978,7 @@ function saveResults(){
 
   try {
     localStorage.setItem("savedRankings", JSON.stringify(saved));
-    alert(`Saved! Your ${category} ranking (${window.shinyOnly ? "shiny only" : window.includeShinies ? "+ shinies" : "no shinies"}) has been updated.`);
+    alert(`Saved! Your ${category} ranking (${window.shinyOnly ? "shiny only✨" : window.includeShinies ? "+ shinies✨" : "no shinies"}) has been updated.`);
   } catch(e){
     console.error(e);
     alert("Could not save rankings.");
@@ -1958,18 +2176,27 @@ async function exportRankingImage(){
   ctx.strokeStyle = '#d2deff';
   ctx.strokeRect(8, 8, size - 16, size - 16);
 
-  // Title (uses Gen from rankConfig)
-  const g = (window.rankConfig?.filters?.generation) || 1;
-  const TITLE = `PokéRankr — Gen ${g}`;
-  const MODE  = (window.shinyOnly ? 'Shiny-only' : (window.includeShinies ? '+Shinies' : 'No Shinies'));
+ const rc = window.rankConfig || {};
+const MODE = (window.shinyOnly ? 'Shiny-only✨' : (window.includeShinies ? '+Shinies✨' : 'No Shinies'));
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#0d1b2a';
-  ctx.font = '800 44px Poppins, sans-serif';
-  ctx.fillText(TITLE, size/2, 92);
-  ctx.fillStyle = '#5a6a8a';
-  ctx.font = '700 28px Poppins, sans-serif';
-  ctx.fillText(MODE, size/2, 148);
+let TITLE = 'PokéRankr';
+let fileStub = 'pokerankr';
+if (rc?.category === 'generation') {
+  const g = rc?.filters?.generation || 1;
+  TITLE = `PokéRankr — Gen ${g}`;
+  fileStub = `pokerankr-gen${g}`;
+} else if (rc?.category === 'legendaries') {
+  TITLE = 'PokéRankr — Legendaries';
+  fileStub = 'pokerankr-legendaries';
+}
+
+ctx.textAlign = 'center';
+ctx.fillStyle = '#0d1b2a';
+ctx.font = '800 44px Poppins, sans-serif';
+ctx.fillText(TITLE, size/2, 92);
+ctx.fillStyle = '#5a6a8a';
+ctx.font = '700 28px Poppins, sans-serif';
+ctx.fillText(MODE, size/2, 148);
 
   // Bitmaps
   const [champBmp, ruBmp, thirdBmp, hmBmp] = await Promise.all([
@@ -2051,7 +2278,7 @@ async function exportRankingImage(){
     if (!blob) { alert('Export failed.'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `pokerankr-gen${g}-${Date.now()}.png`;
+    a.download = `${fileStub}-${Date.now()}.png`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
   }, 'image/png');
