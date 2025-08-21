@@ -25,6 +25,11 @@
   <link rel="dns-prefetch" href="https://pokeapi.co">
   <title>PokéRankr - Ranking</title>
   <link rel="stylesheet" href="style.css" />
+<style>
+  /* Stabilize card and image footprint to eliminate micro-jitters */
+  .pokemon-card { min-height: 320px; display: flex; flex-direction: column; align-items: center; }
+  .pokemon-card img { width: 256px; height: 256px; object-fit: contain; display:block; }
+</style>
 </head>
 <body>
   <div class="container">

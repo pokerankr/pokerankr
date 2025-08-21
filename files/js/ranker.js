@@ -488,6 +488,13 @@ if (!pool.length) {
   throw new Error("No pool selected for ranker.js");
 }
 
+// 🔥 Warm the name cache in the background so labels appear instantly
+try {
+  // Non-blocking; uses force-cache and local cache inside ensureNames
+  ensureNames(pool);
+} catch {/* ignore */}
+
+
 // ===== Save Slots (shared schema) =====
 const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
 
@@ -1413,9 +1420,13 @@ document.getElementById('btnMainMenu')?.addEventListener('click', goToMainMenu);
 function labelHTML(p){
   const nm = p.name || nameCache[p.id] || "";
   const text = nm ? (p.shiny ? `⭐ ${nm}` : nm) : "";
-  // Reserve one line and prevent wrapping so height never changes between blank → name
-  return `<p data-id="${p.id}" class="pkr-label">${text || "&nbsp;"}</p>`;
+  // Lock one text line height and prevent wrapping; always reserve space even when empty.
+  return `<p data-id="${p.id}" class="pkr-label"
+            style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; min-height:1.2em; margin:6px 0 0; text-align:center;">
+            ${text || "&nbsp;"}
+          </p>`;
 }
+
 
 // 🔹 Track last rendered mon on each side to skip left re-renders
 let lastLeftKey = null;
@@ -1464,10 +1475,10 @@ function renderOpponentSmooth(mon){
 
   if (!mon) { rightEl.innerHTML = ""; return; }
 
-  // 🔒 Lock height so the white frame never changes during the swap
-  const lockedHeight = rightEl.offsetHeight;
-  const prevMinHeight = rightEl.style.minHeight;
-  rightEl.style.minHeight = lockedHeight ? `${lockedHeight}px` : prevMinHeight;
+  // 🔒 Lock height so the frame never changes during the swap (use a safe baseline)
+  const BASELINE_CARD_HEIGHT = 320; // image (256) + label/padding headroom
+  const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
+  rightEl.style.minHeight = `${lockedHeight}px`;
 
   // Offscreen prerender (real nodes, not strings)
   const temp = document.createElement('div');
