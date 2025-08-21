@@ -877,19 +877,17 @@ if (variety) {
   }
 }
 
-    // Only append base species artwork when:
-  // - there is NO variety at all, OR
-  // - the variety has a known numeric id (so base is just a safety next), OR
-  // - we have a known-bad variety (-1) and must fall back.
-  const cached = variety ? artIdCache[variety] : undefined;
-  const shouldAppendBase =
-    !variety || (typeof cached === 'number' && cached > 0) || cached === -1;
+  // Always append base-ID artwork as a final safety net.
+  // This prevents empty images when a variety slug (e.g., palafin-zero shiny) 404s
+  // before we've resolved its numeric artwork ID.
+  const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
+  const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+  const baseChain   = wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm];
 
-  if (shouldAppendBase) {
-    const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
-    const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
-    chain.push(...(wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm]));
-  }
+  // Keep any variety slug attempts at the front (we push those above),
+  // and always add base numeric last as a guaranteed fallback.
+  chain.push(...baseChain);
+  
 
   const first = chain[0];
   const safeAlt = alt || (p.name || nameCache[p.id] || "");
