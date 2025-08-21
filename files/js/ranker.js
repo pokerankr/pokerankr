@@ -1093,9 +1093,10 @@ function restoreState(s){
   next       = s.next    ? {...s.next}    : null;
   leftHistory.length = 0;
   leftHistory.push(...s.leftHistory.map(p=>({...p})));
-  displayMatchup();
+  displayMatchupFirstGate();
   updateProgress();
   updateUndoButton();
+
 }
 function updateUndoButton() {
   const btn = document.getElementById("btnUndo");
@@ -1562,6 +1563,30 @@ if (pEl && nm) {
     }
     ensureName(mon.id); // upgrade label later if needed
   });
+}
+
+// --- First-render sync: ensure names for current+next before the very first display
+let didFirstSyncRender = false;
+
+async function firstRenderSync(){
+  const mons = [current, next].filter(Boolean);
+  try {
+    // Only fetch names for the two mons that will appear first
+    await ensureNames(mons);
+  } catch {}
+  // Now do a normal render (images are already preloaded off-DOM in the smooth renderers)
+  displayMatchup();
+}
+
+// Small gate that runs the first render synchronously, then defers to normal path
+function displayMatchupFirstGate(){
+  if (!didFirstSyncRender){
+    didFirstSyncRender = true;
+    // fire-and-forget; this function handles its own await
+    firstRenderSync();
+  } else {
+    displayMatchup();
+  }
 }
 
 
