@@ -13,14 +13,18 @@ window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === '
   const rc = window.rankConfig || {};
   let label = "PokéRankr";
 
-  if (rc?.category === "generation") {
-    const g = rc?.filters?.generation;
-    const regionByGen = {
-      1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
-      6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
-    };
-    if (g) label = `Generation ${g} (${regionByGen[g] || "??"})`;
-  } else if (rc?.category === "legendaries") {
+if (rc?.category === "generation") {
+  const g = rc?.filters?.generation;
+  const regionByGen = {
+    1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
+    6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
+  };
+  if (g === "ALL") {
+    label = "All Generations";
+  } else if (g) {
+    label = `Generation ${g} (${regionByGen[g] || "??"})`;
+  }
+} else if (rc?.category === "legendaries") {
     label = "Legendaries";
   }
 
@@ -425,9 +429,33 @@ if (
   return pool;
 }
 
+// Build a pool containing every Gen (1–9), honoring the same toggles
+function buildAllPool(){
+  const gens = [1,2,3,4,5,6,7,8,9];
+  let out = [];
+  const seenKey = new Set();
+
+  // reuse your per-gen builder so we get the exact same form/alt logic
+  gens.forEach(g => {
+    const chunk = buildGenPool(g) || [];
+    // de-dupe by id|name|shiny to be safe if any label collides
+    chunk.forEach(p => {
+      const key = `${p.id}|${p.name || ''}|${p.shiny ? 1 : 0}|${p.variety || ''}`;
+      if (seenKey.has(key)) return;
+      seenKey.add(key);
+      out.push(p);
+    });
+  });
+
+  return out;
+}
+
 // Registry: add new categories here → no duplication elsewhere.
 const POOL_BUILDERS = {
-  generation: (rc) => buildGenPool(rc?.filters?.generation),
+  generation: (rc) => {
+    const g = rc?.filters?.generation;
+    return (g === 'ALL') ? buildAllPool() : buildGenPool(g);
+  },
   legendaries: () => buildLegendariesPool(),
   // type: (rc) => buildTypePool(rc?.filters?.types),  // (coming soon)
   // region: (rc) => buildRegionPool(rc?.filters?.region),
@@ -480,13 +508,17 @@ function rankerLabel(){
   const rc = window.rankConfig || {};
   let label = "PokéRankr";
   if (rc?.category === "generation") {
-    const g = rc?.filters?.generation;
-    const regionByGen = {
-      1:"Kanto",2:"Johto",3:"Hoenn",4:"Sinnoh",5:"Unova",
-      6:"Kalos",7:"Alola",8:"Galar/Hisui",9:"Paldea"
-    };
-    if (g) label = `Generation ${g} (${regionByGen[g] || "??"})`;
+  const g = rc?.filters?.generation;
+  const regionByGen = {
+    1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
+    6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
+  };
+  if (g === "ALL") {
+    label = "All Generations";
+  } else if (g) {
+    label = `Generation ${g} (${regionByGen[g] || "??"})`;
   }
+}
   else if (rc?.category === "legendaries") {
   label = "Legendaries";
 }
@@ -1868,11 +1900,16 @@ function showWinner(finalWinner){
     `;
   };
 
-  const rc = window.rankConfig || {};
+ const rc = window.rankConfig || {};
 const g  = rc?.filters?.generation || 1;
-const headerText = (rc?.category === 'legendaries')
-  ? 'Your Favorite Legendary Pokémon is:'
-  : `Your Favorite (Gen ${g}) Pokémon is:`;
+let headerText;
+if (rc?.category === 'legendaries') {
+  headerText = 'Your Favorite Legendary Pokémon is:';
+} else if (g === "ALL") {
+  headerText = 'Your All Time Favorite Pokémon Is:';
+} else {
+  headerText = `Your Favorite (Gen ${g}) Pokémon is:`;
+}
 document.getElementById("result").innerHTML = `
   <h2>${headerText}</h2>
     <div class="champion-card">

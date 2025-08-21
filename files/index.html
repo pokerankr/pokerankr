@@ -135,23 +135,28 @@
     extraOptions.innerHTML = '';
 
     if (cat === 'generation') {
-  const supportedGens = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+// Include "ALL" pseudo-gen + the normal gens
+const supportedGens = ["ALL", 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // Build Gen buttons + (hidden-by-default) toggles row
 extraOptions.innerHTML = `
   <div>
     <label>Select Generation:</label>
     <div class="category-buttons" id="genButtons" role="group" aria-label="Select Generation">
-      ${supportedGens.map((g,i) => `
-        <button
-          type="button"
-          class="menu-button gen-btn${i===0 ? ' selected' : ''}"
-          data-gen="${g}"
-          aria-pressed="${i===0 ? 'true' : 'false'}"
-        >
-          <span class="button_top">Gen ${g}</span>
-        </button>
-      `).join('')}
+      ${supportedGens.map((g,i) => {
+        const isAll = g === "ALL";
+        const label = isAll ? "All" : `Gen ${g}`;
+        return `
+          <button
+            type="button"
+            class="menu-button gen-btn${i===0 ? ' selected' : ''}"
+            data-gen="${g}"
+            aria-pressed="${i===0 ? 'true' : 'false'}"
+          >
+            <span class="button_top">${label}</span>
+          </button>
+        `;
+      }).join('')}
     </div>
   </div>
 
@@ -167,7 +172,6 @@ extraOptions.innerHTML = `
     </label>
   </div>
 `;
-
 
   // Wire up gen selection
   const btns = extraOptions.querySelectorAll('.gen-btn');
@@ -185,31 +189,32 @@ extraOptions.innerHTML = `
   });
 
   // Toggle visibility rules
-  const REGIONAL_MIN_GEN = 7;             // Regional forms (Alola/Galar/Hisui) start showing at Gen 7+
-  const ALT_BATTLE_GENS = new Set([7,8,9]);   // Only show Alt/Battle toggle for these gens (expand later if needed)
+ const REGIONAL_MIN_GEN = 7;
+const ALT_BATTLE_GENS = new Set([7,8,9]);
 
-  const row           = extraOptions.querySelector('#genToggleRow');
-  const chkRegional   = extraOptions.querySelector('#toggle-regional');
-  const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
-  const lblRegional   = extraOptions.querySelector('#lblToggleRegional');
-  const lblAltBattle  = extraOptions.querySelector('#lblToggleAltBattle');
+const row           = extraOptions.querySelector('#genToggleRow');
+const chkRegional   = extraOptions.querySelector('#toggle-regional');
+const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
+const lblRegional   = extraOptions.querySelector('#lblToggleRegional');
+const lblAltBattle  = extraOptions.querySelector('#lblToggleAltBattle');
 
-  function updateGenTogglesVisibility() {
-    const g = parseInt(extraOptions.dataset.selectedGen, 10);
+function updateGenTogglesVisibility() {
+  const sel = extraOptions.dataset.selectedGen;
+  const isAll = (sel === "ALL");
+  const g = isAll ? NaN : parseInt(sel, 10);
 
-    const showRegional  = g >= REGIONAL_MIN_GEN;
-    const showAltBattle = ALT_BATTLE_GENS.has(g);
+  const showRegional  = isAll || (g >= REGIONAL_MIN_GEN);
+  const showAltBattle = isAll || ALT_BATTLE_GENS.has(g);
 
-    lblRegional.style.display  = showRegional  ? '' : 'none';
-    lblAltBattle.style.display = showAltBattle ? '' : 'none';
+  lblRegional.style.display  = showRegional  ? '' : 'none';
+  lblAltBattle.style.display = showAltBattle ? '' : 'none';
 
-    // Show the row only if at least one toggle is relevant
-    row.style.display = (showRegional || showAltBattle) ? '' : 'none';
+  row.style.display = (showRegional || showAltBattle) ? '' : 'none';
 
-    // Reset hidden toggles to unchecked
-    if (!showRegional && chkRegional)   chkRegional.checked = false;
-    if (!showAltBattle && chkAltBattle) chkAltBattle.checked = false;
-  }
+  if (!showRegional && chkRegional)   chkRegional.checked = false;
+  if (!showAltBattle && chkAltBattle) chkAltBattle.checked = false;
+}
+
 
   // Initialize visibility for the default selected gen
   updateGenTogglesVisibility();
@@ -299,11 +304,11 @@ if (cat === 'type') {
     };
 
    if (category === 'generation') {
-  const gen = extraOptions.dataset.selectedGen;
+ const gen = extraOptions.dataset.selectedGen;
   if (!gen) { alert('Choose a generation.'); return; }
-  config.filters.generation = parseInt(gen, 10);
+  config.filters.generation = (gen === "ALL") ? "ALL" : parseInt(gen, 10);
 
-  // NEW: pass toggles along
+  // pass toggles along
   const chkRegional  = extraOptions.querySelector('#toggle-regional');
   const chkAltBattle = extraOptions.querySelector('#toggle-altbattle');
   config.toggles = {
