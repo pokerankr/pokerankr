@@ -1526,10 +1526,11 @@ function renderOpponentSmooth(mon){
 
   if (!mon) { rightEl.innerHTML = ""; return; }
 
-  // 🔒 Lock height so the frame never changes during the swap (use a safe baseline)
-  const BASELINE_CARD_HEIGHT = 320; // image (256) + label/padding headroom
-  const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
-  rightEl.style.minHeight = `${lockedHeight}px`;
+ // 🔒 Lock height so the frame never changes during the swap (use a safe baseline)
+const BASELINE_CARD_HEIGHT = 320; // image (256) + label/padding headroom
+const prevMinHeight = rightEl.style.minHeight;           // 👈 remember previous value
+const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
+rightEl.style.minHeight = `${lockedHeight}px`;
 
   // Offscreen prerender (real nodes, not strings)
   const temp = document.createElement('div');
