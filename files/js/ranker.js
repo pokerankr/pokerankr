@@ -851,7 +851,7 @@ function spriteUrlForMon(p, shiny) {
 
 // OFFICIAL-ARTWORK ONLY fallback chain with numeric-ID preference:
 // variety (numeric cached) -> variety (slug) -> base (id)
-function getImageTag(monOrId, shiny = false, alt = "") {
+function getImageTag(monOrId, shiny = false, alt = "", forResults = false) {
   const p = (typeof monOrId === 'object' && monOrId)
     ? monOrId
     : { id: monOrId, shiny, name: nameCache[monOrId] };
@@ -1967,7 +1967,8 @@ function showWinner(finalWinner){
         : `<p class="rounds-text">Auto-advanced</p>`;
       return `
         <div class="pokemon-card compact-card">
-          ${getImageTag(p)}
+          ${getImageTag(p, p.shiny, displayName(p), true)}
+
           <p>${displayName(p)}</p>
           ${survivedLine}
           ${total === 0 ? `<p class="rounds-text">Auto-advanced</p>` : winsLine}
@@ -1977,7 +1978,8 @@ function showWinner(finalWinner){
     }
     return `
       <div class="pokemon-card compact-card">
-        ${getImageTag(p)}
+        ${getImageTag(p, p.shiny, displayName(p), true)}
+
         <p>${displayName(p)}</p>
         ${survivedLine}
         <p class="rounds-text" style="visibility:hidden;">placeholder</p>
