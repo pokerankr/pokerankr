@@ -491,12 +491,10 @@ if (!pool.length) {
 // Fire-and-forget: warm the local names map
 loadNamesMapOnce().catch(()=>{});
 
-// 🔥 Warm the name cache in the background so labels appear instantly
-try {
-  // Non-blocking; uses force-cache and local cache inside ensureNames
-  ensureNames(pool);
-} catch {/* ignore */}
-
+// 🔥 Removed bulk warm-up to avoid flooding the network on huge pools (e.g., All Gen + forms + shinies).
+// We already ensure names for the first two mons in firstRenderSync(), and exporter re-checks names for finalists.
+// If you ever want a *tiny* background warm-up, you can safely do a small subset like:
+// try { ensureNames(pool.slice(0, 50)); } catch {/* ignore */}
 
 // ===== Save Slots (shared schema) =====
 const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
