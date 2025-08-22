@@ -101,7 +101,7 @@ function getImageTag(pOrId, shiny = false, alt = "", forResults = false) {
   const fallbacks = JSON.stringify(chain.slice(1));
   const safeAlt = alt || p.name || "";
 
-   return `<img
+     return `<img
     src="${first}"
     alt="${safeAlt}"
     style="visibility:hidden"
@@ -109,8 +109,23 @@ function getImageTag(pOrId, shiny = false, alt = "", forResults = false) {
     data-step="0"
     data-fallbacks='${fallbacks}'
     onload="this.style.visibility='visible'"
-    onerror=" … "
+    onerror="
+      try {
+        this.style.visibility='hidden';
+        const steps = JSON.parse(this.dataset.fallbacks || '[]');
+        let i = parseInt(this.dataset.step || '0', 10);
+        if (i < steps.length) {
+          this.dataset.step = String(++i);
+          this.src = steps[i - 1];
+        } else {
+          this.onerror = null; // no more fallbacks; stop handling
+        }
+      } catch (e) {
+        this.onerror = null;
+      }
+    "
   >`;
+
 }
 
 // ----- Utils
@@ -818,6 +833,96 @@ let _prevRightKey = '';
 
 function _monKeyForSide(p){ return p ? `${p.id}-${p.shiny?1:0}` : ''; }
 
+// Resolve when an <img> loads, or when all fallbacks are exhausted.
+function awaitImgLoaded(img){
+  return new Promise((resolve) => {
+    if (!img) return resolve();
+    if (img.complete && img.naturalWidth > 0) return resolve();
+
+    const onLoad = () => { cleanup(); resolve(); };
+    const onError = () => {
+      try {
+        const steps = JSON.parse(img.dataset.fallbacks || '[]');
+        const i = parseInt(img.dataset.step || '0', 10);
+        if (i < steps.length) return; // more fallbacks pending; keep waiting
+      } catch {}
+      cleanup(); resolve();
+    };
+    const cleanup = () => {
+      img.removeEventListener('load', onLoad);
+      img.removeEventListener('error', onError);
+    };
+
+    img.addEventListener('load', onLoad);
+    img.addEventListener('error', onError);
+  });
+}
+// --- Right-side smooth swap (off-screen prerender + height lock)
+let _rightRenderVersion = 0;
+let _pendingRightTemp = null;
+
+function renderOpponentSmooth(mon){
+  const rightEl = document.getElementById("right");
+  _rightRenderVersion += 1;
+  const myVersion = _rightRenderVersion;
+
+  // Clean any previous temp node
+  if (_pendingRightTemp && _pendingRightTemp.isConnected) {
+    try { document.body.removeChild(_pendingRightTemp); } catch {}
+  }
+  _pendingRightTemp = null;
+
+  if (!mon) { rightEl.innerHTML = ""; return; }
+
+  // Lock height so the card/layout doesn’t jump during swap
+  const BASELINE_CARD_HEIGHT = 320; // 256 img + label space
+  const prevMinHeight = rightEl.style.minHeight;
+  const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
+  rightEl.style.minHeight = `${lockedHeight}px`;
+
+  // Off-screen prerender: use your existing getImageTag() + labelHTML()
+  const temp = document.createElement('div');
+  temp.style.position = 'absolute';
+  temp.style.left = '-9999px';
+  temp.style.top = '0';
+  temp.innerHTML = `${getImageTag(mon, mon.shiny, mon.name)}${labelHTML(mon)}`;
+  document.body.appendChild(temp);
+  _pendingRightTemp = temp;
+
+  const img = temp.querySelector('img');
+
+  awaitImgLoaded(img).then(() => {
+    // If another render started, abort and clean up
+    if (myVersion !== _rightRenderVersion) {
+      try { document.body.removeChild(temp); } catch {}
+      return;
+    }
+
+    // Move already-loaded nodes into place (no flicker)
+    while (rightEl.firstChild) rightEl.removeChild(rightEl.firstChild);
+    while (temp.firstChild) {
+      const node = temp.firstChild;
+      temp.removeChild(node);
+      if (node.tagName === 'IMG') {
+        node.style.visibility = 'visible';
+      }
+      rightEl.appendChild(node);
+    }
+
+    try { document.body.removeChild(temp); } catch {}
+    _pendingRightTemp = null;
+
+    // Track last rendered key (you already do this for both sides)
+    _prevRightKey = _monKeyForSide(mon);
+  }).finally(() => {
+    // Unlock height on next frame
+    requestAnimationFrame(() => {
+      rightEl.style.minHeight = prevMinHeight || '';
+    });
+  });
+}
+
+
 // Ensure a side container has an <img> + <p>, then update only if the mon changed
 function buildOrUpdateSide(sideId, mon){
   const container = document.getElementById(sideId);
@@ -1249,12 +1354,12 @@ window._PR_loadStarterSession = loadStarterSession;
 
 function goToMainMenu(){
   // Consider it "in progress" if you’ve done anything beyond the initial state
-  const atStart =
+    const atStart =
     eliminated.length === 0 &&
     !isInPost() &&
-    history.length === 0 &&
     roundNum === 0 &&
     remaining.length === (pool.length - 2);
+
 
   if (!atStart) {
     const ok = confirm("This session has not been saved! Are you sure you want to go back to the main menu?");

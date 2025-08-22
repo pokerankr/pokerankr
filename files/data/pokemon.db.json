@@ -1,0 +1,66 @@
+[
+  { "id": 1,  "name": "Bulbasaur",  "types": ["Grass","Poison"] },
+  { "id": 4,  "name": "Charmander", "types": ["Fire"] },
+  { "id": 7,  "name": "Squirtle",   "types": ["Water"] },
+
+  { "id": 152, "name": "Chikorita", "types": ["Grass"] },
+  { "id": 155, "name": "Cyndaquil", "types": ["Fire"] },
+  { "id": 158, "name": "Totodile",  "types": ["Water"] },
+
+  { "id": 252, "name": "Treecko", "types": ["Grass"] },
+  { "id": 255, "name": "Torchic", "types": ["Fire"] },
+  { "id": 258, "name": "Mudkip",  "types": ["Water"] },
+
+  { "id": 387, "name": "Turtwig", "types": ["Grass"] },
+  { "id": 390, "name": "Chimchar","types": ["Fire"] },
+  { "id": 393, "name": "Piplup",  "types": ["Water"] },
+
+  { "id": 495, "name": "Snivy",   "types": ["Grass"] },
+  { "id": 498, "name": "Tepig",   "types": ["Fire"] },
+  { "id": 501, "name": "Oshawott","types": ["Water"] },
+
+  { "id": 650, "name": "Chespin",  "types": ["Grass"] },
+  { "id": 653, "name": "Fennekin", "types": ["Fire"] },
+  { "id": 656, "name": "Froakie",  "types": ["Water"] },
+
+  { "id": 722, "name": "Rowlet", "types": ["Grass","Flying"] },
+  { "id": 725, "name": "Litten", "types": ["Fire"] },
+  { "id": 728, "name": "Popplio","types": ["Water"] },
+
+  { "id": 810, "name": "Grookey",   "types": ["Grass"] },
+  { "id": 813, "name": "Scorbunny", "types": ["Fire"] },
+  { "id": 816, "name": "Sobble",    "types": ["Water"] },
+
+  { "id": 906, "name": "Sprigatito", "types": ["Grass"] },
+  { "id": 909, "name": "Fuecoco",     "types": ["Fire"] },
+  { "id": 912, "name": "Quaxly",      "types": ["Water"] },
+
+  { "id": 6,   "name": "Charizard",  "types": ["Fire","Flying"] },
+  { "id": 146, "name": "Moltres",    "types": ["Fire","Flying"] },
+  { "id": 250, "name": "Ho-Oh",      "types": ["Fire","Flying"] },
+  { "id": 662, "name": "Fletchinder","types": ["Fire","Flying"] },
+  { "id": 663, "name": "Talonflame", "types": ["Fire","Flying"] },
+
+  { "id": 37,  "name": "Vulpix",    "types": ["Fire"] },
+  { "id": 58,  "name": "Growlithe", "types": ["Fire"] },
+  { "id": 77,  "name": "Ponyta",    "types": ["Fire"] },
+  { "id": 126, "name": "Magmar",    "types": ["Fire"] },
+  { "id": 136, "name": "Flareon",   "types": ["Fire"] },
+
+  { "id": 21,  "name": "Spearow",   "types": ["Normal","Flying"] },
+  { "id": 83,  "name": "Farfetch’d","types": ["Normal","Flying"] },
+  { "id": 278, "name": "Wingull",   "types": ["Water","Flying"] },
+  { "id": 580, "name": "Ducklett",  "types": ["Water","Flying"] },
+
+  {
+    "id": 741,
+    "name": "Oricorio",
+    "types": ["Electric","Flying"],
+    "forms": [
+      { "id": 74101, "name": "Oricorio (Baile)",   "types": ["Fire","Flying"] },
+      { "id": 74102, "name": "Oricorio (Pom-Pom)", "types": ["Electric","Flying"] },
+      { "id": 74103, "name": "Oricorio (Pa’u)",    "types": ["Psychic","Flying"] },
+      { "id": 74104, "name": "Oricorio (Sensu)",   "types": ["Ghost","Flying"] }
+    ]
+  }
+]

@@ -31,6 +31,44 @@ if (rc?.category === "generation") {
   titleEl.textContent = label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 })();
 
+// ===== Type Mode — data loader + filter (additive) =====
+async function _prLoadPokemonDb() {
+  if (window._pokemonDbCache) return window._pokemonDbCache;
+  const resp = await fetch('data/pokemon.db.json', { cache: 'no-store' });
+  const data = await resp.json();
+  window._pokemonDbCache = Array.isArray(data) ? data : [];
+  return window._pokemonDbCache;
+}
+
+function _prFilterByTypes(db, mode, typeA, typeB) {
+  const A = String(typeA || '').trim();
+  const B = String(typeB || '').trim();
+  const dual = (mode === 'dual');
+
+  // Each entry may have base + forms. Consider both.
+  const out = [];
+  for (const e of db) {
+    const variants = [e, ...(Array.isArray(e.forms) ? e.forms : [])];
+
+    for (const v of variants) {
+      const t = Array.isArray(v.types) ? v.types : [];
+      if (!dual) {
+        // Monotype = include any Pokémon that HAS the chosen type (even if it's a dual-type mon).
+        if (t.includes(A)) out.push({ id: v.id, name: v.name });
+      } else {
+        // Dual = exactly A + B in any order, and exactly 2 slots
+        if (t.length === 2 && ((t[0] === A && t[1] === B) || (t[0] === B && t[1] === A))) {
+          out.push({ id: v.id, name: v.name });
+        }
+      }
+    }
+  }
+  // de-dupe by id (in case base + form share id in some listings)
+  const seen = new Set();
+  return out.filter(p => (p && !seen.has(p.id) && seen.add(p.id)));
+}
+
+
 // ----- Regional form name suffixes used by PokeAPI "pokemon" endpoint
 const FORM_VARIETY_SUFFIX = {
   hisui:  '-hisui',
@@ -457,10 +495,54 @@ const POOL_BUILDERS = {
     return (g === 'ALL') ? buildAllPool() : buildGenPool(g);
   },
   legendaries: () => buildLegendariesPool(),
-  // type: (rc) => buildTypePool(rc?.filters?.types),  // (coming soon)
+  type: (rc) => {
+    const mode  = (rc?.typeMode === 'mono' || rc?.typeMode === 'dual') ? rc.typeMode : 'dual';
+    const typeA = rc?.typeA || 'Fire';
+    const typeB = rc?.typeB || 'Flying';
+
+    // Load db synchronously from cache (we fetched/parsed it above)
+    // In your case, since fetch is async, we preloaded at start.
+    // But for now, we can assume the db is loaded via _prLoadPokemonDb.
+    console.warn('⚠️ Type pool is async-loaded; results may appear after a moment');
+
+    // NOTE: synchronous POOL_BUILDERS expects an array,
+    // so we can’t fetch here. Instead, return an empty array
+    // and patch below with async injection.
+    _prLoadPokemonDb().then(db => {
+      const base = _prFilterByTypes(db, mode, typeA, typeB);
+      let pool = [];
+      if (window.shinyOnly) {
+        pool = base.map(p => ({ ...p, shiny: true }));
+      } else if (window.includeShinies) {
+        pool = [
+          ...base.map(p => ({ ...p, shiny: false })),
+          ...base.map(p => ({ ...p, shiny: true  }))
+        ];
+      } else {
+        pool = base.map(p => ({ ...p, shiny: false }));
+      }
+
+      // Overwrite the global pool/state after async load
+      window.pool = pool;
+      remaining   = shuffle([...pool]);
+      eliminated  = [];
+      current     = remaining.pop() || null;
+      next        = remaining.pop() || null;
+      if (current) current.roundsSurvived = 0;
+      if (next)    next.roundsSurvived    = 0;
+      leftHistory.length = 0;
+      if (current) leftHistory.push(current);
+
+      displayMatchupFirstGate();
+      updateProgress();
+      updateUndoButton();
+    });
+    return []; // placeholder so main code doesn’t break
+  },
   // region: (rc) => buildRegionPool(rc?.filters?.region),
   // etc...
 };
+
 
 let pool = [];
 const rc = window.rankConfig || {};
