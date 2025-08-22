@@ -69,9 +69,9 @@ const ALT_BATTLE_FORMS_BY_GEN = {
     { id: 741, variety: "oricorio-sensu" },
 
     // Necrozma (default = base Necrozma)
-    { id: 800, variety: "necrozma-dusk" },
-    { id: 800, variety: "necrozma-dawn" },
-    { id: 800, variety: "necrozma-ultra" },
+{ id: 800, variety: "necrozma-dusk-mane" },
+{ id: 800, variety: "necrozma-dawn-wings" },
+{ id: 800, variety: "necrozma-ultra" },
   ],
 
   8: [
@@ -188,10 +188,11 @@ const LEGENDARY_FORMS = [
   { id: 646, variety: "kyurem-black" },
   { id: 646, variety: "kyurem-white" },
 
-  // Necrozma (also listed for Gen7 alt forms; harmless duplicate guard below)
-  { id: 800, variety: "necrozma-dusk" },
-  { id: 800, variety: "necrozma-dawn" },
-  { id: 800, variety: "necrozma-ultra" },
+ // Necrozma (also listed for Gen7 alt forms; harmless duplicate guard below)
+{ id: 800, variety: "necrozma-dusk-mane" },
+{ id: 800, variety: "necrozma-dawn-wings" },
+{ id: 800, variety: "necrozma-ultra" },
+
 
   // Enamorus Therian
   { id: 905, variety: "enamorus-therian" },
@@ -862,16 +863,14 @@ function getImageTag(monOrId, shiny = false, alt = "", forResults = false) {
 if (variety) {
   const cached = artIdCache[variety];
   if (typeof cached === 'number' && cached > 0) {
+    // We already know the numeric form id → go straight to official-artwork by id
     chain.push(...buildOfficialChainFromId(cached, wantShiny));
-  } else if (cached === -1) {
-    // Known-bad slug → skip slug URLs entirely (go straight to base numeric below)
   } else {
-    // Try alias for prettier slug hit (then fall back to base)
-    const slug = VARIETY_SLUG_ALIASES[variety] || variety;
-    const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${slug}.png`;
-    const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${slug}.png`;
-    chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
+    // Don’t try slug image URLs at all (they 404 a lot and spam the console).
+    // Resolve numeric id in the background; when it arrives, ensureArtworkIdForVariety()
+    // will swap the <img> src to the correct numeric artwork.
     ensureArtworkIdForVariety(variety);
+    // Fall through to base species numeric artwork as an immediate, reliable preview.
   }
 }
 
