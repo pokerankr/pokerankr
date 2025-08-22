@@ -582,22 +582,25 @@ function normalizeFormHyphen(name){
   if (changed) saveNameCache();
 })();
 
-// ---- Local names dictionary (fetched once from data/names.en.min.json)
 let NAMES_MAP = null;
-async function loadNamesMapOnce(){
+let NAMES_MAP_WARNED = false;
+
+async function loadNamesMapOnce() {
   if (NAMES_MAP) return NAMES_MAP;
   try {
     const res = await fetch('data/names.en.min.json', { cache: 'force-cache' });
-    if (res.ok) {
-      NAMES_MAP = await res.json();
-    } else {
-      NAMES_MAP = {};
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    NAMES_MAP = await res.json();
+  } catch (e) {
+    if (!NAMES_MAP_WARNED) {
+      console.warn('[PokeRankr] names.en.min.json missing; falling back to live API for names (slower).');
+      NAMES_MAP_WARNED = true;
     }
-  } catch {
-    NAMES_MAP = {};
+    NAMES_MAP = {}; // still set to empty object so callers proceed
   }
   return NAMES_MAP;
 }
+
 
 
 // Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
@@ -677,6 +680,34 @@ async function ensureNames(list){
       p.name = `#${String(id).padStart(3,"0")}`;
     }
   }));
+}
+// ---- Sliding-window name warm-up (preloads upcoming labels without flooding) ----
+const warmedMonKeys = new Set();
+
+function warmNextBatch(count = 50) {
+  try {
+    const batch = [];
+
+    // Always include the visible 'next' (cheap no-op if already cached)
+    if (next) batch.push(next);
+
+    // Take the last N entries from 'remaining' (those will appear soonest)
+    const len = Array.isArray(remaining) ? remaining.length : 0;
+    const start = Math.max(0, len - count);
+    for (let i = start; i < len; i++) {
+      const p = remaining[i];
+      if (!p) continue;
+      const k = `${p.id}|${p.shiny ? 1 : 0}|${p.variety || ''}`;
+      if (warmedMonKeys.has(k)) continue;
+      warmedMonKeys.add(k);
+      batch.push(p);
+    }
+
+    if (batch.length) {
+      // Uses local names map first; falls back to PokeAPI only for true edge cases
+      ensureNames(batch);
+    }
+  } catch {/* swallow */}
 }
 
 
@@ -1680,7 +1711,11 @@ awaitName(next.id);
   // Prefetch the *upcoming* opponent to shrink perceived latency
   const upcoming = remaining[remaining.length - 1];
   if (upcoming) ensurePrefetch(upcoming);
+
+  // Preload names for the next 50 mons to eliminate label pop-in
+  warmNextBatch(50);
 }
+
 
 
 function updateProgress(){
