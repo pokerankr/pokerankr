@@ -873,7 +873,7 @@ let NAMES_MAP_WARNED = false;
 async function loadNamesMapOnce() {
   if (NAMES_MAP) return NAMES_MAP;
   try {
-    const res = await fetch('data/names.en.min.json', { cache: 'force-cache' });
+    const res = await fetch('/files/data/names.en.min.json', { cache: 'force-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     NAMES_MAP = await res.json();
   } catch (e) {
