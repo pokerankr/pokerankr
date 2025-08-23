@@ -873,7 +873,7 @@ let NAMES_MAP_WARNED = false;
 async function loadNamesMapOnce() {
   if (NAMES_MAP) return NAMES_MAP;
   try {
-    const res = await fetch('/files/data/names.en.min.json', { cache: 'force-cache' });
+    const res = await fetch('/files/data/names.en.min.json?v=' + new Date().getTime(), { cache: 'force-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     NAMES_MAP = await res.json();
 
@@ -884,7 +884,7 @@ async function loadNamesMapOnce() {
 
   } catch (e) {
     if (!NAMES_MAP_WARNED) {
-      console.warn('[PokeRankr] names.en.min.json still missing; falling back to live API for names (slower).');
+      console.warn('[PokeRankr] names.en.min.json still missing again; falling back to live API for names (slower).');
       NAMES_MAP_WARNED = true;
     }
     NAMES_MAP = {}; // still set to empty object so callers proceed
