@@ -162,15 +162,26 @@ function friendlyNameForVariety(variety){
   // 1) exact curated override
   if (FRIENDLY_NAME_OVERRIDES[variety]) return FRIENDLY_NAME_OVERRIDES[variety];
 
-  // 2) derive "Base (Form ...)" from the slug, e.g. "lycanroc-midday" -> "Lycanroc (Midday)"
-  const parts = String(variety || '').split('-').filter(Boolean);
-  if (!parts.length) return '';
-  const base = parts.shift();                 // "lycanroc"
-  const form = parts.join(' ');               // "midday" | "mid night" (rare multi-part)
+  const slug = String(variety || '');
 
+  // 2) Megas → "Mega <Base> (X/Y if present)"
+  //    Handles: "charizard-mega-x", "charizard-mega-y", "beedrill-mega", "rayquaza-mega", "mewtwo-mega-x|y", etc.
+  if (/-mega(?:-[xy])?$/i.test(slug)) {
+    const base = slug.replace(/-mega(?:-[xy])?$/i, '');
+    let suffix = '';
+    if (/-mega-x$/i.test(slug)) suffix = ' (X)';
+    if (/-mega-y$/i.test(slug)) suffix = ' (Y)';
+    const prettyBase = base.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+    return `Mega ${prettyBase}${suffix}`;
+  }
+
+  // 3) fallback: derive "Base (Form ...)" from the slug
+  const parts = slug.split('-').filter(Boolean);
+  if (!parts.length) return '';
+  const base = parts.shift();
+  const form = parts.join(' ');
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   const capWords = (s) => s.split(' ').map(cap).join(' ');
-
   return `${cap(base)} (${capWords(form)})`;
 }
 // ---------- Legendaries data (IDs only, no Paradox, no Megas) ----------
@@ -522,31 +533,46 @@ function flattenWithForms(list) {
   const out = [];
 
   // Map slug → friendly label using existing helpers/overrides
-  function toFriendly(raw) {
-    const n = String(raw || '');
+function toFriendly(raw) {
+  const n = String(raw || '');
 
-    // 1) Exact curated override first (already populated above)
-    if (FRIENDLY_NAME_OVERRIDES[n]) return FRIENDLY_NAME_OVERRIDES[n];
+  // 1) Exact curated override first (already populated above)
+  if (FRIENDLY_NAME_OVERRIDES[n]) return FRIENDLY_NAME_OVERRIDES[n];
 
-    // 2) Regional slugs into "Galarian / Alolan / Hisuian <Base>"
-    //    e.g. "zapdos-galar" -> "Galarian Zapdos"
-    if (/-galar$/i.test(n)) {
-      const base = n.replace(/-galar$/i, '');
-      return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
-    }
-    if (/-alola$/i.test(n)) {
-      const base = n.replace(/-alola$/i, '');
-      return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
-    }
-    if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
-      const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
-      return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
-    }
-
-    // 3) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
-    //    e.g. "thundurus-therian" -> "Thundurus (Therian)"
-    return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
+  // 2) Megas → "Mega <Base> (X/Y if present)"
+  if (/-mega(?:-[xy])?$/i.test(n)) {
+    const base = n.replace(/-mega(?:-[xy])?$/i, '');
+    let suffix = '';
+    if (/-mega-x$/i.test(n)) suffix = ' (X)';
+    if (/-mega-y$/i.test(n)) suffix = ' (Y)';
+    return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
   }
+
+  // 3) Regional slugs → "Galarian / Alolan / Hisuian / Paldean <Base>"
+if (/-galar$/i.test(n)) {
+  const base = n.replace(/-galar$/i, '');
+  return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
+}
+if (/-alola$/i.test(n)) {
+  const base = n.replace(/-alola$/i, '');
+  return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
+}
+if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
+  const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
+  return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
+}
+// NEW: Paldea regional forms (optionally with extra form/breed)
+if (/-paldea(?:-.+)?$/i.test(n)) {
+  const base = n.replace(/-paldea(?:-.+)?$/i, '');
+  const rest = (n.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
+  const suffix = rest ? ` (${titleize(rest)})` : '';
+  return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
+}
+
+  // 4) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
+  //    e.g. "thundurus-therian" -> "Thundurus (Therian)"
+  return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
+}
 
   for (const p of list) {
     if (!p) continue;
@@ -735,22 +761,34 @@ function slotsWrite(slots){
 // Label for this ranker session (match title bullet style)
 function rankerLabel(){
   const rc = window.rankConfig || {};
-  let label = "PokéRankr";
+    let label = "PokéRankr";
+
   if (rc?.category === "generation") {
-  const g = rc?.filters?.generation;
-  const regionByGen = {
-    1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
-    6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
-  };
-  if (g === "ALL") {
-    label = "All Generations";
-  } else if (g) {
-    label = `Generation ${g} (${regionByGen[g] || "??"})`;
+    const g = rc?.filters?.generation;
+    const regionByGen = {
+      1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
+      6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
+    };
+    if (g === "ALL") {
+      label = "All Generations";
+    } else if (g) {
+      label = `Generation ${g} (${regionByGen[g] || "??"})`;
+    }
+
+  } else if (rc?.category === "legendaries") {
+    label = "Legendaries";
+
+  } else if (rc?.category === "type") {
+    const t = rc?.filters?.type || {};
+    if (t.mode === "dual" && Array.isArray(t.types) && t.types.length === 2) {
+      label = `Type: ${t.types[0]}/${t.types[1]}`;
+    } else if (t.mode === "mono" && Array.isArray(t.types) && t.types.length === 1) {
+      label = `Type: ${t.types[0]}${t.strictMono ? " (Strict)" : ""}`;
+    } else {
+      label = "Type";
+    }
   }
-}
-  else if (rc?.category === "legendaries") {
-  label = "Legendaries";
-}
+
   return label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 }
 
@@ -2179,13 +2217,29 @@ function showWinner(finalWinner){
     `;
   };
 
- const rc = window.rankConfig || {};
-const g  = rc?.filters?.generation || 1;
+const rc  = window.rankConfig || {};
+const g   = rc?.filters?.generation || 1;
 let headerText;
+
 if (rc?.category === 'legendaries') {
   headerText = 'Your Favorite Legendary Pokémon is:';
-} else if (g === "ALL") {
+
+} else if (rc?.category === 'type') {
+  const t = rc?.filters?.type || {};
+  if (t.mode === 'dual' && Array.isArray(t.types) && t.types.length === 2) {
+    headerText = `Your Favorite ${t.types[0]}/${t.types[1]} Pokémon is:`;
+  } else if (t.mode === 'mono' && Array.isArray(t.types) && t.types.length === 1) {
+    headerText = `Your Favorite ${t.types[0]} Pokémon is:`;
+  } else {
+    headerText = 'Your Favorite Type Pokémon is:';
+  }
+
+} else if (rc?.category === 'starters') {
+  headerText = 'Your Favorite Starter Pokémon is:';
+
+} else if (g === 'ALL') {
   headerText = 'Your All Time Favorite Pokémon Is:';
+
 } else {
   headerText = `Your Favorite (Gen ${g}) Pokémon is:`;
 }
@@ -2243,16 +2297,49 @@ function saveResults(){
   const pack = (p, role) => {
     if (!p) return null;
     const variety = varietySlugFromMon(p) || null;
-    const obj = {
-  id: p.id,
-  formId: formSpriteIdForMon(p), // 👈 add this
-  name: nameCache[p.id] || p.name || null,
-  shiny: !!p.shiny,
-  roundsSurvived: p.roundsSurvived || 0,
-  variety, // keep for reference
-  sprite: spriteUrlForMon({ id: p.id, name: nameCache[p.id] || p.name || null, variety }, !!p.shiny)
+   // Derive a friendly display name, prioritizing pool label, then variety label, then cache.
+const friendlyFromVariety = (slug) => {
+  if (!slug) return null;
+  // Use our existing formatter if present, else a minimal inline fallback.
+  if (typeof friendlyNameForVariety === 'function') return friendlyNameForVariety(slug);
+
+  // Fallbacks for environments without the helper (shouldn’t happen here):
+  if (/-mega(?:-[xy])?$/i.test(slug)) {
+    const base = slug.replace(/-mega(?:-[xy])?$/i, '');
+    let suffix = '';
+    if (/-mega-x$/i.test(slug)) suffix = ' (X)';
+    if (/-mega-y$/i.test(slug)) suffix = ' (Y)';
+    const prettyBase = base.split('-').map(s => s[0].toUpperCase()+s.slice(1)).join(' ');
+    return `Mega ${prettyBase}${suffix}`;
+  }
+  if (/-paldea(?:-.+)?$/i.test(slug)) {
+    const base = slug.replace(/-paldea(?:-.+)?$/i, '');
+    const rest = (slug.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
+    const suffix = rest ? ` (${rest.split(' ').map(s=>s[0].toUpperCase()+s.slice(1)).join(' ')})` : '';
+    const prettyBase = base.split('-').map(s => s[0].toUpperCase()+s.slice(1)).join(' ');
+    return `Paldean ${prettyBase}${suffix}`;
+  }
+  return null;
 };
 
+const displayNameSafe =
+  p.name                                    // already-friendly from the pool
+  || friendlyFromVariety(variety)           // derive from variety slug (Megas, Paldea, etc.)
+  || nameCache[p.id]                        // as a last resort, base species cached name
+  || null;
+
+const obj = {
+  id: p.id,
+  formId: formSpriteIdForMon(p),
+  name: displayNameSafe,
+  shiny: !!p.shiny,
+  roundsSurvived: p.roundsSurvived || 0,
+  variety,
+  sprite: spriteUrlForMon(
+    { id: p.id, name: displayNameSafe, variety },
+    !!p.shiny
+  )
+};
     if (role === 'RU') {
       const k = monKey(p);
       obj.bracketWins  = (post.ruWinsByMon && post.ruWinsByMon[k]) || 0;
@@ -2266,14 +2353,27 @@ function saveResults(){
   };
 
   const rc = window.rankConfig || {};
-let category = 'PokéRankr';
-if (rc?.category === 'generation') {
-  const g = rc?.filters?.generation || 1;
-  category = `Gen ${g}`;
-} else if (rc?.category === 'legendaries') {
-  category = 'Legendaries';
-}
-const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
+  let category = 'PokéRankr';
+
+  if (rc?.category === 'generation') {
+    const g = rc?.filters?.generation || 1;
+    category = (g === 'ALL') ? 'All Generations' : `Gen ${g}`;
+
+  } else if (rc?.category === 'legendaries') {
+    category = 'Legendaries';
+
+  } else if (rc?.category === 'type') {
+    const t = rc?.filters?.type || {};
+    if (t.mode === 'dual' && Array.isArray(t.types) && t.types.length === 2) {
+      category = `Type: ${t.types[0]}/${t.types[1]}`;
+    } else if (t.mode === 'mono' && Array.isArray(t.types) && t.types.length === 1) {
+      category = `Type: ${t.types[0]}${t.strictMono ? ' (Strict)' : ''}`;
+    } else {
+      category = 'Type';
+    }
+  }
+
+  const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
   const nowIso = new Date().toISOString();
 
   let saved = [];
