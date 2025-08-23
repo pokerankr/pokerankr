@@ -878,6 +878,7 @@ async function loadNamesMapOnce() {
     NAMES_MAP = await res.json();
   } catch (e) {
     if (!NAMES_MAP_WARNED) {
+      
       console.warn('[PokeRankr] names.en.min.json missing; falling back to live API for names (slower).');
       NAMES_MAP_WARNED = true;
     }
