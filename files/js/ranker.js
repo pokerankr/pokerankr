@@ -876,6 +876,12 @@ async function loadNamesMapOnce() {
     const res = await fetch('/files/data/names.en.min.json', { cache: 'force-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     NAMES_MAP = await res.json();
+
+    // Reset the warning flag if we successfully load the names
+    if (NAMES_MAP_WARNED) {
+      NAMES_MAP_WARNED = false;
+    }
+
   } catch (e) {
     if (!NAMES_MAP_WARNED) {
       console.warn('[PokeRankr] names.en.min.json missing; falling back to live API for names (slower).');
@@ -885,6 +891,8 @@ async function loadNamesMapOnce() {
   }
   return NAMES_MAP;
 }
+
+
 
 
 
