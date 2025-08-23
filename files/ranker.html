@@ -5,7 +5,7 @@
 (function () {
   try {
     const cfg = JSON.parse(localStorage.getItem('rankConfig') || 'null');
-    const valid = new Set(['generation', 'starters', 'legendaries']);
+    const valid = new Set(['generation', 'starters', 'legendaries', 'type']);
     const ok = cfg && typeof cfg === 'object' && cfg.category && valid.has(cfg.category);
 
     if (!ok) {

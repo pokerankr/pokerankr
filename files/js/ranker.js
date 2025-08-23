@@ -495,80 +495,190 @@ const POOL_BUILDERS = {
     return (g === 'ALL') ? buildAllPool() : buildGenPool(g);
   },
   legendaries: () => buildLegendariesPool(),
-  type: (rc) => {
-    const mode  = (rc?.typeMode === 'mono' || rc?.typeMode === 'dual') ? rc.typeMode : 'dual';
-    const typeA = rc?.typeA || 'Fire';
-    const typeB = rc?.typeB || 'Flying';
-
-    // Load db synchronously from cache (we fetched/parsed it above)
-    // In your case, since fetch is async, we preloaded at start.
-    // But for now, we can assume the db is loaded via _prLoadPokemonDb.
-    console.warn('⚠️ Type pool is async-loaded; results may appear after a moment');
-
-    // NOTE: synchronous POOL_BUILDERS expects an array,
-    // so we can’t fetch here. Instead, return an empty array
-    // and patch below with async injection.
-    _prLoadPokemonDb().then(db => {
-      const base = _prFilterByTypes(db, mode, typeA, typeB);
-      let pool = [];
-      if (window.shinyOnly) {
-        pool = base.map(p => ({ ...p, shiny: true }));
-      } else if (window.includeShinies) {
-        pool = [
-          ...base.map(p => ({ ...p, shiny: false })),
-          ...base.map(p => ({ ...p, shiny: true  }))
-        ];
-      } else {
-        pool = base.map(p => ({ ...p, shiny: false }));
-      }
-
-      // Overwrite the global pool/state after async load
-      window.pool = pool;
-      remaining   = shuffle([...pool]);
-      eliminated  = [];
-      current     = remaining.pop() || null;
-      next        = remaining.pop() || null;
-      if (current) current.roundsSurvived = 0;
-      if (next)    next.roundsSurvived    = 0;
-      leftHistory.length = 0;
-      if (current) leftHistory.push(current);
-
-      displayMatchupFirstGate();
-      updateProgress();
-      updateUndoButton();
-    });
-    return []; // placeholder so main code doesn’t break
-  },
   // region: (rc) => buildRegionPool(rc?.filters?.region),
   // etc...
 };
 
 
-let pool = [];
-const rc = window.rankConfig || {};
-const builder = POOL_BUILDERS[rc.category];
-if (builder) {
-  pool = builder(rc);
-} else {
-  // Fallback (keeps current behavior if category unknown)
-  const g = rc?.filters?.generation;
-  pool = buildGenPool(g);
+// ---- Type Mode support: load DB + build pool async, then boot engine ----
+(async function initRanker() {
+  const rc = window.rankConfig || {};
+  let pool = [];
+
+  // Small cache for the DB (base + forms)
+  if (!window.__POKERANKR_DB__) {
+    try {
+      const res = await fetch('data/pokemon.db.json', { cache: 'no-store' });
+      window.__POKERANKR_DB__ = await res.json();
+    } catch (e) {
+      console.error('Failed to load pokemon.db.json', e);
+      window.__POKERANKR_DB__ = [];
+    }
+  }
+  const DB = Array.isArray(window.__POKERANKR_DB__) ? window.__POKERANKR_DB__ : [];
+
+  // Helper: flatten forms into base array when we want to include them
+  function flattenWithForms(list) {
+    const out = [];
+    for (const p of list) {
+      if (!p) continue;
+      out.push({ id: p.id, name: p.name, types: p.types });
+      if (Array.isArray(p.forms)) {
+        for (const f of p.forms) {
+          if (!f) continue;
+          out.push({ id: f.id, name: f.name, types: f.types });
+        }
+      }
+    }
+    return out;
+  }
+
+  // Build the pool per category (reuse existing builders if present)
+  if (rc.category === 'type') {
+    const includeShinies = window.includeShinies;
+    const shinyOnly = window.shinyOnly;
+    const mode = rc?.filters?.type?.mode || 'mono';           // 'mono' | 'dual'
+    const types = rc?.filters?.type?.types || [];              // ['Fire'] or ['Fire','Flying']
+    const wantDual = (mode === 'dual');
+
+    // Normalize user types defensively (Fire/Flying === Flying/Fire)
+    const norm = [...types].sort();
+    const [T1, T2] = norm;
+
+    // For Type mode we consider base mons + any forms that match
+    const ALL = flattenWithForms(DB);
+
+    const strictMono = !!rc?.filters?.type?.strictMono;
+
+function matchesType(m) {
+  const t = Array.isArray(m.types) ? m.types : [];
+  if (!t.length) return false;
+
+  if (!wantDual) {
+    if (!T1) return false;
+    if (strictMono) {
+      // Only single-typed mons whose sole type is T1
+      return t.length === 1 && t[0] === T1;
+    }
+    // Broad mono: any mon that includes T1 (single or dual)
+    return t.includes(T1);
+  }
+
+  // Dual: must contain both, order-agnostic
+  if (!T1 || !T2 || T1 === T2) return false;
+  return t.includes(T1) && t.includes(T2);
 }
 
-if (!pool.length) {
-  document.getElementById("matchup").style.display = "none";
-  document.getElementById("progress-container").style.display = "none";
-  const res = document.getElementById("result");
-  res.innerHTML = `
-    <h2>COMING SOON!</h2>
-    <p>Currently Supported: <strong>Generation + Starters</strong>.</p>
-    <div class="button-group">
-      <button onclick="window.location.href='index.html'">Back to Menu</button>
-    </div>
-  `;
-  res.style.display = "block";
-  throw new Error("No pool selected for ranker.js");
+
+    const basePool = ALL.filter(matchesType).map(p => ({ id: p.id, name: p.name, shiny: false }));
+
+    if (shinyOnly) {
+      pool = basePool.map(p => ({ ...p, shiny: true }));
+    } else if (includeShinies) {
+      pool = [
+        ...basePool.map(p => ({ ...p, shiny: false })),
+        ...basePool.map(p => ({ ...p, shiny: true }))
+      ];
+    } else {
+      pool = basePool;
+    }
+  } else {
+    // Existing flow for other categories
+    const builder = POOL_BUILDERS[rc.category];
+    if (builder) {
+      pool = builder(rc);
+    } else {
+      const g = rc?.filters?.generation;
+      pool = buildGenPool(g);
+    }
+  }
+
+  if (!pool.length) {
+    document.getElementById("matchup").style.display = "none";
+    document.getElementById("progress-container").style.display = "none";
+    const res = document.getElementById("result");
+    res.innerHTML = `
+      <h2>COMING SOON!</h2>
+      <p>Currently Supported: <strong>Generation + Starters</strong>.</p>
+      <div class="button-group">
+        <button onclick="window.location.href='index.html'">Back to Menu</button>
+      </div>
+    `;
+    res.style.display = "block";
+    throw new Error("No pool selected for ranker.js");
+  }
+
+  // Continue original boot sequence now that we have the pool
+  window.pool = pool; // if other code expects it
+  // Initialize state now that we have a pool
+remaining  = shuffle([...pool]);
+eliminated = [];
+current    = remaining.pop() || null;
+next       = remaining.pop() || null;
+if (current) current.roundsSurvived = 0;
+if (next)    next.roundsSurvived    = 0;
+
+leftHistory.length = 0;
+if (current) leftHistory.push(current);
+
+// --- Engine init + hydrate (now that state is ready) ---
+if (window.prEngine && typeof prEngine.init === 'function') {
+  prEngine.init({
+    pool: [...pool],
+    options: {
+      includeShinies: !!window.includeShinies,
+      shinyOnly: !!window.shinyOnly,
+    },
+    seed: null,
+    callbacks: {
+      onMatchReady: () => { /* we render via our own functions */ },
+      onProgress:   () => { /* no-op */ },
+      onPhaseChange: ({ phase }) => {
+        postMode = (phase === 'RU' || phase === 'THIRD') ? phase : null;
+      },
+      onResults: ({ champion }) => {
+        try { showWinner(champion || (leftHistory?.[leftHistory.length - 1]) || current); } catch {}
+      }
+    }
+  });
+
+  if (typeof prEngine.hydrate === 'function') {
+    try {
+      prEngine.hydrate({
+        state: {
+          remaining, eliminated, current, next,
+          leftHistory,
+          lostTo, roundIndex, roundNum,
+          post: {
+            phase: post.phase,
+            currentRound: post.currentRound,
+            nextRound:    post.nextRound,
+            index:        post.index,
+            totalMatches: post.totalMatches,
+            doneMatches:  post.doneMatches,
+            ruWins:       post.ruWins,
+            thirdWins:    post.thirdWins,
+            ruWinsByMon:    post.ruWinsByMon,
+            thirdWinsByMon: post.thirdWinsByMon,
+            runnerUp: post.runnerUp,
+            third:    post.third,
+            ruTotal:  post.ruTotal,
+            thirdTotal: post.thirdTotal,
+          }
+        }
+      });
+    } catch {}
+  }
 }
+
+// First render + UI
+displayMatchupFirstGate();
+updateProgress();
+updateUndoButton();
+
+  // If your file initializes the engine after this point, leave as-is.
+  // Otherwise, if needed, you can kick engine hydration here.
+})();
 
 // Fire-and-forget: warm the local names map
 loadNamesMapOnce().catch(()=>{});
@@ -1169,83 +1279,19 @@ function buildPairsAvoidingRematch(sortedArr, avoidSet) {
 }
 
 
-// ----- State
-let remaining = shuffle([...pool]);
+// ----- State (initialized AFTER we build the pool in initRanker)
+let remaining = [];
 let eliminated = [];
-let current = remaining.pop() || null;
-let next    = remaining.pop()   || null;
-if (current) current.roundsSurvived = 0;
-if (next)    next.roundsSurvived    = 0;
-
+let current = null;
+let next = null;
 const leftHistory = [];
-if (current) leftHistory.push(current);
+
 
 // Undo stack (legacy KOTH stack — we’ll keep it defined for compatibility)
 let history = [];
 
 // Single-step undo flag for KOTH when using the engine (mirrors starters.js)
 let kothLastSnap = false;
-
-// --- Engine init + hydrate with your current state ---
-if (window.prEngine && typeof prEngine.init === 'function') {
-  prEngine.init({
-    pool: [...pool], // pass a copy
-    options: {
-      includeShinies: !!window.includeShinies,
-      shinyOnly: !!window.shinyOnly,
-      // (ranker has more toggles, but these two are enough for now)
-    },
-    seed: null,
-    callbacks: {
-      onMatchReady: () => { /* no-op; we re-render after mirroring */ },
-      onProgress:   () => { /* no-op */ },
-      onPhaseChange: ({ phase }) => {
-        // keep your postMode in sync for existing UI
-        if (phase === 'RU' || phase === 'THIRD') {
-          postMode = phase;
-        } else if (phase === 'DONE') {
-          postMode = null;
-        }
-      },
-      onResults: ({ champion }) => {
-        try {
-          // use your existing winner UI
-          showWinner(champion || (leftHistory?.[leftHistory.length - 1]) || current);
-        } catch {}
-      }
-    }
-  });
-
-  if (typeof prEngine.hydrate === 'function') {
-    try {
-      prEngine.hydrate({
-        state: {
-          // KOTH
-          remaining, eliminated, current, next,
-          leftHistory,
-          lostTo, roundIndex, roundNum,
-          // post-phase (mirror your existing structure)
-          post: {
-            phase: post.phase,
-            currentRound: post.currentRound,
-            nextRound:    post.nextRound,
-            index:        post.index,
-            totalMatches: post.totalMatches,
-            doneMatches:  post.doneMatches,
-            ruWins:       post.ruWins,
-            thirdWins:    post.thirdWins,
-            ruWinsByMon:    post.ruWinsByMon,
-            thirdWinsByMon: post.thirdWinsByMon,
-            runnerUp: post.runnerUp,
-            third:    post.third,
-            ruTotal:  post.ruTotal,
-            thirdTotal: post.thirdTotal,
-          }
-        }
-      });
-    } catch {}
-  }
-}
 
 function restoreState(s){
   remaining  = s.remaining.map(p=>({...p}));
@@ -2739,20 +2785,5 @@ function goToMainMenu(){
 
 
 // ----- Boot
-if (!current){
-  const res = document.getElementById("result");
-  res.innerHTML = `
-    <h2>No Pokémon found</h2>
-    <p>Try adjusting your settings.</p>
-    <div class="button-group">
-      <button onclick="window.location.href='index.html'">Back to Menu</button>
-    </div>
-  `;
-  res.style.display = "block";
-} else if (!next){
-  showWinner(current);
-} else {
-  displayMatchup();
-  (postMode ? updatePostProgress() : updateProgress());
-  updateUndoButton();
-}
+// Initial render is performed after pool construction inside initRanker()
+

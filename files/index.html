@@ -254,38 +254,49 @@ if (cat === 'legendaries') {
 
 if (cat === 'type') {
   extraOptions.innerHTML = `
-    <div>
-      <label><input type="checkbox" id="chkMono" checked> Mono Type</label>
-      <label><input type="checkbox" id="chkDual" checked> Dual Type</label>
-    </div>
-    <div>
+    <fieldset style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin: 6px 0 10px;">
+      <legend style="font-weight:600;">Type Mode</legend>
+      <label><input type="radio" name="typeMode" id="modeMono" value="mono" checked> Mono Type</label>
+      <label><input type="radio" name="typeMode" id="modeDual" value="dual"> Dual Type</label>
+    </fieldset>
+
+    <div class="type-pickers" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
       <label>Type 1:
         <select id="type1"></select>
       </label>
-      <label id="type2Wrap">Type 2:
+      <label id="type2Wrap" style="display:none;">Type 2:
         <select id="type2"></select>
+      </label>
+      <label id="strictWrap" style="display:inline-flex; align-items:center; gap:8px; margin-left:12px;">
+        <input type="checkbox" id="strictMono">
+        <span>Exclude dual‑types (strict mono)</span>
       </label>
     </div>
   `;
 
   const type1 = extraOptions.querySelector('#type1');
   const type2 = extraOptions.querySelector('#type2');
+
   [type1, type2].forEach(sel => {
     sel.innerHTML = `<option value="">Any</option>` + TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
   });
 
-  const chkMono = extraOptions.querySelector('#chkMono');
-  const chkDual = extraOptions.querySelector('#chkDual');
-  const type2Wrap = extraOptions.querySelector('#type2Wrap');
+  const modeMono   = extraOptions.querySelector('#modeMono');
+  const modeDual   = extraOptions.querySelector('#modeDual');
+  const type2Wrap  = extraOptions.querySelector('#type2Wrap');
+  const strictWrap = extraOptions.querySelector('#strictWrap');
 
-  function updateTypeUI() {
-    if (!chkMono.checked && !chkDual.checked) chkMono.checked = true;
-    type2Wrap.style.display = chkDual.checked ? 'inline-block' : 'none';
+  function syncTypePickers() {
+    const isDual = modeDual.checked;
+    type2Wrap.style.display  = isDual ? 'inline-block' : 'none';
+    strictWrap.style.display = isDual ? 'none' : 'inline-flex'; // only show strict for Mono
   }
-  chkMono.addEventListener('change', updateTypeUI);
-  chkDual.addEventListener('change', updateTypeUI);
-  updateTypeUI();
+  modeMono.addEventListener('change', syncTypePickers);
+  modeDual.addEventListener('change', syncTypePickers);
+  syncTypePickers();
 }
+
+
 
   });
 
@@ -338,20 +349,23 @@ if (cat === 'type') {
   };
 }
 
-    if (category === 'type') {
-      const mono = !!getEl('chkMono')?.checked;
-      const dual = !!getEl('chkDual')?.checked;
-      const t1 = getEl('type1')?.value || '';
-      const t2 = getEl('type2')?.value || '';
+if (category === 'type') {
+  const isDual = !!getEl('modeDual')?.checked;
+  const t1 = getEl('type1')?.value || '';
+  const t2 = getEl('type2')?.value || '';
+  const strictMono = !!getEl('strictMono')?.checked;
 
-      if (!mono && !dual) { alert('Pick Mono and/or Dual.'); return; }
-      if (mono && !dual && !t1) { alert('Choose Type 1 for Mono.'); return; }
-      if (!mono && dual && (!t1 || !t2)) { alert('Choose both Type 1 and Type 2 for Dual.'); return; }
-      if (!mono && dual && t1 === t2) { alert('Type 1 and Type 2 must be different for Dual.'); return; }
-      if (mono && dual && t2 && t1 === t2) { alert('If you pick Type 2, it must differ from Type 1.'); return; }
+  if (!isDual) {
+    if (!t1) { alert('Choose Type 1 for Mono.'); return; }
+    config.filters.type = { mode: 'mono', types: [t1], strictMono };
+  } else {
+    if (!t1 || !t2) { alert('Choose both Type 1 and Type 2 for Dual.'); return; }
+    if (t1 === t2) { alert('Type 1 and Type 2 must be different for Dual.'); return; }
+    const types = [t1, t2].sort(); // normalize so Fire/Flying == Flying/Fire
+    config.filters.type = { mode: 'dual', types };
+  }
+}
 
-      config.filters.type = { mono, dual, type1: t1, type2: t2 };
-    }
 
     localStorage.setItem('rankConfig', JSON.stringify(config));
     localStorage.setItem('includeShinies', config.includeShinies);
