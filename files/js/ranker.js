@@ -517,21 +517,50 @@ const POOL_BUILDERS = {
   }
   const DB = Array.isArray(window.__POKERANKR_DB__) ? window.__POKERANKR_DB__ : [];
 
-  // Helper: flatten forms into base array when we want to include them
-  function flattenWithForms(list) {
-    const out = [];
-    for (const p of list) {
-      if (!p) continue;
-      out.push({ id: p.id, name: p.name, types: p.types });
-      if (Array.isArray(p.forms)) {
-        for (const f of p.forms) {
-          if (!f) continue;
-          out.push({ id: f.id, name: f.name, types: f.types });
-        }
+  // Helper: flatten forms into base array and normalize names with our overrides
+function flattenWithForms(list) {
+  const out = [];
+
+  // Map slug → friendly label using existing helpers/overrides
+  function toFriendly(raw) {
+    const n = String(raw || '');
+
+    // 1) Exact curated override first (already populated above)
+    if (FRIENDLY_NAME_OVERRIDES[n]) return FRIENDLY_NAME_OVERRIDES[n];
+
+    // 2) Regional slugs into "Galarian / Alolan / Hisuian <Base>"
+    //    e.g. "zapdos-galar" -> "Galarian Zapdos"
+    if (/-galar$/i.test(n)) {
+      const base = n.replace(/-galar$/i, '');
+      return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+    if (/-alola$/i.test(n)) {
+      const base = n.replace(/-alola$/i, '');
+      return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+    if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
+      const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
+      return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+
+    // 3) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
+    //    e.g. "thundurus-therian" -> "Thundurus (Therian)"
+    return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
+  }
+
+  for (const p of list) {
+    if (!p) continue;
+    out.push({ id: p.id, name: toFriendly(p.name), types: p.types });
+    if (Array.isArray(p.forms)) {
+      for (const f of p.forms) {
+        if (!f) continue;
+        out.push({ id: f.id, name: toFriendly(f.name), types: f.types });
       }
     }
-    return out;
   }
+  return out;
+}
+
 
   // Build the pool per category (reuse existing builders if present)
   if (rc.category === 'type') {
