@@ -871,26 +871,29 @@ let NAMES_MAP = null;
 let NAMES_MAP_WARNED = false;
 
 async function loadNamesMapOnce() {
-  if (NAMES_MAP) return NAMES_MAP;
+  // Ensure you're using the global NAMES_MAP
+  if (window.NAMES_MAP && Object.keys(window.NAMES_MAP).length > 0) return window.NAMES_MAP;  // Already loaded, no need to fetch
+  
   try {
-    const res = await fetch('/files/data/names.en.min.json?v=' + new Date().getTime(), { cache: 'force-cache' });
+    const res = await fetch('/files/data/names.en.min.json?v=' + new Date().getTime(), { cache: 'reload' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    NAMES_MAP = await res.json();
+    window.NAMES_MAP = await res.json(); // Assign to global NAMES_MAP
 
     // Reset the warning flag if we successfully load the names
-    if (NAMES_MAP_WARNED) {
-      NAMES_MAP_WARNED = false;
+    if (window.NAMES_MAP_WARNED) {
+      window.NAMES_MAP_WARNED = false;
     }
 
   } catch (e) {
-    if (!NAMES_MAP_WARNED) {
-      console.warn('[PokeRankr] names.en.min.json still missing again; falling back to live API for names (slower).');
-      NAMES_MAP_WARNED = true;
+    if (!window.NAMES_MAP_WARNED) {
+      console.warn('[PokeRankr] names.en.min.json missing; falling back to live API for names (slower).');
+      window.NAMES_MAP_WARNED = true;
     }
-    NAMES_MAP = {}; // still set to empty object so callers proceed
+    window.NAMES_MAP = {}; // still set to empty object so callers proceed
   }
-  return NAMES_MAP;
+  return window.NAMES_MAP;
 }
+
 
 
 
