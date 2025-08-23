@@ -1,13 +1,16 @@
 /**
- * Build a FULL pokemon.db.json for PokeRankr (with forms/varieties).
+ * Build a pokemon.db.json for PokeRankr, including only gameplay‑relevant forms.
+ * We KEEP: Regionals (Alola/Galar/Hisui/Paldea), Megas, Gigantamax, and battle‑relevant alternates
+ * (e.g., Rotom appliances, Lycanroc forms, Darmanitan Zen, Zygarde 10/50/Complete, etc.).
+ * We DROP: Totem variants and cosmetic/costume/special‑event caps, cosplay, spiky‑eared, eternal, etc.
+ *
  * Output schema per species:
  * {
  *   id: <base species numeric id>,
  *   name: "Bulbasaur",
- *   types: ["Grass","Poison"],          // base (is_default form)
- *   forms: [                            // OPTIONAL; only if non-default varieties exist
- *     { id: <numeric id>, name: "Rotom-heat",   types: ["Electric","Fire"] },
- *     { id: <numeric id>, name: "Lycanroc-midnight", types: ["Rock"] },
+ *   types: ["Grass","Poison"],
+ *   forms: [ // OPTIONAL
+ *     { id: <numeric id>, name: "Rotom-heat", types: ["Electric","Fire"] },
  *     ...
  *   ]
  * }
@@ -36,9 +39,8 @@ const RETRIES        = 3;     // retry network hiccups
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const Cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 
-// Name normalizer: keep slugs (your UI already prettifies many)
+// Name normalizer: keep hyphens so your UI prettifier can do its thing
 function normalizeName(s) {
-  // Keep hyphens so your existing friendly-name logic can work.
   return Cap(String(s || "").trim());
 }
 
@@ -49,7 +51,6 @@ async function httpJson(url, attempt = 1) {
     return await r.json();
   } catch (e) {
     if (attempt < RETRIES) {
-      // backoff: 150ms, 400ms, 800ms…
       const backoff = 150 * Math.pow(2, attempt - 1);
       await sleep(backoff);
       return httpJson(url, attempt + 1);
@@ -59,7 +60,6 @@ async function httpJson(url, attempt = 1) {
 }
 
 function typesFromPokemonJson(poke) {
-  // slots preserve order (1, then 2)
   return (poke.types || [])
     .sort((a, b) => (a?.slot ?? 99) - (b?.slot ?? 99))
     .map(t => Cap(t?.type?.name || "").replace(/-/g, " "));
@@ -69,19 +69,41 @@ async function fetchPokemonByNameOrId(nameOrId) {
   const data = await httpJson(POKEMON_API + nameOrId);
   return {
     id: data.id,
-    name: normalizeName(data.name),    // keep slug; UI handles nice names
+    name: normalizeName(data.name),
     types: typesFromPokemonJson(data),
   };
 }
 
+/**
+ * Exclusion logic:
+ * We exclude forms that are clearly Totem or cosmetic/event/caps/cosplay.
+ * NOTE: Use substring checks; PokéAPI variety names are hyphenated slugs.
+ */
+const EXCLUDE_PATTERNS = [
+  "totem",           // Totem Raticate, etc.
+  "cap",             // pikachu-*-cap (original-cap, world-cap, etc.)
+  "cosplay",         // pikachu-cosplay
+  "spiky-eared",     // pichu-spiky-eared
+  "eternal",         // floette-eternal
+  // common cosplay/cap variants
+  "rock-star", "pop-star", "phd", "belle", "libre", "original", "partner", "world"
+];
+
+// Some edge costumes have mixed naming; centralize the decision here.
+function shouldExcludeForm(slugName) {
+  const n = String(slugName || "").toLowerCase();
+  return EXCLUDE_PATTERNS.some(p => n.includes(p));
+}
+
+/**
+ * Build one species entry (base + filtered forms)
+ */
 async function buildSpeciesEntry(speciesId) {
-  // Species endpoint gives us the list of varieties (forms)
   const species = await httpJson(SPECIES_API + speciesId);
 
-  // Some species are completely missing/unused; tolerate that
   const varieties = Array.isArray(species.varieties) ? species.varieties : [];
   if (!varieties.length) {
-    // Fallback: try fetching pokemon by the same id as species id
+    // Fallback: try fetching by id as a pokemon
     try {
       const base = await fetchPokemonByNameOrId(speciesId);
       return { id: base.id, name: base.name, types: base.types, forms: [] };
@@ -90,38 +112,47 @@ async function buildSpeciesEntry(speciesId) {
     }
   }
 
-  // Identify default form (is_default = true)
-  const defVar = varieties.find(v => v.is_default) || varieties[0];
+  const defVar  = varieties.find(v => v.is_default) || varieties[0];
   const defName = defVar?.pokemon?.name;
   if (!defName) throw new Error("Malformed species varieties");
 
   const base = await fetchPokemonByNameOrId(defName);
 
-  // Gather all non-default varieties as form entries
   const forms = [];
   for (const v of varieties) {
-    if (!v?.pokemon?.name) continue;
+    const varName = v?.pokemon?.name;
+    if (!varName) continue;
     if (v.is_default) continue; // skip base
+
+    // Skip unwanted costumes/totems *before* doing the heavy fetch
+    if (shouldExcludeForm(varName)) {
+      await sleep(DELAY_MS);
+      continue;
+    }
+
     try {
-      const f = await fetchPokemonByNameOrId(v.pokemon.name);
-      // Only include if it’s truly distinct (different id OR different name OR different types)
+      const f = await fetchPokemonByNameOrId(varName);
+
+      // Extra safety: also exclude if the fetched proper name matches exclusion
+      if (shouldExcludeForm(f.name)) {
+        await sleep(DELAY_MS);
+        continue;
+      }
+
+      // Only include if meaningfully distinct
       const sameId    = f.id === base.id;
       const sameName  = f.name.toLowerCase() === base.name.toLowerCase();
       const sameTypes = JSON.stringify(f.types) === JSON.stringify(base.types);
       if (!(sameId && sameName && sameTypes)) {
         forms.push({ id: f.id, name: f.name, types: f.types });
       }
-    } catch (e) {
+    } catch {
       // Some forms 404; just skip
-      // console.warn(`Skip form ${v.pokemon.name}: ${e.message}`);
     }
-    // politeness delay so we don't hammer the API
+
     await sleep(DELAY_MS);
   }
 
-  // Some species’ “default” form isn’t the national dex id (rare). We still use speciesId as the top-level id
-  // because your UI expects base species numeric id for official-artwork, and you handle variety artwork IDs separately.
-  // However, to stay consistent with your current DB structure, use base.id as top-level id.
   return forms.length
     ? { id: base.id, name: base.name, types: base.types, forms }
     : { id: base.id, name: base.name, types: base.types };
@@ -131,18 +162,18 @@ async function main() {
   const out = [];
   let ok = 0, skip = 0;
 
-  console.log(`🔎 Building pokemon.db.json with forms (species 1..${MAX_SPECIES_ID})`);
+  console.log(`🔎 Building pokemon.db.json with filtered forms (species 1..${MAX_SPECIES_ID})`);
 
   for (let i = 1; i <= MAX_SPECIES_ID; i++) {
     try {
       const entry = await buildSpeciesEntry(i);
       out.push(entry);
       ok++;
-      if (ok % 10 === 0) console.log(`…built ${ok} species (latest base: #${entry.id} ${entry.name})`);
-    } catch (e) {
+      if (ok % 10 === 0) {
+        console.log(`…built ${ok} species (latest base: #${entry.id} ${entry.name})`);
+      }
+    } catch {
       skip++;
-      // Many gaps/unused species IDs will 404; that’s fine.
-      // console.warn(`Skip species ${i}: ${e.message}`);
     }
     if (i < MAX_SPECIES_ID) await sleep(DELAY_MS);
   }

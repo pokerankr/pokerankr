@@ -87,6 +87,9 @@ const FRIENDLY_NAME_OVERRIDES = {
   "oricorio-pau":      "Oricorio (Pa'u)",
   "oricorio-sensu":    "Oricorio (Sensu)",
 
+  "mimikyu-disguised": "Mimikyu",
+  "squawkabilly-green-plumage": "Squawkabilly",
+
   "tauros-paldea-combat-breed":    "Combat Paldean Tauros",
 };
 
@@ -271,6 +274,11 @@ FRIENDLY_NAME_OVERRIDES["shaymin-sky"]       = "Shaymin (Sky)";
 FRIENDLY_NAME_OVERRIDES["deoxys-attack"]  = "Deoxys (Attack)";
 FRIENDLY_NAME_OVERRIDES["deoxys-defense"] = "Deoxys (Defense)";
 FRIENDLY_NAME_OVERRIDES["deoxys-speed"]   = "Deoxys (Speed)";
+FRIENDLY_NAME_OVERRIDES["mimikyu"] = "Mimikyu"; // safeguard
+FRIENDLY_NAME_OVERRIDES["mimikyu-disguised"] = "Mimikyu"; // already there, but keep
+FRIENDLY_NAME_OVERRIDES["mimikyu-busted"] = "Mimikyu";    // safety, though busted is skipped
+FRIENDLY_NAME_OVERRIDES["squawkabilly-green-plumage"] = "Squawkabilly (Green)";
+
 
 function buildLegendariesPool() {
   const toggles = (window.rankConfig && window.rankConfig.toggles) || {};
@@ -568,7 +576,6 @@ if (/-paldea(?:-.+)?$/i.test(n)) {
   const suffix = rest ? ` (${titleize(rest)})` : '';
   return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
 }
-
   // 4) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
   //    e.g. "thundurus-therian" -> "Thundurus (Therian)"
   return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
@@ -577,9 +584,15 @@ if (/-paldea(?:-.+)?$/i.test(n)) {
   for (const p of list) {
     if (!p) continue;
     out.push({ id: p.id, name: toFriendly(p.name), types: p.types });
-    if (Array.isArray(p.forms)) {
+   if (Array.isArray(p.forms)) {
       for (const f of p.forms) {
         if (!f) continue;
+        // 🚫 Skip busted Mimikyu form
+        if (/^mimikyu-busted$/i.test(f.name)) continue;
+
+        // 🚫 Skip Squawkabilly non-green forms
+        if (/^squawkabilly-(blue|yellow|white)-plumage$/i.test(f.name)) continue;
+
         out.push({ id: f.id, name: toFriendly(f.name), types: f.types });
       }
     }
@@ -811,6 +824,7 @@ function titleize(s){ return (s||"").split("-").map(w=>w? w[0].toUpperCase()+w.s
 
 function normalizeFormHyphen(name){
   return String(name || '')
+    // 👇 Core “dash to (Form)” mappings
     .replace(/-Incarnate$/i, ' (Incarnate)')
     .replace(/-Therian$/i,   ' (Therian)')
     .replace(/-Midday$/i,    ' (Midday)')
@@ -820,13 +834,25 @@ function normalizeFormHyphen(name){
     .replace(/-Pom-Pom$/i,   ' (Pom-Pom)')
     .replace(/-Pau$/i,       " (Pa'u)")
     .replace(/-Sensu$/i,     ' (Sensu)')
-    .replace(/-Altered$/i, ' (Altered)')
-    .replace(/-Land$/i, ' (Land)')
+    .replace(/-Altered$/i,   ' (Altered)')
+    .replace(/-Land$/i,      ' (Land)')
     .replace(/^Meloetta-Aria$/i, 'Meloetta (Aria)')
-    .replace(/-Ordinary$/i, ' (Ordinary)')
-    .replace(/^Zygarde-50$/i, 'Zygarde (50%)')
-    .replace(/^Deoxys-Normal$/i, 'Deoxys (Normal)');
+    .replace(/-Ordinary$/i,  ' (Ordinary)')
+    .replace(/^Zygarde-50$/i,   'Zygarde (50%)')
+    .replace(/^Deoxys-Normal$/i,'Deoxys (Normal)')
+
+    // 👇 Mimikyu special-case: collapse both default & busted to plain "Mimikyu"
+    .replace(/^Mimikyu-Disguised$/i, 'Mimikyu')
+    .replace(/^Mimikyu-Busted$/i,    'Mimikyu')
+
+    // ✅ Squawkabilly: show only Green nicely; other colors are filtered elsewhere
+    .replace(/^Squawkabilly-Green-Plumage$/i,  'Squawkabilly (Green)')
+    // (If your names map ever returns lowercase slugs as display names, this catches them too)
+    .replace(/^squawkabilly-green-plumage$/i,  'Squawkabilly (Green)')
+
+    .replace(/^Groudon-Primal$/i, 'Groudon (Primal)')
 }
+
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
   let changed = false;

@@ -257,14 +257,6 @@
           "Dark",
           "Normal"
         ]
-      },
-      {
-        "id": 10093,
-        "name": "Raticate-totem-alola",
-        "types": [
-          "Dark",
-          "Normal"
-        ]
       }
     ]
   },
@@ -306,106 +298,8 @@
     ],
     "forms": [
       {
-        "id": 10080,
-        "name": "Pikachu-rock-star",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10081,
-        "name": "Pikachu-belle",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10082,
-        "name": "Pikachu-pop-star",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10083,
-        "name": "Pikachu-phd",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10084,
-        "name": "Pikachu-libre",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10085,
-        "name": "Pikachu-cosplay",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10094,
-        "name": "Pikachu-original-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10095,
-        "name": "Pikachu-hoenn-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10096,
-        "name": "Pikachu-sinnoh-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10097,
-        "name": "Pikachu-unova-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10098,
-        "name": "Pikachu-kalos-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10099,
-        "name": "Pikachu-alola-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10148,
-        "name": "Pikachu-partner-cap",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
         "id": 10158,
         "name": "Pikachu-starter",
-        "types": [
-          "Electric"
-        ]
-      },
-      {
-        "id": 10160,
-        "name": "Pikachu-world-cap",
         "types": [
           "Electric"
         ]
@@ -1320,14 +1214,6 @@
       {
         "id": 10115,
         "name": "Marowak-alola",
-        "types": [
-          "Fire",
-          "Ghost"
-        ]
-      },
-      {
-        "id": 10149,
-        "name": "Marowak-totem",
         "types": [
           "Fire",
           "Ghost"
@@ -6496,15 +6382,6 @@
     "name": "Floette",
     "types": [
       "Fairy"
-    ],
-    "forms": [
-      {
-        "id": 10061,
-        "name": "Floette-eternal",
-        "types": [
-          "Fairy"
-        ]
-      }
     ]
   },
   {
@@ -7164,15 +7041,6 @@
     "name": "Gumshoos",
     "types": [
       "Normal"
-    ],
-    "forms": [
-      {
-        "id": 10121,
-        "name": "Gumshoos-totem",
-        "types": [
-          "Normal"
-        ]
-      }
     ]
   },
   {
@@ -7196,16 +7064,6 @@
     "types": [
       "Bug",
       "Electric"
-    ],
-    "forms": [
-      {
-        "id": 10122,
-        "name": "Vikavolt-totem",
-        "types": [
-          "Bug",
-          "Electric"
-        ]
-      }
     ]
   },
   {
@@ -7271,16 +7129,6 @@
     "types": [
       "Bug",
       "Fairy"
-    ],
-    "forms": [
-      {
-        "id": 10150,
-        "name": "Ribombee-totem",
-        "types": [
-          "Bug",
-          "Fairy"
-        ]
-      }
     ]
   },
   {
@@ -7382,16 +7230,6 @@
     "types": [
       "Water",
       "Bug"
-    ],
-    "forms": [
-      {
-        "id": 10153,
-        "name": "Araquanid-totem",
-        "types": [
-          "Water",
-          "Bug"
-        ]
-      }
     ]
   },
   {
@@ -7406,15 +7244,6 @@
     "name": "Lurantis",
     "types": [
       "Grass"
-    ],
-    "forms": [
-      {
-        "id": 10128,
-        "name": "Lurantis-totem",
-        "types": [
-          "Grass"
-        ]
-      }
     ]
   },
   {
@@ -7447,16 +7276,6 @@
     "types": [
       "Poison",
       "Fire"
-    ],
-    "forms": [
-      {
-        "id": 10129,
-        "name": "Salazzle-totem",
-        "types": [
-          "Poison",
-          "Fire"
-        ]
-      }
     ]
   },
   {
@@ -7706,16 +7525,6 @@
     "types": [
       "Electric",
       "Steel"
-    ],
-    "forms": [
-      {
-        "id": 10154,
-        "name": "Togedemaru-totem",
-        "types": [
-          "Electric",
-          "Steel"
-        ]
-      }
     ]
   },
   {
@@ -7729,22 +7538,6 @@
       {
         "id": 10143,
         "name": "Mimikyu-busted",
-        "types": [
-          "Ghost",
-          "Fairy"
-        ]
-      },
-      {
-        "id": 10144,
-        "name": "Mimikyu-totem-disguised",
-        "types": [
-          "Ghost",
-          "Fairy"
-        ]
-      },
-      {
-        "id": 10145,
-        "name": "Mimikyu-totem-busted",
         "types": [
           "Ghost",
           "Fairy"
@@ -7797,16 +7590,6 @@
     "types": [
       "Dragon",
       "Fighting"
-    ],
-    "forms": [
-      {
-        "id": 10146,
-        "name": "Kommo-o-totem",
-        "types": [
-          "Dragon",
-          "Fighting"
-        ]
-      }
     ]
   },
   {
@@ -7965,16 +7748,6 @@
     "types": [
       "Steel",
       "Fairy"
-    ],
-    "forms": [
-      {
-        "id": 10147,
-        "name": "Magearna-original",
-        "types": [
-          "Steel",
-          "Fairy"
-        ]
-      }
     ]
   },
   {
