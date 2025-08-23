@@ -884,7 +884,7 @@ async function loadNamesMapOnce() {
 
   } catch (e) {
     if (!NAMES_MAP_WARNED) {
-      console.warn('[PokeRankr] names.en.min.json missing; falling back to live API for names (slower).');
+      console.warn('[PokeRankr] names.en.min.json still missing; falling back to live API for names (slower).');
       NAMES_MAP_WARNED = true;
     }
     NAMES_MAP = {}; // still set to empty object so callers proceed
