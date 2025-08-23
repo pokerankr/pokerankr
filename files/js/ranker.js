@@ -896,6 +896,7 @@ async function loadNamesMapOnce() {
 
 
 
+
 // Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
 const ART_ID_CACHE_KEY = "artIdCache";
 const artIdCache = (() => {
