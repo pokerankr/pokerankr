@@ -281,13 +281,18 @@ const LEGENDS_CORE = [
   // Gen 7 (not UBs, not Mythicals)
   785,786,787,788,789,790,791,792,800,
   // Gen 8
-  888,889,890,894,895,896,897,898,905,
+  888,889,890,891,892,894,895,896,897,898,905,
   // Gen 9 (no Paradox here; include Treasures of Ruin + box legends)
   1001,1002,1003,1004,1007,1008
 ];
 
+
 const LEGENDS_MYTHICALS = [
-  151,251,385,386,490,491,492,493,494,647,648,649,719,720,721,801,802,807,808,809,893,1020
+  // 151 Mew, 251 Celebi, 385 Jirachi, 386 Deoxys,489 phione, 490 Manaphy, 491 Darkrai, 492 Shaymin,
+  // 493 Arceus, 494 Victini, 647 Keldeo, 648 Meloetta, 649 Genesect, 719 Diancie,
+  // 720 Hoopa, 721 Volcanion, 801 Magearna, 802 Marshadow, 807 Zeraora, 808 Meltan,
+  // 809 Melmetal, 893 Zarude, 1025 Pecharunt
+  151,251,385,386,489,490,491,492,493,494,647,648,649,719,720,721,801,802,807,808,809,893,1025
 ];
 
 const LEGENDS_ULTRA_BEASTS = [
@@ -301,7 +306,7 @@ const LEGENDARY_FORMS = [
   { id: 642, variety: "thundurus-therian" },
   { id: 645, variety: "landorus-therian" },
 
-    // Deoxys forms (Mythical)
+  // Deoxys forms (Mythical)
   { id: 386, variety: "deoxys-attack" },
   { id: 386, variety: "deoxys-defense" },
   { id: 386, variety: "deoxys-speed" },
@@ -317,10 +322,16 @@ const LEGENDARY_FORMS = [
   { id: 646, variety: "kyurem-black" },
   { id: 646, variety: "kyurem-white" },
 
-  // Necrozma (also listed for Gen7 alt forms; harmless duplicate guard below)
-  { id: 800, variety: "necrozma-dusk" },
-  { id: 800, variety: "necrozma-dawn" },
-  { id: 800, variety: "necrozma-ultra" },
+  // Hoopa Unbound (Mythical)
+  { id: 720, variety: "hoopa-unbound" },
+
+  // Primals (Gen 3)
+  { id: 382, variety: "kyogre-primal" },
+  { id: 383, variety: "groudon-primal" },
+
+  // Origin (Legends Arceus)
+  { id: 483, variety: "dialga-origin" },
+  { id: 484, variety: "palkia-origin" },
 
   // Enamorus Therian
   { id: 905, variety: "enamorus-therian" },
@@ -329,9 +340,22 @@ const LEGENDARY_FORMS = [
   { id: 898, variety: "calyrex-ice" },
   { id: 898, variety: "calyrex-shadow" },
 
-  // Shaymin Sky (only appears if Mythicals toggle is also ON; we’ll gate it later)
+  // Urshifu Rapid-Strike (Single-Strike is the base)
+  { id: 892, variety: "urshifu-rapid-strike" },
+
+  // Shaymin Sky (Mythical)
   { id: 492, variety: "shaymin-sky" }
 ];
+
+// NEW: Mega forms we want to treat as legendary forms
+const LEGENDARY_MEGA_FORMS = [
+  { id: 150, variety: "mewtwo-mega-x" },
+  { id: 150, variety: "mewtwo-mega-y" },
+  { id: 380, variety: "latias-mega" },
+  { id: 381, variety: "latios-mega" },
+  { id: 384, variety: "rayquaza-mega" },
+];
+
 
 // Some form names look nicer with overrides; we already have the mechanism in this file.
 FRIENDLY_NAME_OVERRIDES["tornadus-therian"]  = "Tornadus (Therian)";
@@ -389,33 +413,78 @@ function buildLegendariesPool() {
     pool.push(...entriesFor(id, null));
   });
 
-  if (wantForms) {
-  // Build forms respecting Mythicals toggle
+// Standard legendary forms (Therian/Origin/Primal/etc.)
+if (wantForms) {
   const forms = LEGENDARY_FORMS.filter(f => {
-    // Shaymin-Sky requires Mythicals to be on at all
-    if (f.id === 492 && !wantMyth) return false;
+    // Block Mythical forms if Mythicals are off
+    if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
     // If Mythicals Only, include only Mythical species’ forms
     if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
     return true;
   });
 
+  const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+  forms.forEach(entry => {
+    const display = friendlyNameForVariety(entry.variety);
+    if (existingNames.has(display.toLowerCase())) return;
 
-    const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
-    forms.forEach(entry => {
-      const display = friendlyNameForVariety(entry.variety);
-      if (existingNames.has(display.toLowerCase())) return;
+    const base = { id: entry.id, name: display, variety: entry.variety };
+    if (window.shinyOnly) {
+      pool.push({ ...base, shiny: true });
+    } else if (window.includeShinies) {
+      pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+    } else {
+      pool.push({ ...base, shiny: false });
+    }
+    existingNames.add(display.toLowerCase());
+  });
+}
 
-      const base = { id: entry.id, name: display, variety: entry.variety };
-      if (window.shinyOnly) {
-        pool.push({ ...base, shiny: true });
-      } else if (window.includeShinies) {
-        pool.push({ ...base, shiny: false }, { ...base, shiny: true });
-      } else {
-        pool.push({ ...base, shiny: false });
-      }
-      existingNames.add(display.toLowerCase());
-    });
+// NEW: Special Legendary Forms (Megas / G-Max / Eternamax)
+// Default to "both" so they show up before we wire the dropdown in the UI.
+const formsSpecialMode = (typeof toggles.formsSpecialMode === 'string')
+  ? toggles.formsSpecialMode         // 'off' | 'mega' | 'gmax' | 'both'
+  : 'both';
+
+if (formsSpecialMode !== 'off') {
+  const idset = new Set(ids);
+  let extra = [];
+
+  // Include Megas if requested (Mewtwo X/Y, Latias, Latios, Rayquaza)
+  if (formsSpecialMode === 'mega' || formsSpecialMode === 'both') {
+    extra = extra.concat(LEGENDARY_MEGA_FORMS.filter(f => idset.has(f.id)));
   }
+
+  // Include G-Max & Eternamax if requested (filter to legendary IDs only)
+  if (formsSpecialMode === 'gmax' || formsSpecialMode === 'both') {
+    const g8 = (GMAX_FORMS_BY_GEN[8] || []);
+    extra = extra.concat(g8.filter(f => idset.has(f.id)));
+  }
+
+  // Respect Mythicals mode exactly like standard forms
+  extra = extra.filter(f => {
+    if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
+    if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+    return true;
+  });
+
+  const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+  extra.forEach(entry => {
+    const display = friendlyNameForVariety(entry.variety);
+    if (existingNames.has(display.toLowerCase())) return;
+
+    const base = { id: entry.id, name: display, variety: entry.variety };
+    if (window.shinyOnly) {
+      pool.push({ ...base, shiny: true });
+    } else if (window.includeShinies) {
+      pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+    } else {
+      pool.push({ ...base, shiny: false });
+    }
+    existingNames.add(display.toLowerCase());
+  });
+}
+
 
   return pool;
 }
@@ -908,8 +977,43 @@ loadNamesMapOnce().catch(()=>{});
 
 // 🔥 Removed bulk warm-up to avoid flooding the network on huge pools (e.g., All Gen + forms + shinies).
 // We already ensure names for the first two mons in firstRenderSync(), and exporter re-checks names for finalists.
-// If you ever want a *tiny* background warm-up, you can safely do a small subset like:
-// try { ensureNames(pool.slice(0, 50)); } catch {/* ignore */}
+
+// ✳️ Targeted warm-up: when the pool is G-Max only, pre-resolve artwork IDs so swaps are instant.
+async function warmGmaxArtworkIdsIfSmallPool() {
+  try {
+    const toggles = (window.rankConfig && window.rankConfig.toggles) || {};
+    // Only do this when the user explicitly chose G-Max Only
+    if (!(toggles.gmax && toggles.gmaxOnly)) return;
+
+    const list = Array.isArray(window.pool) ? window.pool : [];
+    // Grab unique G-Max / Eternamax variety slugs from the pool
+    const seen = new Set();
+    const slugs = [];
+    for (const p of list) {
+      if (!p) continue;
+      const v = p.variety || varietySlugFromMon(p);
+      if (!v) continue;
+      if (!/-gmax$/i.test(v) && !/-eternamax$/i.test(v)) continue;
+      const key = VARIETY_SLUG_ALIASES[v] || v;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      slugs.push(key);
+    }
+    if (!slugs.length) return;
+
+    // Throttle concurrency so we don’t spam the API
+    const CONCURRENCY = 4;
+    let i = 0;
+    async function worker() {
+      while (i < slugs.length) {
+        const slug = slugs[i++];
+        try { await ensureArtworkIdForVariety(slug); } catch {}
+      }
+    }
+    const workers = Array.from({ length: Math.min(CONCURRENCY, slugs.length) }, worker);
+    await Promise.all(workers);
+  } catch {}
+}
 
 // ===== Save Slots (shared schema) =====
 const SAVE_SLOTS_KEY = 'PR_SAVE_SLOTS_V1';
@@ -1355,16 +1459,24 @@ if (variety) {
   }
 }
 
-  // Always append base-ID artwork as a final safety net.
-  // This prevents empty images when a variety slug (e.g., palafin-zero shiny) 404s
-  // before we've resolved its numeric artwork ID.
-  const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
-  const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
-  const baseChain   = wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm];
+// Append base-ID fallback only when appropriate.
+// Keep it for base species (no variety), or on results/export screens.
+const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
+const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+const baseChain   = wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm];
 
-  // Keep any variety slug attempts at the front (we push those above),
-  // and always add base numeric last as a guaranteed fallback.
+const allowBaseFallback = forResults || !variety;
+if (allowBaseFallback) {
   chain.push(...baseChain);
+}
+
+// Safety: if nothing made it into the chain (shouldn’t happen, but protect against it),
+// ensure we at least point to the non-shiny base art so the <img> isn’t blank.
+if (chain.length === 0) {
+  chain.push(baseIdNorm);
+}
+
+
   
 
   const first = chain[0];
@@ -1557,9 +1669,12 @@ function restoreState(s){
   next       = s.next    ? {...s.next}    : null;
   leftHistory.length = 0;
   leftHistory.push(...s.leftHistory.map(p=>({...p})));
-  displayMatchupFirstGate();
-  updateProgress();
-  updateUndoButton();
+displayMatchupFirstGate();
+updateProgress();
+updateUndoButton();
+
+// Fire a targeted warm-up for G-Max-only pools (non-blocking)
+setTimeout(() => { try { warmGmaxArtworkIdsIfSmallPool(); } catch {} }, 0);
 
 }
 function updateUndoButton() {
@@ -2019,18 +2134,29 @@ if (pEl && nm) {
   });
 }
 
-// --- First-render sync: ensure names for current+next before the very first display
+// --- First-render sync: ensure names AND form artwork IDs for current+next
 let didFirstSyncRender = false;
 
 async function firstRenderSync(){
   const mons = [current, next].filter(Boolean);
   try {
-    // Only fetch names for the two mons that will appear first
+    // 1) Names first (prevents label pop-in)
     await ensureNames(mons);
+
+    // 2) If either mon is a form (Mega, G-Max, regional, etc.), resolve its artwork numeric ID now
+    const slugs = mons
+      .map(m => varietySlugFromMon(m))
+      .filter(Boolean);
+
+    if (slugs.length) {
+      // Resolve in parallel; tiny one-time cost to avoid the base-art "blink"
+      await Promise.all(slugs.map(s => ensureArtworkIdForVariety(s)));
+    }
   } catch {}
-  // Now do a normal render (images are already preloaded off-DOM in the smooth renderers)
+  // 3) Now do a normal render; URLs will prefer the numeric form ID immediately
   displayMatchup();
 }
+
 
 // Small gate that runs the first render synchronously, then defers to normal path
 function displayMatchupFirstGate(){
@@ -2285,12 +2411,35 @@ function startThirdBracket(finalChampion){
 }
 
 function scheduleNextPostMatch(){
+  // 🔒 RU safety: strip the champion from the RU bracket if it slipped in (stale state, resume, etc.)
+  if (post.phase === 'RU' && !post._ruSanitized) {
+    const champ = leftHistory[leftHistory.length - 1] || null;
+    if (champ) {
+      const ck = monKey(champ);
+      const strip = arr => (Array.isArray(arr) ? arr.filter(p => p && monKey(p) !== ck) : []);
+      post.currentRound = strip(post.currentRound);
+      post.nextRound    = strip(post.nextRound);
+    }
+    post._ruSanitized = true;
+  }
+
   // Finish a round -> roll into next or finish bracket
   while (post.index >= post.currentRound.length) {
     if (post.nextRound.length <= 1) {
       const bracketWinner = post.nextRound[0] || post.currentRound[0] || null;
+
       if (post.phase === 'RU') {
-        post.runnerUp = bracketWinner;
+        // Final guard: runner-up must not be the champion
+        const champ = leftHistory[leftHistory.length - 1] || null;
+        if (champ && bracketWinner && monKey(bracketWinner) === monKey(champ)) {
+          // Try to pick an alternative non-champion from whatever remains (may be null if none)
+          const alt = [...(post.currentRound||[]), ...(post.nextRound||[])]
+            .find(p => p && monKey(p) !== monKey(champ)) || null;
+          post.runnerUp = alt;
+        } else {
+          post.runnerUp = bracketWinner;
+        }
+
         // Save RU final state so a single Undo in Third returns here
         postSaveLastSnapshot();
         return startThirdBracket(leftHistory[leftHistory.length - 1]);
