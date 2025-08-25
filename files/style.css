@@ -190,6 +190,18 @@ button.compact .button_top,
   display: block;
 }
 
+/* When the right card is “recycling” (right became left while new right loads) */
+#right.recycling img {
+  opacity: .45;
+  transform: scale(.96);
+  filter: saturate(.7);
+  transition: opacity .15s ease, transform .15s ease, filter .15s ease;
+}
+#right.recycling .pkr-label {
+  opacity: .6;
+  transition: opacity .15s ease;
+}
+
 .pokemon-card p{font-weight:700;margin-top:10px}
 
 /* PROGRESS BAR */

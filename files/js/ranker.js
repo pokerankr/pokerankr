@@ -1938,15 +1938,13 @@ function renderOpponentSmooth(mon){
   }
   pendingRightTemp = null;
 
-  if (!mon) { rightEl.innerHTML = ""; return; }
+  if (!mon) { rightEl.innerHTML = ""; return Promise.resolve(); }
 
- // 🔒 Lock height so the frame never changes during the swap (use a safe baseline)
-const BASELINE_CARD_HEIGHT = 320; // image (256) + label/padding headroom
-const prevMinHeight = rightEl.style.minHeight;           // 👈 remember previous value
-const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
-rightEl.style.minHeight = `${lockedHeight}px`;
+  const BASELINE_CARD_HEIGHT = 320;
+  const prevMinHeight = rightEl.style.minHeight;
+  const lockedHeight = Math.max(rightEl.offsetHeight || 0, BASELINE_CARD_HEIGHT);
+  rightEl.style.minHeight = `${lockedHeight}px`;
 
-  // Offscreen prerender (real nodes, not strings)
   const temp = document.createElement('div');
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
@@ -1959,35 +1957,25 @@ rightEl.style.minHeight = `${lockedHeight}px`;
   const label = temp.querySelector('p');
   const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
 
-  pImg.then(() => {
+  return pImg.then(() => {
     if (myVersion !== rightRenderVersion) {
       try { document.body.removeChild(temp); } catch {}
       return;
     }
-
-    // Ensure label text is populated before we move the nodes in
     const nm = mon.name || nameCache[mon.id] || "";
-// Only update if we actually have a name; otherwise keep the &nbsp; placeholder
-if (label && nm) {
-  label.textContent = mon.shiny ? `⭐ ${nm}` : nm;
-}
+    if (label && nm) label.textContent = mon.shiny ? `⭐ ${nm}` : nm;
 
-    // Move the already-loaded nodes into place (no innerHTML)
     while (rightEl.firstChild) rightEl.removeChild(rightEl.firstChild);
     while (temp.firstChild) {
       const node = temp.firstChild;
       temp.removeChild(node);
-      if (node.tagName === 'IMG') {
-        node.style.visibility = 'visible'; // force-visible if onload fired offscreen
-      }
+      if (node.tagName === 'IMG') node.style.visibility = 'visible';
       rightEl.appendChild(node);
     }
 
     try { document.body.removeChild(temp); } catch {}
     pendingRightTemp = null;
     lastRightKey = monKey(mon);
-
-    // Cache the name asynchronously for future swaps
     ensureName(mon.id);
   }).finally(() => {
     requestAnimationFrame(() => {
@@ -1995,6 +1983,7 @@ if (label && nm) {
     });
   });
 }
+
 
 
 
@@ -2080,13 +2069,19 @@ if (lk !== lastLeftKey) {
 }
 
 
-  // RIGHT: do a flicker-free swap — keep the old one visible until the new image has fully loaded
-  if (rk !== lastRightKey) {
-    renderOpponentSmooth(next);
-  } else {
-    // same mon as before (rare), just refresh label
-    updateLabelText(rightEl, next);
+// RIGHT: do a flicker-free swap — keep the old one visible until the new image has fully loaded
+if (rk !== lastRightKey) {
+  // If we’re reusing the right as the new left, add a soft-dim class until the new opponent is ready
+  const rightEl = document.getElementById("right");
+  if (rightEl && lastRightKey && lastRightKey === lk) {
+    rightEl.classList.add('recycling');
   }
+  renderOpponentSmooth(next)?.finally(() => {
+    rightEl?.classList.remove('recycling');
+  });
+} else {
+  updateLabelText(rightEl, next);
+}
 
 // Silent name prefetch (cache only; the smooth render will swap when ready)
 awaitName(current.id);
