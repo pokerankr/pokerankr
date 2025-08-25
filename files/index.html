@@ -271,30 +271,66 @@ if (cat === 'legendaries') {
       <div class="toggle-row" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <label for="mythicals" style="font-weight:600;">Mythicals:</label>
         <select id="mythicals">
-          <option value="none">Excluded</option>
+          <option value="none" selected>Excluded</option>
           <option value="include">Included</option>
           <option value="only">Only</option>
         </select>
 
-        <label><input type="checkbox" id="ultraBeastsToggle"> Ultra Beasts</label>
-        <label><input type="checkbox" id="formsToggle"> Forms</label>
+        <label style="font-weight:600;">Ultra Beasts:
+          <select id="ubMode">
+            <option value="exclude" selected>Excluded</option>
+            <option value="include">Included</option>
+          
+            <option value="only">Only</option>
+          </select>
+        </label>
+        <label style="font-weight:600;">Forms:
+          <select id="formsMode" aria-label="Forms">
+            <option value="off" selected>Excluded</option>
+            <option value="gmax">G-Max only</option>
+            <option value="mega">Mega only</option>
+            <option value="both">Both</option>
+          </select>
+        </label>
       </div>
     </div>
   `;
 
-  // When "Mythicals = Only", disable Ultra Beasts toggle (only Forms may remain)
-  const ub    = extraOptions.querySelector('#ultraBeastsToggle');
-  const myth  = extraOptions.querySelector('#mythicals');
+  // When "Mythicals = Only", disable Ultra Beasts selector (can’t be “only” both)
+const ubSel   = extraOptions.querySelector('#ubMode');
+const mythSel = extraOptions.querySelector('#mythicals');
 
-  function syncMythicalDependencies() {
-    const mode = myth.value || 'none';
-    ub.disabled = (mode === 'only');
-    if (ub.disabled) ub.checked = false;
+function syncLegendaryDependencies(changed) {
+  const mythMode = mythSel.value || 'none';
+  const ubMode   = ubSel.value   || 'exclude';
+
+  // If Mythicals = Only → lock UBs to Excluded and disable the selector
+  if (mythMode === 'only') {
+    ubSel.disabled = true;
+    ubSel.value = 'exclude';
+    mythSel.disabled = false; // allow user to switch back
+    return;
   }
 
-  myth.addEventListener('change', syncMythicalDependencies);
-  syncMythicalDependencies();
+  // If UBs = Only → lock Mythicals to Excluded and disable the selector
+  if (ubMode === 'only') {
+    mythSel.disabled = true;
+    mythSel.value = 'none';
+    ubSel.disabled = false; // allow user to switch back
+    return;
+  }
+
+  // Otherwise both enabled
+  mythSel.disabled = false;
+  ubSel.disabled = false;
 }
+
+// Wire up both selectors
+mythSel.addEventListener('change', () => syncLegendaryDependencies('myth'));
+ubSel.addEventListener('change', () => syncLegendaryDependencies('ub'));
+syncLegendaryDependencies();
+}
+
 
 
 if (cat === 'type') {
@@ -385,23 +421,20 @@ config.toggles = {
 
     if (category === 'starters') config.filters.starters = true;
 
-    if (category === 'legendaries') {
+ if (category === 'legendaries') {
   config.filters.legendaries = true;
 
-  // Pull new UI state (dropdown + checkboxes)
-  const mythSel = extraOptions.querySelector('#mythicals');
-  const forms   = !!extraOptions.querySelector('#formsToggle')?.checked;
-  const ubs     = !!extraOptions.querySelector('#ultraBeastsToggle')?.checked;
+  const mythSel  = extraOptions.querySelector('#mythicals');
+  const ubSel    = extraOptions.querySelector('#ubMode');
+  const formsSel = extraOptions.querySelector('#formsMode');
 
-  const mythMode = (mythSel?.value || 'none'); // 'none' | 'include' | 'only'
+  const mythMode  = mythSel?.value  || 'none';    // 'none' | 'include' | 'only'
+  const ubsMode   = ubSel?.value    || 'exclude'; // 'exclude' | 'include' | 'only'
+  const formsMode = formsSel?.value || 'off';     // 'off' | 'gmax' | 'mega' | 'both'
 
-  // Store in toggles (ranker.js reads these)
-  config.toggles = {
-    mythMode,        // 'none' | 'include' | 'only'
-    forms,           // boolean
-    ultraBeasts: ubs // boolean (ignored automatically in ranker if mythMode === 'only')
-  };
+  config.toggles = { mythMode, ubsMode, formsMode };
 }
+
 
 if (category === 'type') {
   const isDual = !!getEl('modeDual')?.checked;

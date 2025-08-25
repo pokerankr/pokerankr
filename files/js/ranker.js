@@ -383,111 +383,124 @@ FRIENDLY_NAME_OVERRIDES["squawkabilly-green-plumage"] = "Squawkabilly (Green)";
 
 function buildLegendariesPool() {
   const toggles = (window.rankConfig && window.rankConfig.toggles) || {};
-  const mythMode = toggles.mythMode || (toggles.mythicals ? 'include' : 'off'); // backwards compat
+
+  // --- Read modes (with backward-compat fallbacks) -------------------------
+  let mythMode  = (typeof toggles.mythMode  === 'string')
+    ? toggles.mythMode                      // 'none' | 'include' | 'only'
+    : (toggles.mythicals ? 'include' : 'none');
+
+  let ubsMode   = (typeof toggles.ubsMode   === 'string')
+    ? toggles.ubsMode                       // 'exclude' | 'include' | 'only'
+    : (toggles.ultraBeasts ? 'include' : 'exclude');
+
+  // Support old name 'formsSpecialMode' just in case, else 'formsMode', else legacy boolean
+  let formsMode = (typeof toggles.formsMode === 'string')
+    ? toggles.formsMode                     // 'off' | 'gmax' | 'mega' | 'both'
+    : ((typeof toggles.formsSpecialMode === 'string')
+        ? toggles.formsSpecialMode
+        : (toggles.forms ? 'both' : 'off'));
+
+  // --- HARDENING: make "Only" mutually exclusive ---------------------------
+  // If both arrive as "only", prefer UBs=Only and force Mythicals=Excluded.
+  if (mythMode === 'only' && ubsMode === 'only') {
+    mythMode = 'none';
+  } else if (ubsMode === 'only') {
+    mythMode = 'none';
+  } else if (mythMode === 'only') {
+    ubsMode = 'exclude';
+  }
+
   const wantMyth = (mythMode === 'include' || mythMode === 'only');
   const mythOnly = (mythMode === 'only');
-  const wantUBs  = !mythOnly && !!toggles.ultraBeasts; // ignore UBs if Mythicals Only
-  const wantForms = !!toggles.forms;
 
+  // --- 1) Build base species ID set ---------------------------------------
+  let ids = [];
+  if (ubsMode === 'only') {
+    ids = [...LEGENDS_ULTRA_BEASTS];
+  } else if (mythOnly) {
+    ids = [...LEGENDS_MYTHICALS];
+  } else {
+    ids = [...LEGENDS_CORE];
+    if (wantMyth) ids = ids.concat(LEGENDS_MYTHICALS);
+    if (ubsMode === 'include') ids = ids.concat(LEGENDS_ULTRA_BEASTS);
+  }
 
-  // Helper uses global shiny settings exactly like generation builder
+  // Dedupe IDs
+  const seenIds = new Set();
+  ids = ids.filter(id => (seenIds.has(id) ? false : (seenIds.add(id), true)));
+
+  // Helper to apply shiny flags consistently
   function entriesFor(id, name) {
     const base = { id, name: name || null };
-    if (window.shinyOnly)         return [{ ...base, shiny: true }];
-    if (window.includeShinies)    return [{ ...base, shiny: false }, { ...base, shiny: true }];
+    if (window.shinyOnly)      return [{ ...base, shiny: true }];
+    if (window.includeShinies) return [{ ...base, shiny: false }, { ...base, shiny: true }];
     return [{ ...base, shiny: false }];
   }
 
-  // Base IDs (Paradox + Megas are simply not present in these lists)
-  let ids = mythOnly ? [...LEGENDS_MYTHICALS] : [...LEGENDS_CORE];
-  if (wantMyth && !mythOnly) ids = ids.concat(LEGENDS_MYTHICALS);
-  if (wantUBs)               ids = ids.concat(LEGENDS_ULTRA_BEASTS);
-
-
-  // Build base pool
+  // Base pool from species IDs
   const pool = [];
-  const seen = new Set();
-  ids.forEach(id => {
-    if (seen.has(id)) return;
-    seen.add(id);
-    pool.push(...entriesFor(id, null));
-  });
+  ids.forEach(id => pool.push(...entriesFor(id, null)));
 
-// Standard legendary forms (Therian/Origin/Primal/etc.)
-if (wantForms) {
-  const forms = LEGENDARY_FORMS.filter(f => {
-    // Block Mythical forms if Mythicals are off
-    if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
-    // If Mythicals Only, include only Mythical species’ forms
-    if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
-    return true;
-  });
+  // --- 2) Add forms (standard + special per dropdown) ----------------------
+  const includeAnyForms = (formsMode !== 'off');
+  if (includeAnyForms) {
+    const idset = new Set(ids);
 
-  const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
-  forms.forEach(entry => {
-    const display = friendlyNameForVariety(entry.variety);
-    if (existingNames.has(display.toLowerCase())) return;
+    // 2a) Standard legendary forms (Therian/Origin/Primal/Riders/etc.)
+    const stdForms = LEGENDARY_FORMS.filter(f => {
+      // Respect Mythicals gating
+      if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
+      if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+      // Only add forms for species present in the base ID set
+      return idset.has(f.id);
+    });
 
-    const base = { id: entry.id, name: display, variety: entry.variety };
-    if (window.shinyOnly) {
-      pool.push({ ...base, shiny: true });
-    } else if (window.includeShinies) {
-      pool.push({ ...base, shiny: false }, { ...base, shiny: true });
-    } else {
-      pool.push({ ...base, shiny: false });
+    // 2b) Special forms from the dropdown: Mega / G-Max(+Eternamax)
+    let special = [];
+    if (formsMode === 'mega' || formsMode === 'both') {
+      // e.g., Mega Mewtwo X/Y, Mega Latias/Latios, Mega Rayquaza
+      special = special.concat(
+        (Array.isArray(LEGENDARY_MEGA_FORMS) ? LEGENDARY_MEGA_FORMS : []).filter(f => idset.has(f.id))
+      );
     }
-    existingNames.add(display.toLowerCase());
-  });
-}
-
-// NEW: Special Legendary Forms (Megas / G-Max / Eternamax)
-// Default to "both" so they show up before we wire the dropdown in the UI.
-const formsSpecialMode = (typeof toggles.formsSpecialMode === 'string')
-  ? toggles.formsSpecialMode         // 'off' | 'mega' | 'gmax' | 'both'
-  : 'both';
-
-if (formsSpecialMode !== 'off') {
-  const idset = new Set(ids);
-  let extra = [];
-
-  // Include Megas if requested (Mewtwo X/Y, Latias, Latios, Rayquaza)
-  if (formsSpecialMode === 'mega' || formsSpecialMode === 'both') {
-    extra = extra.concat(LEGENDARY_MEGA_FORMS.filter(f => idset.has(f.id)));
-  }
-
-  // Include G-Max & Eternamax if requested (filter to legendary IDs only)
-  if (formsSpecialMode === 'gmax' || formsSpecialMode === 'both') {
-    const g8 = (GMAX_FORMS_BY_GEN[8] || []);
-    extra = extra.concat(g8.filter(f => idset.has(f.id)));
-  }
-
-  // Respect Mythicals mode exactly like standard forms
-  extra = extra.filter(f => {
-    if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
-    if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
-    return true;
-  });
-
-  const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
-  extra.forEach(entry => {
-    const display = friendlyNameForVariety(entry.variety);
-    if (existingNames.has(display.toLowerCase())) return;
-
-    const base = { id: entry.id, name: display, variety: entry.variety };
-    if (window.shinyOnly) {
-      pool.push({ ...base, shiny: true });
-    } else if (window.includeShinies) {
-      pool.push({ ...base, shiny: false }, { ...base, shiny: true });
-    } else {
-      pool.push({ ...base, shiny: false });
+    if (formsMode === 'gmax' || formsMode === 'both') {
+      // Use Gen 8 G-Max list (includes Eternamax Eternatus in our data)
+      const g8 = (GMAX_FORMS_BY_GEN && Array.isArray(GMAX_FORMS_BY_GEN[8])) ? GMAX_FORMS_BY_GEN[8] : [];
+      special = special.concat(g8.filter(f => idset.has(f.id)));
     }
-    existingNames.add(display.toLowerCase());
-  });
-}
 
+    // Mythicals gating also applies to special forms
+    special = special.filter(f => {
+      if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
+      if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+      return true;
+    });
+
+    const allForms = stdForms.concat(special);
+
+    // Push unique display names only (avoid duplicates when forms share names)
+    const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+    allForms.forEach(entry => {
+      const display = friendlyNameForVariety(entry.variety);
+      const key = (display || '').toLowerCase();
+      if (!display || existingNames.has(key)) return;
+
+      const base = { id: entry.id, name: display, variety: entry.variety };
+      if (window.shinyOnly) {
+        pool.push({ ...base, shiny: true });
+      } else if (window.includeShinies) {
+        pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+      } else {
+        pool.push({ ...base, shiny: false });
+      }
+      existingNames.add(key);
+    });
+  }
 
   return pool;
 }
+
+
 
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
@@ -2213,13 +2226,23 @@ if (rk !== lastRightKey) {
 awaitName(current.id);
 awaitName(next.id);
 
+// Prefetch the *upcoming* opponent (the one after "next") to shrink perceived latency
+const upcoming = remaining[remaining.length - 1];
+if (upcoming) {
+  // 1) Preload the first sprite URL (helps pure base species)
+  ensurePrefetch(upcoming);
 
-  // Prefetch the *upcoming* opponent to shrink perceived latency
-  const upcoming = remaining[remaining.length - 1];
-  if (upcoming) ensurePrefetch(upcoming);
+  // 2) If it's a FORM, resolve its numeric artwork id now
+  //    (prevents any base-form flash when it reaches the screen)
+  const v = varietySlugFromMon(upcoming);
+  if (v && (artIdCache[v] == null || artIdCache[v] <= 0)) {
+    // Fire-and-forget; cached for when it becomes "next"
+    ensureArtworkIdForVariety(v);
+  }
+}
 
-  // Preload names for the next 50 mons to eliminate label pop-in
-  warmNextBatch(50);
+// Preload names for the next 50 mons to eliminate label pop-in
+warmNextBatch(50);
 }
 
 
