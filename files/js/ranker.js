@@ -1537,17 +1537,19 @@ function getImageTag(p, opts = {}) {
   const first   = chain[0];
   const safeAlt = alt || (p.name || (nameCache && nameCache[p.id]) || "");
 
-  return `<img
-  src="${first}"
-  alt="${safeAlt}"
-  style="visibility:hidden"
-  width="256" height="256"
-  data-pid="${p.id}"
-  data-variety="${variety || ''}"
-  data-shiny="${wantShiny ? '1' : '0'}"
-  data-step="0"
-  data-fallbacks='${JSON.stringify(chain.slice(1))}'
-  onload="if (this.src.indexOf('data:')!==0) this.style.visibility='visible'"
+ return `<img
+    src="${first}"
+    alt="${safeAlt}"
+    style="visibility:hidden"
+    width="256" height="256"
+    decoding="async"
+    loading="eager"
+    fetchpriority="high"
+    data-variety="${variety || ''}"
+    data-shiny="${wantShiny ? '1' : '0'}"
+    data-step="0"
+    data-fallbacks='${JSON.stringify(chain.slice(1))}'
+    onload="if (this.src.indexOf('data:')!==0) this.style.visibility='visible'"
     onerror="
       try {
         this.style.visibility='hidden';
@@ -2125,9 +2127,17 @@ function renderOpponentSmooth(mon){
   document.body.appendChild(temp);
   pendingRightTemp = temp;
 
-  const img   = temp.querySelector('img');
-  const label = temp.querySelector('p');
-  const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
+ const img   = temp.querySelector('img');
+const label = temp.querySelector('p');
+
+if (img) {
+  img.fetchPriority = 'high';
+  img.decoding = 'async';
+  img.loading = 'eager';
+}
+
+const pImg  = img ? awaitImgLoaded(img) : Promise.resolve();
+
 
   return pImg.then(() => {
     if (myVersion !== rightRenderVersion) {
@@ -2172,9 +2182,17 @@ function renderLeftSmooth(mon){
   document.body.appendChild(temp);
 
   const img = temp.querySelector('img');
-  const pEl = temp.querySelector('p');
+const pEl = temp.querySelector('p');
 
-  const pImg = img ? awaitImgLoaded(img) : Promise.resolve();
+// Hint the browser this image is critical
+if (img) {
+  img.fetchPriority = 'high';
+  img.decoding = 'async';
+  img.loading = 'eager';
+}
+
+const pImg = img ? awaitImgLoaded(img) : Promise.resolve();
+
 
   pImg.then(() => {
     const nm = mon.name || nameCache[mon.id] || "";
