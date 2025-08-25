@@ -483,7 +483,7 @@ function buildGenPool(gen){
 const ids = Array.from({length: end - start + 1}, (_,i)=> start + i);
 let pool = [];
 if (!gmaxOnly) {
-  ids.forEach(id => { pool.push(entriesFor(id, null)); });
+  ids.forEach(id => { pool.push(...entriesFor(id, null)); });
 }
 
     // ✅ Inject Regional forms for this gen ONLY if toggle is on
@@ -651,7 +651,32 @@ function toFriendly(raw) {
   // 1) Exact curated override first (already populated above)
   if (FRIENDLY_NAME_OVERRIDES[n]) return FRIENDLY_NAME_OVERRIDES[n];
 
-  // 2) Megas → "Mega <Base> (X/Y if present)"
+  // 2) SPECIAL-CASES for shared G-Max labels
+  // Toxtricity Amped/Low Key share the same G-Max
+  if (/^toxtricity-(?:amped|low-key)-gmax$/i.test(n)) {
+    return 'Toxtricity (G-Max)';
+  }
+  // Appletun/Flapple share the same G-Max
+  if (/^(?:appletun|flapple)-gmax$/i.test(n)) {
+    return 'Appletun/Flapple (G-Max)';
+  }
+
+  // 3) G-Max → "<Base> (…optional form…) (G-Max)"
+  if (/-gmax$/i.test(n)) {
+    const parts = n.split('-');
+    const base = parts[0];
+    const pre  = parts.slice(1, -1); // tokens before trailing gmax
+    const preLabel = pre.length ? ` (${pre.map(s => titleize(s).replace(/-/g, ' ')).join(' ')})` : '';
+    return `${titleize(base).replace(/-/g, ' ')}${preLabel} (G-Max)`;
+  }
+
+  // 4) Eternamax → "Eternatus (Eternamax)"
+  if (/-eternamax$/i.test(n)) {
+    const base = n.replace(/-eternamax$/i, '');
+    return `${titleize(base).replace(/-/g, ' ')} (Eternamax)`;
+  }
+
+  // 5) Megas → "Mega <Base> (X/Y if present)"
   if (/-mega(?:-[xy])?$/i.test(n)) {
     const base = n.replace(/-mega(?:-[xy])?$/i, '');
     let suffix = '';
@@ -660,28 +685,27 @@ function toFriendly(raw) {
     return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
   }
 
-  // 3) Regional slugs → "Galarian / Alolan / Hisuian / Paldean <Base>"
-if (/-galar$/i.test(n)) {
-  const base = n.replace(/-galar$/i, '');
-  return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
-}
-if (/-alola$/i.test(n)) {
-  const base = n.replace(/-alola$/i, '');
-  return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
-}
-if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
-  const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
-  return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
-}
-// NEW: Paldea regional forms (optionally with extra form/breed)
-if (/-paldea(?:-.+)?$/i.test(n)) {
-  const base = n.replace(/-paldea(?:-.+)?$/i, '');
-  const rest = (n.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
-  const suffix = rest ? ` (${titleize(rest)})` : '';
-  return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
-}
-  // 4) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
-  //    e.g. "thundurus-therian" -> "Thundurus (Therian)"
+  // 6) Regional slugs → "Galarian / Alolan / Hisuian / Paldean <Base>"
+  if (/-galar$/i.test(n)) {
+    const base = n.replace(/-galar$/i, '');
+    return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-alola$/i.test(n)) {
+    const base = n.replace(/-alola$/i, '');
+    return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
+    const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
+    return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-paldea(?:-.+)?$/i.test(n)) {
+    const base = n.replace(/-paldea(?:-.+)?$/i, '');
+    const rest = (n.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
+    const suffix = rest ? ` (${titleize(rest)})` : '';
+    return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
+  }
+
+  // 7) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
   return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
 }
 
