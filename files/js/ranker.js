@@ -1405,6 +1405,7 @@ async function ensureArtworkIdForVariety(varietySlug){
           img.dataset.step = "0";
           img.src = chain[0];
           img.dataset.fallbacks = JSON.stringify(chain.slice(1));
+          img.style.visibility = 'visible';
         }
       });
       return id;
@@ -1446,65 +1447,84 @@ function spriteUrlForMon(p, shiny) {
 
 // OFFICIAL-ARTWORK ONLY fallback chain with numeric-ID preference:
 // variety (numeric cached) -> variety (slug) -> base (id)
-function getImageTag(monOrId, shiny = false, alt = "", forResults = false) {
-  const p = (typeof monOrId === 'object' && monOrId)
-    ? monOrId
-    : { id: monOrId, shiny, name: nameCache[monOrId] };
+// Builds an <img> tag with a robust fallback chain.
+// - For base species: use official-artwork by numeric ID.
+// - For forms: if we already know the numeric artwork ID, use it immediately;
+//   otherwise, during LIVE matchups we show a tiny transparent placeholder and
+//   resolve the numeric ID in the background (no slug requests, no 404 spam).
+//   On RESULTS/EXPORT screens, we still show base art while resolving so exports are never blank.
+function getImageTag(p, opts = {}) {
+  const { alt = "", forResults = false } = opts;
+  const wantShiny =
+    (typeof opts.wantShiny === "boolean" ? opts.wantShiny : undefined) ??
+    (typeof p.shiny === "boolean" ? p.shiny : undefined) ??
+    !!window.shinyOnly;
 
-  const wantShiny = !!(p.shiny ?? shiny);
-  const variety = varietySlugFromMon(p);
+  // Variety slug if present (e.g., "rayquaza-mega", "dialga-origin", etc.)
+  // Prefer explicit opts.variety, then the mon object, then a helper if available.
+  const variety =
+    opts.variety ||
+    p.variety ||
+    (typeof varietySlugFromMon === "function" ? varietySlugFromMon(p) : null) ||
+    null;
 
-  let chain = [];
+  const chain = [];
 
-if (variety) {
-  const cached = artIdCache[variety];
-  if (typeof cached === 'number' && cached > 0) {
-    chain.push(...buildOfficialChainFromId(cached, wantShiny));
-  } else if (cached === -1) {
-    // Known-bad slug → skip slug URLs entirely (go straight to base numeric below)
+  // Base artwork URLs by numeric species id
+  const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
+  const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+  const baseChain   = wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm];
+
+  // 1×1 transparent data URI (no network request)
+  const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+
+  if (variety) {
+    const cached = artIdCache[variety];
+
+    if (typeof cached === 'number' && cached > 0) {
+      // We already know the numeric artwork id for this form → use it directly.
+      chain.push(...buildOfficialChainFromId(cached, wantShiny));
+
+    } else if (cached === -1) {
+      // Known-bad slug (PokeAPI has no slug asset for this form) → fall back to base art.
+      // We choose base art for both live & results here so it never stays blank.
+      chain.push(...baseChain);
+
+    } else {
+      // Unknown numeric id:
+      // - Live matchup: push a blank to avoid a slug request (and 404),
+      //   then resolve the numeric id in the background and swap in.
+      // - Results/export: push base art while we resolve (keeps exports bullet-proof).
+      if (typeof ensureArtworkIdForVariety === "function") {
+        ensureArtworkIdForVariety(variety);
+      }
+      if (forResults) {
+        chain.push(...baseChain);
+      } else {
+        chain.push(BLANK);
+      }
+    }
   } else {
-    // Try alias for prettier slug hit (then fall back to base)
-    const slug = VARIETY_SLUG_ALIASES[variety] || variety;
-    const vShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${slug}.png`;
-    const vNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${slug}.png`;
-    chain.push(...(wantShiny ? [vShiny, vNorm] : [vNorm]));
-    ensureArtworkIdForVariety(variety);
+    // Base species (no form)
+    chain.push(...baseChain);
   }
-}
 
-// Append base-ID fallback only when appropriate.
-// Keep it for base species (no variety), or on results/export screens.
-const baseIdShiny = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`;
-const baseIdNorm  = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
-const baseChain   = wantShiny ? [baseIdShiny, baseIdNorm] : [baseIdNorm];
+  // Safety: ensure we never return an empty chain
+  if (chain.length === 0) chain.push(baseIdNorm);
 
-const allowBaseFallback = forResults || !variety;
-if (allowBaseFallback) {
-  chain.push(...baseChain);
-}
-
-// Safety: if nothing made it into the chain (shouldn’t happen, but protect against it),
-// ensure we at least point to the non-shiny base art so the <img> isn’t blank.
-if (chain.length === 0) {
-  chain.push(baseIdNorm);
-}
-
-
-  
-
-  const first = chain[0];
-  const safeAlt = alt || (p.name || nameCache[p.id] || "");
+  const first   = chain[0];
+  const safeAlt = alt || (p.name || (nameCache && nameCache[p.id]) || "");
 
   return `<img
-  src="${first}"
-  alt="${safeAlt}"
-  style="visibility:hidden"
-  width="256" height="256"
-  data-variety="${variety || ''}"
-  data-shiny="${wantShiny ? '1' : '0'}"
-  data-step="0"
-  data-fallbacks='${JSON.stringify(chain.slice(1))}'
-  onload="this.style.visibility='visible'"
+    src="${first}"
+    alt="${safeAlt}"
+    style="visibility:hidden"
+    width="256" height="256"
+    data-variety="${variety || ''}"
+    data-shiny="${wantShiny ? '1' : '0'}"
+    data-step="0"
+    data-fallbacks='${JSON.stringify(chain.slice(1))}'
+    onload="if (this.src.indexOf('data:')!==0) this.style.visibility='visible'"
     onerror="
       try {
         this.style.visibility='hidden';
@@ -1515,6 +1535,7 @@ if (chain.length === 0) {
       } catch(e) { this.onerror=null; }
     ">`;
 }
+
 
 
 
