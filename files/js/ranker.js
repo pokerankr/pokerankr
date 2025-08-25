@@ -423,10 +423,21 @@ function buildLegendariesPool() {
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
   const toggles = (window.rankConfig && window.rankConfig.toggles) || window.toggles || {};
-  const includeRegional  = !!toggles.regional;      // Regional forms (Alola / Galar / Hisui)
-  const includeAltBattle = !!toggles.altBattle;     // Alternate/Battle forms (e.g., Lycanroc)
-  const includeGmax      = !!toggles.gmax;          // NEW: G-Max / Eternamax
-  const gmaxOnly         = includeGmax && !!toggles.gmaxOnly; // NEW: G-Max only
+
+  // Read new string modes first, fall back to legacy booleans for old saves.
+  const regionalMode  = (typeof toggles.regionalMode === 'string')
+    ? toggles.regionalMode                     // 'off' | 'include'
+    : (toggles.regional ? 'include' : 'off');  // legacy boolean -> mode
+
+  const altBattleMode = (typeof toggles.altBattleMode === 'string')
+    ? toggles.altBattleMode                    // 'off' | 'include'
+    : (toggles.altBattle ? 'include' : 'off'); // legacy boolean -> mode
+
+  const includeRegional  = (regionalMode  === 'include');   // Regional forms (Alola/Galar/Hisui)
+  const includeAltBattle = (altBattleMode === 'include');   // Alt/Battle forms (Lycanroc, etc.)
+  const includeGmax      = !!toggles.gmax;                  // unchanged
+  const gmaxOnly         = includeGmax && !!toggles.gmaxOnly;
+
 
   // ----- Regional/alt-form → generation overrides (forms that belong to a later gen)
   // Only include forms whose *base dex ID* is from an earlier gen, but the form debuted later.
@@ -644,84 +655,68 @@ const POOL_BUILDERS = {
 function flattenWithForms(list) {
   const out = [];
 
-  // Map slug → friendly label using existing helpers/overrides
-function toFriendly(raw) {
-  const n = String(raw || '');
+  function toFriendlyWithGmax(rawSlug) {
+    const slug = String(rawSlug || '');
 
-  // 1) Exact curated override first (already populated above)
-  if (FRIENDLY_NAME_OVERRIDES[n]) return FRIENDLY_NAME_OVERRIDES[n];
+    // 1) exact curated override
+    if (FRIENDLY_NAME_OVERRIDES[slug]) return FRIENDLY_NAME_OVERRIDES[slug];
 
-  // 2) SPECIAL-CASES for shared G-Max labels
-  // Toxtricity Amped/Low Key share the same G-Max
-  if (/^toxtricity-(?:amped|low-key)-gmax$/i.test(n)) {
-    return 'Toxtricity (G-Max)';
-  }
-  // Appletun/Flapple share the same G-Max
-  if (/^(?:appletun|flapple)-gmax$/i.test(n)) {
-    return 'Appletun/Flapple (G-Max)';
-  }
+    // 2) G-Max / Eternamax: use our central formatter so we get “Cinderace (G-Max)”, etc.
+    if (/-gmax$/i.test(slug) || /-eternamax$/i.test(slug)) {
+      return friendlyNameForVariety(slug);
+    }
 
-  // 3) G-Max → "<Base> (…optional form…) (G-Max)"
-  if (/-gmax$/i.test(n)) {
-    const parts = n.split('-');
-    const base = parts[0];
-    const pre  = parts.slice(1, -1); // tokens before trailing gmax
-    const preLabel = pre.length ? ` (${pre.map(s => titleize(s).replace(/-/g, ' ')).join(' ')})` : '';
-    return `${titleize(base).replace(/-/g, ' ')}${preLabel} (G-Max)`;
-  }
+    // 3) Megas, regionals, paldea (what you already had)
+    if (/-mega(?:-[xy])?$/i.test(slug)) {
+      const base = slug.replace(/-mega(?:-[xy])?$/i, '');
+      let suffix = '';
+      if (/-mega-x$/i.test(slug)) suffix = ' (X)';
+      if (/-mega-y$/i.test(slug)) suffix = ' (Y)';
+      return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
+    }
+    if (/-galar$/i.test(slug)) {
+      const base = slug.replace(/-galar$/i, '');
+      return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+    if (/-alola$/i.test(slug)) {
+      const base = slug.replace(/-alola$/i, '');
+      return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+    if (/-hisui$/i.test(slug) || /-hisuan$/i.test(slug)) {
+      const base = slug.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
+      return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
+    }
+    if (/-paldea(?:-.+)?$/i.test(slug)) {
+      const base = slug.replace(/-paldea(?:-.+)?$/i, '');
+      const rest = (slug.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
+      const suffix = rest ? ` (${titleize(rest)})` : '';
+      return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
+    }
 
-  // 4) Eternamax → "Eternatus (Eternamax)"
-  if (/-eternamax$/i.test(n)) {
-    const base = n.replace(/-eternamax$/i, '');
-    return `${titleize(base).replace(/-/g, ' ')} (Eternamax)`;
+    // 4) default dash → (Form) prettifier
+    return normalizeFormHyphen(titleize(slug).replace(/-/g, '-'));
   }
-
-  // 5) Megas → "Mega <Base> (X/Y if present)"
-  if (/-mega(?:-[xy])?$/i.test(n)) {
-    const base = n.replace(/-mega(?:-[xy])?$/i, '');
-    let suffix = '';
-    if (/-mega-x$/i.test(n)) suffix = ' (X)';
-    if (/-mega-y$/i.test(n)) suffix = ' (Y)';
-    return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
-  }
-
-  // 6) Regional slugs → "Galarian / Alolan / Hisuian / Paldean <Base>"
-  if (/-galar$/i.test(n)) {
-    const base = n.replace(/-galar$/i, '');
-    return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
-  }
-  if (/-alola$/i.test(n)) {
-    const base = n.replace(/-alola$/i, '');
-    return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
-  }
-  if (/-hisui$/i.test(n) || /-hisuan$/i.test(n)) {
-    const base = n.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
-    return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
-  }
-  if (/-paldea(?:-.+)?$/i.test(n)) {
-    const base = n.replace(/-paldea(?:-.+)?$/i, '');
-    const rest = (n.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
-    const suffix = rest ? ` (${titleize(rest)})` : '';
-    return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
-  }
-
-  // 7) Default: Title-Case the slug, then apply our hyphen→(Form) normalizer
-  return normalizeFormHyphen(titleize(n).replace(/-/g, '-'));
-}
 
   for (const p of list) {
     if (!p) continue;
-    out.push({ id: p.id, name: toFriendly(p.name), types: p.types });
-   if (Array.isArray(p.forms)) {
+
+    // base species (no variety)
+    out.push({ id: p.id, name: toFriendlyWithGmax(p.name), types: p.types });
+
+    if (Array.isArray(p.forms)) {
       for (const f of p.forms) {
         if (!f) continue;
-        // 🚫 Skip busted Mimikyu form
+        // 🚫 Skip busted Mimikyu + non-green Squawkabilly
         if (/^mimikyu-busted$/i.test(f.name)) continue;
-
-        // 🚫 Skip Squawkabilly non-green forms
         if (/^squawkabilly-(blue|yellow|white)-plumage$/i.test(f.name)) continue;
 
-        out.push({ id: f.id, name: toFriendly(f.name), types: f.types });
+        // ✅ Forms keep their slug in `variety`, so artwork can resolve to the correct form
+        out.push({
+          id: f.id,
+          name: toFriendlyWithGmax(f.name), // pretty label (incl. G-Max/Eternamax cases)
+          types: f.types,
+          variety: f.name                    // <-- key addition
+        });
       }
     }
   }
@@ -766,18 +761,50 @@ function matchesType(m) {
 }
 
 
-    const basePool = ALL.filter(matchesType).map(p => ({ id: p.id, name: p.name, shiny: false }));
+// --- collapse special G-Max duplicates (Toxtricity & Appletun/Flapple) ---
+function collapseGmaxSpecials(list) {
+  const TARGETS = new Map([
+    // Canonical slugs to use for artwork:
+    ['Toxtricity (G-Max)',       { id: 849, name: 'Toxtricity (G-Max)',       variety: 'toxtricity-amped-gmax' }],
+    ['Appletun/Flapple (G-Max)', { id: 842, name: 'Appletun/Flapple (G-Max)', variety: 'appletun-gmax' }],
+  ]);
 
-    if (shinyOnly) {
-      pool = basePool.map(p => ({ ...p, shiny: true }));
-    } else if (includeShinies) {
-      pool = [
-        ...basePool.map(p => ({ ...p, shiny: false })),
-        ...basePool.map(p => ({ ...p, shiny: true }))
-      ];
+  const used = new Set();
+  const out = [];
+
+  for (const p of list) {
+    const nm = (p.name || '').trim();
+    if (TARGETS.has(nm)) {
+      if (used.has(nm)) continue; // drop duplicates
+      const t = TARGETS.get(nm);
+      out.push({ ...p, id: t.id, name: t.name, variety: t.variety }); // ✅ force variety
+      used.add(nm);
     } else {
-      pool = basePool;
+      out.push(p);
     }
+  }
+  return out;
+}
+
+
+let basePool = ALL
+  .filter(matchesType)
+  .map(p => ({ id: p.id, name: p.name, shiny: false }));
+
+// 🔧 collapse the two shared G-Max labels down to one each
+basePool = collapseGmaxSpecials(basePool);
+
+if (shinyOnly) {
+  pool = basePool.map(p => ({ ...p, shiny: true }));
+} else if (includeShinies) {
+  pool = [
+    ...basePool.map(p => ({ ...p, shiny: false })),
+    ...basePool.map(p => ({ ...p, shiny: true }))
+  ];
+} else {
+  pool = basePool;
+}
+
   } else {
     // Existing flow for other categories
     const builder = POOL_BUILDERS[rc.category];

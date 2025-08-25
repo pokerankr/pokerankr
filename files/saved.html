@@ -74,11 +74,28 @@
       margin-top:12px;
     }
 
-    .saved-sprite{
-      width:100px; height:100px;
-      image-rendering: pixelated;
-      flex-shrink:0;
-    }
+/* Saved Rankings: preview sprite */
+.saved-sprite{
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+/* Slightly shrink G-Max / Eternamax */
+.saved-sprite.is-gmax{
+  transform: scale(1);
+  transform-origin: center;
+}
+
+/* (Optional: works via the data attribute too) */
+.saved-sprite[data-variety$="-gmax"],
+.saved-sprite[data-variety$="-eternamax"]{
+  transform: scale(1);
+}
+
+
 
     .saved-text{ line-height:1.1; flex:1; }
     .saved-name{ font-weight:700; font-size:.9rem; }
@@ -128,15 +145,23 @@
       return `${count} ${count === 1 ? singular : plural}`;
     }
 
-   function sprite(mon) {
-  const id = (mon.formId || mon.id);
+ function sprite(mon) {
+  const id    = (mon.formId || mon.id);
   const shiny = !!mon.shiny;
-  const alt = mon.name || "";
-  const src = shiny
+  const alt   = mon.name || "";
+  const src   = shiny
     ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${id}.png`
     : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
-  return `<img class="saved-sprite" src="${src}" alt="${alt}">`;
+
+  const variety = mon.variety || ""; // e.g. "charizard-gmax" or "eternatus-eternamax"
+  const isGmax  = /(?:-gmax$|-eternamax$)/i.test(variety);
+
+  return `<img class="saved-sprite${isGmax ? ' is-gmax' : ''}"
+               data-variety="${variety}"
+               src="${src}" alt="${alt}">`;
 }
+
+
 
 
     function slot(label, mon) {

@@ -170,15 +170,22 @@ extraOptions.innerHTML = `
 
  <!-- Per-gen toggles (shown/hidden by JS) -->
 <div class="settings" id="genToggleRow" style="display:none; margin-top:8px;">
-  <label id="lblToggleRegional" style="display:none;">
-    <input type="checkbox" id="toggle-regional" />
-    Include Regional Forms (Alola/Galar/Hisui)
-  </label>
+  <label id="lblRegionalMode" style="display:none; display:inline-flex; align-items:center; gap:8px;">
+  <span>Regional forms:</span>
+  <select id="regional-mode">
+    <option value="off">Off</option>
+    <option value="include">Include</option>
+  </select>
+</label>
 
-  <label id="lblToggleAltBattle" style="display:none;">
-    <input type="checkbox" id="toggle-altbattle" />
-    Include Alternate/Battle Forms
-  </label>
+<label id="lblAltBattleMode" style="display:none; display:inline-flex; align-items:center; gap:8px;">
+  <span>Alt/Battle forms:</span>
+  <select id="altbattle-mode">
+    <option value="off">Off</option>
+    <option value="include">Include</option>
+  </select>
+</label>
+
 
   <!-- NEW: single G-Max mode control -->
   <label id="lblGmaxMode" style="display:none; display:inline-flex; align-items:center; gap:8px;">
@@ -211,13 +218,12 @@ extraOptions.innerHTML = `
  const REGIONAL_MIN_GEN = 7;
 const ALT_BATTLE_GENS = new Set([7,8,9]);
 
-const row             = extraOptions.querySelector('#genToggleRow');
-const chkRegional     = extraOptions.querySelector('#toggle-regional');
-const chkAltBattle    = extraOptions.querySelector('#toggle-altbattle');
-const lblRegional     = extraOptions.querySelector('#lblToggleRegional');
-const lblAltBattle    = extraOptions.querySelector('#lblToggleAltBattle');
+const row              = extraOptions.querySelector('#genToggleRow');
+const regionalModeSel  = extraOptions.querySelector('#regional-mode');
+const altBattleModeSel = extraOptions.querySelector('#altbattle-mode');
+const lblRegionalMode  = extraOptions.querySelector('#lblRegionalMode');
+const lblAltBattleMode = extraOptions.querySelector('#lblAltBattleMode');
 
-// NEW
 const gmaxModeSel = extraOptions.querySelector('#gmax-mode');
 const lblGmaxMode = extraOptions.querySelector('#lblGmaxMode');
 
@@ -229,36 +235,32 @@ function updateGenTogglesVisibility() {
 
   const showRegional  = isAll || (g >= REGIONAL_MIN_GEN);
   const showAltBattle = isAll || ALT_BATTLE_GENS.has(g);
-  const showGmax      = isAll || g === 8;   // show selector for Gen 8 and All
-  const allowOnly     = g === 8;            // “only” is valid in Gen 8 only
+  const showGmax      = isAll || g === 8;
+  const allowOnly     = g === 8;
 
-  lblRegional.style.display  = showRegional  ? '' : 'none';
-  lblAltBattle.style.display = showAltBattle ? '' : 'none';
+  // show/hide labels
+  lblRegionalMode.style.display  = showRegional  ? '' : 'none';
+  lblAltBattleMode.style.display = showAltBattle ? '' : 'none';
+  lblGmaxMode.style.display      = showGmax ? '' : 'none';
 
-  // NEW: single G-Max control
-  lblGmaxMode.style.display  = showGmax ? '' : 'none';
-
-  // Enable/disable the “only” option
+  // guard “only” for G-Max
   const optOnly = gmaxModeSel?.querySelector('option[value="only"]');
   if (optOnly) {
     optOnly.disabled = !allowOnly;
-    optOnly.hidden   = !allowOnly; // optional: also hide it visually
+    optOnly.hidden   = !allowOnly;
   }
   if (!allowOnly && gmaxModeSel?.value === 'only') {
     gmaxModeSel.value = 'include';
   }
-
-  // Entire row shows if any toggle is visible
+// whole row on/off
   row.style.display = (showRegional || showAltBattle || showGmax) ? '' : 'none';
-  // Reset toggles that are hidden
-if (!showRegional && chkRegional)   chkRegional.checked = false;
-if (!showAltBattle && chkAltBattle) chkAltBattle.checked = false;
 
-// If G-Max control isn’t shown (gens 1–7/9), force its value to Off so labels don’t say “+G-Max”
-if (!showGmax && gmaxModeSel) {
-  gmaxModeSel.value = 'off';
+  // reset hidden controls to Off so we don’t leak state across gens
+  if (!showRegional  && regionalModeSel)  regionalModeSel.value  = 'off';
+  if (!showAltBattle && altBattleModeSel) altBattleModeSel.value = 'off';
+  if (!showGmax && gmaxModeSel)           gmaxModeSel.value      = 'off';
 }
-}
+
   // Initialize visibility for the default selected gen
   updateGenTogglesVisibility();
 }
@@ -362,18 +364,21 @@ if (cat === 'type') {
   if (!gen) { alert('Choose a generation.'); return; }
   config.filters.generation = (gen === "ALL") ? "ALL" : parseInt(gen, 10);
 
-// pass toggles along
-const chkRegional   = extraOptions.querySelector('#toggle-regional');
-const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
-const gmaxModeSel   = extraOptions.querySelector('#gmax-mode');   // NEW: re-query in this scope
-const gmaxMode      = gmaxModeSel ? gmaxModeSel.value : 'off';
+const regionalModeSel  = extraOptions.querySelector('#regional-mode');
+const altBattleModeSel = extraOptions.querySelector('#altbattle-mode');
+const gmaxModeSel      = extraOptions.querySelector('#gmax-mode');
+
+const regionalMode  = regionalModeSel ? regionalModeSel.value  : 'off';     // 'off' | 'include'
+const altBattleMode = altBattleModeSel ? altBattleModeSel.value : 'off';    // 'off' | 'include'
+const gmaxMode      = gmaxModeSel ? gmaxModeSel.value : 'off';              // 'off' | 'include' | 'only'
 
 config.toggles = {
-  regional:  !!chkRegional?.checked,
-  altBattle: !!chkAltBattle?.checked,
-  gmax:      gmaxMode !== 'off',
-  gmaxOnly:  gmaxMode === 'only',
+  regionalMode,
+  altBattleMode,
+  gmax:     gmaxMode !== 'off',
+  gmaxOnly: gmaxMode === 'only',
 };
+
 
 }
 
