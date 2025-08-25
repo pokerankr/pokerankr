@@ -856,6 +856,34 @@ function awaitImgLoaded(img){
     img.addEventListener('error', onError);
   });
 }
+
+function maybePreloadNextSprite(){
+  try {
+    // Respect user’s connection
+    const nc = navigator.connection || navigator.webkitConnection || navigator.mozConnection;
+    if (nc && (nc.saveData || (nc.effectiveType && /(^|[^3-4])g/.test(nc.effectiveType)))) {
+      return; // skip on data-saver or <3g-ish
+    }
+
+    // Peek the next upcoming mon after the visible pair
+    const upcoming = remaining && remaining.length ? remaining[remaining.length - 1] : null;
+    if (!upcoming) return;
+
+    // Only preload the primary official-artwork; fallbacks still handled at show time
+    const url = spriteUrlChain(upcoming.id, !!upcoming.shiny)[0];
+
+    // Avoid re-preloading the same URL repeatedly
+    if (maybePreloadNextSprite._last === url) return;
+    maybePreloadNextSprite._last = url;
+
+    const img = new Image();
+    img.decoding = 'async';
+    img.loading = 'eager';
+    try { img.fetchPriority = 'low'; } catch {}
+    img.src = url; // browser will cache it for the next swap
+  } catch {}
+}
+
 // --- Right-side smooth swap (off-screen prerender + height lock)
 let _rightRenderVersion = 0;
 let _pendingRightTemp = null;
@@ -1011,7 +1039,10 @@ function displayMatchup() {
   buildOrUpdateSide('left', current); // unchanged
   renderOpponentSmooth(next);         // flicker-free swap on the right
 
+  // Warm up just one sprite ahead (no effect on slow/data-saver)
+  maybePreloadNextSprite();
 }
+
 
 function updateProgress() {
   // If we're in a post bracket, never use KOTH math — delegate.
