@@ -25,22 +25,118 @@ const baseStarters = [
   { id: 906, name: "Sprigatito" }, { id: 909, name: "Fuecoco" }, { id: 912, name: "Quaxly" }
 ];
 
-// ----- Preferences
-const includeShinies = localStorage.getItem("includeShinies") === "true";
-const shinyOnly      = localStorage.getItem("shinyOnly") === "true";
+// ----- Starter lines (ids + names) -----
+const STARTER_LINES = new Map([
+  // Gen 1
+  [1,  [{id:1,name:"Bulbasaur"}, {id:2,name:"Ivysaur"},   {id:3,name:"Venusaur"}]],
+  [4,  [{id:4,name:"Charmander"}, {id:5,name:"Charmeleon"}, {id:6,name:"Charizard"}]],
+  [7,  [{id:7,name:"Squirtle"},  {id:8,name:"Wartortle"}, {id:9,name:"Blastoise"}]],
 
-// ----- Build pool
+  // Gen 2
+  [152,[{id:152,name:"Chikorita"}, {id:153,name:"Bayleef"},   {id:154,name:"Meganium"}]],
+  [155,[{id:155,name:"Cyndaquil"}, {id:156,name:"Quilava"},   {id:157,name:"Typhlosion"}]],
+  [158,[{id:158,name:"Totodile"},  {id:159,name:"Croconaw"},  {id:160,name:"Feraligatr"}]],
+
+  // Gen 3
+  [252,[{id:252,name:"Treecko"},   {id:253,name:"Grovyle"},   {id:254,name:"Sceptile"}]],
+  [255,[{id:255,name:"Torchic"},   {id:256,name:"Combusken"}, {id:257,name:"Blaziken"}]],
+  [258,[{id:258,name:"Mudkip"},    {id:259,name:"Marshtomp"}, {id:260,name:"Swampert"}]],
+
+  // Gen 4
+  [387,[{id:387,name:"Turtwig"},   {id:388,name:"Grotle"},    {id:389,name:"Torterra"}]],
+  [390,[{id:390,name:"Chimchar"},  {id:391,name:"Monferno"},  {id:392,name:"Infernape"}]],
+  [393,[{id:393,name:"Piplup"},    {id:394,name:"Prinplup"},  {id:395,name:"Empoleon"}]],
+
+  // Gen 5
+  [495,[{id:495,name:"Snivy"},     {id:496,name:"Servine"},   {id:497,name:"Serperior"}]],
+  [498,[{id:498,name:"Tepig"},     {id:499,name:"Pignite"},   {id:500,name:"Emboar"}]],
+  [501,[{id:501,name:"Oshawott"},  {id:502,name:"Dewott"},    {id:503,name:"Samurott"}]],
+
+  // Gen 6
+  [650,[{id:650,name:"Chespin"},   {id:651,name:"Quilladin"}, {id:652,name:"Chesnaught"}]],
+  [653,[{id:653,name:"Fennekin"},  {id:654,name:"Braixen"},   {id:655,name:"Delphox"}]],
+  [656,[{id:656,name:"Froakie"},   {id:657,name:"Frogadier"}, {id:658,name:"Greninja"}]],
+
+  // Gen 7
+  [722,[{id:722,name:"Rowlet"},    {id:723,name:"Dartrix"},   {id:724,name:"Decidueye"}]],
+  [725,[{id:725,name:"Litten"},    {id:726,name:"Torracat"},  {id:727,name:"Incineroar"}]],
+  [728,[{id:728,name:"Popplio"},   {id:729,name:"Brionne"},   {id:730,name:"Primarina"}]],
+
+  // Gen 8
+  [810,[{id:810,name:"Grookey"},   {id:811,name:"Thwackey"},  {id:812,name:"Rillaboom"}]],
+  [813,[{id:813,name:"Scorbunny"}, {id:814,name:"Raboot"},    {id:815,name:"Cinderace"}]],
+  [816,[{id:816,name:"Sobble"},    {id:817,name:"Drizzile"},  {id:818,name:"Inteleon"}]],
+
+  // Gen 9
+  [906,[{id:906,name:"Sprigatito"},{id:907,name:"Floragato"},{id:908,name:"Meowscarada"}]],
+  [909,[{id:909,name:"Fuecoco"},   {id:910,name:"Crocalor"},  {id:911,name:"Skeledirge"}]],
+  [912,[{id:912,name:"Quaxly"},    {id:913,name:"Quaxwell"},  {id:914,name:"Quaquaval"}]],
+]);
+
+// Pikachu/Eevee (for the optional toggle)
+const PIKA_BASE   = { id:25,  name:"Pikachu" };
+const EEVEE_BASE  = { id:133, name:"Eevee"   };
+
+const PIKA_LINE   = [{id:172,name:"Pichu"}, {id:25,name:"Pikachu"}, {id:26,name:"Raichu"}];
+const EEVEE_LINE  = [
+  {id:133,name:"Eevee"}, {id:134,name:"Vaporeon"}, {id:135,name:"Jolteon"}, {id:136,name:"Flareon"},
+  {id:196,name:"Espeon"}, {id:197,name:"Umbreon"}, {id:470,name:"Leafeon"},
+  {id:471,name:"Glaceon"}, {id:700,name:"Sylveon"}
+];
+
+
+// ----- Preferences
+const includeShinies       = localStorage.getItem("includeShinies") === "true";
+const shinyOnly            = localStorage.getItem("shinyOnly") === "true";
+const addPikaEevee         = localStorage.getItem("addPikaEevee") === "true";          // NEW
+const includeStarterLines  = localStorage.getItem("includeStarterLines") === "true";    // NEW
+
+
+// ----- Build pool (now honors Pikachu/Eevee + Full Starter Line)
+function dedupeById(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const p of arr) {
+    if (!seen.has(p.id)) { seen.add(p.id); out.push(p); }
+  }
+  return out;
+}
+
+// Build the working base list
+let working = [...baseStarters];
+
+// Optional: add Pikachu/Eevee bases
+if (addPikaEevee) {
+  working.push(PIKA_BASE, EEVEE_BASE);
+}
+
+// Optional: expand each base into its full line
+if (includeStarterLines) {
+  const expanded = [];
+  for (const p of working) {
+    if (p.id === PIKA_BASE.id)        expanded.push(...PIKA_LINE);
+    else if (p.id === EEVEE_BASE.id)  expanded.push(...EEVEE_LINE);
+    else if (STARTER_LINES.has(p.id)) expanded.push(...STARTER_LINES.get(p.id));
+    else expanded.push(p);
+  }
+  working = dedupeById(expanded);
+} else {
+  working = dedupeById(working);
+}
+
+// Finally, apply shiny toggles
 let pool = [];
 if (shinyOnly) {
-  pool = baseStarters.map(p => ({ ...p, shiny: true }));
+  pool = working.map(p => ({ ...p, shiny: true }));
 } else if (includeShinies) {
   pool = [
-    ...baseStarters.map(p => ({ ...p, shiny: false })),
-    ...baseStarters.map(p => ({ ...p, shiny: true }))
+    ...working.map(p => ({ ...p, shiny: false })),
+    ...working.map(p => ({ ...p, shiny: true })),
   ];
 } else {
-  pool = baseStarters.map(p => ({ ...p, shiny: false }));
+  pool = working.map(p => ({ ...p, shiny: false }));
 }
+
 
 // --- Engine v0 init (no behavior change) ---
 if (window.prEngine && typeof prEngine.init === 'function') {
@@ -268,8 +364,14 @@ window._debugPostView = () => {
 function startersLabel() {
   const includeShinies = localStorage.getItem("includeShinies") === "true";
   const shinyOnly      = localStorage.getItem("shinyOnly") === "true";
-  return `Starters – ${shinyOnly ? 'Shinies Only' : includeShinies ? 'Include Shinies' : 'No Shinies'}`;
+  const addPikaEevee   = localStorage.getItem("addPikaEevee") === "true";
+  const linesOn        = localStorage.getItem("includeStarterLines") === "true";
+
+  const shinyTag = shinyOnly ? 'Shinies Only' : (includeShinies ? 'Include Shinies' : 'No Shinies');
+  const extras   = [ addPikaEevee ? '+Pika/Eevee' : '', linesOn ? '+Lines' : '' ].filter(Boolean).join(' • ');
+  return `Starters – ${shinyTag}${extras ? ' • ' + extras : ''}`;
 }
+
 
 // Minimal sprite snapshot for slot cards
 function currentMatchupSnapshot() {

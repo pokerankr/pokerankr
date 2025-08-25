@@ -265,6 +265,63 @@ function updateGenTogglesVisibility() {
   updateGenTogglesVisibility();
 }
 
+if (cat === 'starters') {
+  // 1) Ensure the switch CSS exists once (very small, ~10 rules)
+  if (!document.getElementById('pr-toggle-css')) {
+    const style = document.createElement('style');
+    style.id = 'pr-toggle-css';
+    style.textContent = `
+      .pr-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+      .pr-toggle input{position:absolute;opacity:0;width:0;height:0}
+      .pr-switch{width:44px;height:24px;border-radius:9999px;background:#e5e7eb;position:relative;transition:background .18s ease}
+      .pr-switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:9999px;background:#fff;
+        box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s ease}
+      .pr-toggle input:checked + .pr-switch{background:#2563eb}
+      .pr-toggle input:checked + .pr-switch::after{transform:translateX(20px)}
+      .pr-state{min-width:28px;font-size:.9rem;color:#6b7280}
+      .pr-state[data-onoff="off"]::before{content:"Off"}
+      .pr-state[data-onoff="on"]::before{content:"On"}
+    `;
+    document.head.appendChild(style);
+  }
+
+  // 2) Render the two switches
+  extraOptions.innerHTML = `
+    <div class="settings" style="display:flex;gap:20px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:6px;">
+      <label class="pr-toggle">
+        <input id="tgPikaEeveeCfg" type="checkbox" role="switch" aria-label="Add Pikachu and Eevee">
+        <span class="pr-switch" aria-hidden="true"></span>
+        <span>Add Pikachu & Eevee?</span>
+        <span class="pr-state" id="tgPikaEeveeState" aria-hidden="true" data-onoff="off"></span>
+      </label>
+
+      <label class="pr-toggle">
+        <input id="tgStarterLinesCfg" type="checkbox" role="switch" aria-label="Full Starter Line">
+        <span class="pr-switch" aria-hidden="true"></span>
+        <span>Full Starter Line</span>
+        <span class="pr-state" id="tgStarterLinesState" aria-hidden="true" data-onoff="off"></span>
+      </label>
+    </div>
+  `;
+
+  // 3) Hydrate from previous choices (if any)
+  const get = k => localStorage.getItem(k) === 'true';
+  const elP = extraOptions.querySelector('#tgPikaEeveeCfg');
+  const elL = extraOptions.querySelector('#tgStarterLinesCfg');
+  const stP = extraOptions.querySelector('#tgPikaEeveeState');
+  const stL = extraOptions.querySelector('#tgStarterLinesState');
+
+  elP.checked = get('addPikaEevee');
+  elL.checked = get('includeStarterLines');
+  stP.dataset.onoff = elP.checked ? 'on' : 'off';
+  stL.dataset.onoff = elL.checked ? 'on' : 'off';
+
+  // 4) Live “On/Off” indicator (purely visual for now)
+  elP.addEventListener('change', () => { stP.dataset.onoff = elP.checked ? 'on' : 'off'; });
+  elL.addEventListener('change', () => { stL.dataset.onoff = elL.checked ? 'on' : 'off'; });
+}
+
+
 if (cat === 'legendaries') {
   extraOptions.innerHTML = `
     <div class="legendary-row" style="margin-bottom:12px;">
@@ -419,22 +476,23 @@ config.toggles = {
 }
 
 
-    if (category === 'starters') config.filters.starters = true;
+if (category === 'starters') {
+  config.filters.starters = true;
 
- if (category === 'legendaries') {
-  config.filters.legendaries = true;
+  // Read our slide toggles if they exist (default to Off if they aren’t on the page)
+  const pe = extraOptions.querySelector('#tgPikaEeveeCfg');     // “Add Pikachu & Eevee”
+  const fl = extraOptions.querySelector('#tgStarterLinesCfg');  // “Full Starter Line”
 
-  const mythSel  = extraOptions.querySelector('#mythicals');
-  const ubSel    = extraOptions.querySelector('#ubMode');
-  const formsSel = extraOptions.querySelector('#formsMode');
+  const addPikaEevee        = !!pe?.checked;
+  const includeStarterLines  = !!fl?.checked;
 
-  const mythMode  = mythSel?.value  || 'none';    // 'none' | 'include' | 'only'
-  const ubsMode   = ubSel?.value    || 'exclude'; // 'exclude' | 'include' | 'only'
-  const formsMode = formsSel?.value || 'off';     // 'off' | 'gmax' | 'mega' | 'both'
+  // Persist for the Starters page
+  localStorage.setItem('addPikaEevee',       String(addPikaEevee));
+  localStorage.setItem('includeStarterLines', String(includeStarterLines));
 
-  config.toggles = { mythMode, ubsMode, formsMode };
+  // Also mirror into this run’s config (handy if you read rankConfig)
+  config.toggles = { addPikaEevee, includeStarterLines };
 }
-
 
 if (category === 'type') {
   const isDual = !!getEl('modeDual')?.checked;
