@@ -28,16 +28,37 @@ if (rc?.category === "generation") {
     label = "Legendaries";
   }
 
+  // NEW: include a Forms tag when any forms are enabled
+  const t = rc?.toggles || {};
+
+  const regionalMode  = (typeof t.regionalMode === 'string')
+    ? t.regionalMode                     // 'off' | 'include'
+    : (t.regional ? 'include' : 'off');  // legacy boolean -> mode
+
+  const altBattleMode = (typeof t.altBattleMode === 'string')
+    ? t.altBattleMode                    // 'off' | 'include'
+    : (t.altBattle ? 'include' : 'off'); // legacy boolean -> mode
+
+  const specialFormsMode = (typeof t.formsMode === 'string')
+    ? t.formsMode                        // 'off' | 'gmax' | 'mega' | 'both'
+    : ((typeof t.formsSpecialMode === 'string') ? t.formsSpecialMode : 'off');
+
+  const formsTag = (
+    regionalMode === 'include' ||
+    altBattleMode === 'include' ||
+    specialFormsMode !== 'off'
+  ) ? " • +Forms" : "";
+
   const shinyTag = window.shinyOnly
     ? " • Shiny-only✨"
     : (window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 
-  const t = rc?.toggles || {};
   const gmaxTag = t.gmax
     ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
     : "";
 
-  titleEl.textContent = label + shinyTag + gmaxTag;
+  // Order to match your spec: Label • +Forms • +Shinies • (+G-Max)
+  titleEl.textContent = label + formsTag + shinyTag + gmaxTag;
 })();
 
 
@@ -1074,16 +1095,37 @@ function rankerLabel(){
     }
   }
 
+  // NEW: include a Forms tag when any forms are enabled
+  const t = (window.rankConfig && window.rankConfig.toggles) || {};
+
+  const regionalMode  = (typeof t.regionalMode === 'string')
+    ? t.regionalMode                     // 'off' | 'include'
+    : (t.regional ? 'include' : 'off');  // legacy boolean -> mode
+
+  const altBattleMode = (typeof t.altBattleMode === 'string')
+    ? t.altBattleMode                    // 'off' | 'include'
+    : (t.altBattle ? 'include' : 'off'); // legacy boolean -> mode
+
+  const specialFormsMode = (typeof t.formsMode === 'string')
+    ? t.formsMode                        // 'off' | 'gmax' | 'mega' | 'both'
+    : ((typeof t.formsSpecialMode === 'string') ? t.formsSpecialMode : 'off');
+
+  const formsTag = (
+    regionalMode === 'include' ||
+    altBattleMode === 'include' ||
+    specialFormsMode !== 'off'
+  ) ? " • +Forms" : "";
+
   const shinyTag = window.shinyOnly
-  ? " • Shiny-only✨"
-  : (window.includeShinies ? " • +Shinies✨" : " • No Shinies");
+    ? " • Shiny-only✨"
+    : (window.includeShinies ? " • +Shinies✨" : " • No Shinies");
 
-const t = (window.rankConfig && window.rankConfig.toggles) || {};
-const gmaxTag = t.gmax
-  ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
-  : "";
+  const gmaxTag = t.gmax
+    ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
+    : "";
 
-return label + shinyTag + gmaxTag;
+  return label + formsTag + shinyTag + gmaxTag;
+
 }
 
 function spriteUrl(id, shiny){

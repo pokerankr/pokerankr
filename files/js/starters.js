@@ -367,11 +367,32 @@ function startersLabel() {
   const addPikaEevee   = localStorage.getItem("addPikaEevee") === "true";
   const linesOn        = localStorage.getItem("includeStarterLines") === "true";
 
-  const shinyTag = shinyOnly ? 'Shinies Only' : (includeShinies ? 'Include Shinies' : 'No Shinies');
-  const extras   = [ addPikaEevee ? '+Pika/Eevee' : '', linesOn ? '+Lines' : '' ].filter(Boolean).join(' • ');
-  return `Starters – ${shinyTag}${extras ? ' • ' + extras : ''}`;
+    // NEW: simplified phrasing to match dynamic title
+  const base = linesOn ? "Starter Lines" : "Starters";
+  const shinyBit = shinyOnly ? " - Shiny Only" : (includeShinies ? " + Shinies" : "");
+  const extras   = addPikaEevee ? " + Pika/Eevee" : "";
+
+  return `${base}${extras}${shinyBit}`;
 }
 
+// NEW: write a dynamic title into #modeTitle for Starters mode
+function setStartersTitle() {
+  const includeShinies = localStorage.getItem("includeShinies") === "true";
+  const shinyOnly      = localStorage.getItem("shinyOnly") === "true";
+  const addPikaEevee   = localStorage.getItem("addPikaEevee") === "true";
+  const linesOn        = localStorage.getItem("includeStarterLines") === "true";
+
+  // Base label matches your spec
+  const base = linesOn ? "Starter Lines" : "Starters";
+
+  // Suffixes in your requested style:
+  //   "Starter Lines + Shinies", "Starter Lines - Shiny Only", etc.
+  const shinyBit = shinyOnly ? " - Shiny Only" : (includeShinies ? " + Shinies" : "");
+  const extras   = addPikaEevee ? " + Pika/Eevee" : "";
+
+  const el = document.getElementById("modeTitle");
+  if (el) el.textContent = `${base}${extras}${shinyBit}`;
+}
 
 // Minimal sprite snapshot for slot cards
 function currentMatchupSnapshot() {
@@ -1418,7 +1439,8 @@ function saveResults() {
     return obj;
   };
 
-  const category = "Starters";
+    // Use the same dynamic label you see in the page title
+  const category = startersLabel();
   const comboKey = `${category}_${includeShinies}_${shinyOnly}`;
   const nowIso = new Date().toISOString();
 
@@ -1752,12 +1774,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const s = Array.isArray(slots) ? slots[idx] : null;
       if (s && s.type === 'starters') {
         loadStarterSession(s);
+        setStartersTitle();            // NEW
         return;
       }
     }
   } catch {}
   // No pending resume → render current phase correctly
+  setStartersTitle();                  // NEW
   displayMatchup();
   (isInPost() ? updatePostProgress() : updateProgress());
   updateUndoButton();
 });
+
