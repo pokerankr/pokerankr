@@ -28,8 +28,18 @@ if (rc?.category === "generation") {
     label = "Legendaries";
   }
 
-  titleEl.textContent = label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
+  const shinyTag = window.shinyOnly
+    ? " • Shiny-only✨"
+    : (window.includeShinies ? " • +Shinies✨" : " • No Shinies");
+
+  const t = rc?.toggles || {};
+  const gmaxTag = t.gmax
+    ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
+    : "";
+
+  titleEl.textContent = label + shinyTag + gmaxTag;
 })();
+
 
 // ===== Type Mode — data loader + filter (additive) =====
 async function _prLoadPokemonDb() {
@@ -132,6 +142,8 @@ const ALT_BATTLE_FORMS_BY_GEN = {
     { id: 905, variety: "enamorus-therian" },
   ],
 
+  
+
   9: [
     // Tauros (Paldea breeds) — FIXED slugs
 { id: 128, variety: "tauros-paldea-combat-breed" },
@@ -158,35 +170,100 @@ const ALT_BATTLE_FORMS_BY_GEN = {
   ],
 };
 
+// NEW: Gigantamax (and Eternamax) forms that should be available when toggled on.
+// We treat Eternamax alongside G-Max, per your request to “include each of those listed”.
+const GMAX_FORMS_BY_GEN = {
+  8: [
+    // Kanto & others brought forward into SwSh (Gen 8)
+    { id: 3,   variety: 'venusaur-gmax' },
+    { id: 6,   variety: 'charizard-gmax' },
+    { id: 9,   variety: 'blastoise-gmax' },
+    { id: 12,  variety: 'butterfree-gmax' },
+    { id: 25,  variety: 'pikachu-gmax' },
+    { id: 52,  variety: 'meowth-gmax' },
+    { id: 68,  variety: 'machamp-gmax' },
+    { id: 94,  variety: 'gengar-gmax' },
+    { id: 99,  variety: 'kingler-gmax' },
+    { id: 131, variety: 'lapras-gmax' },
+    { id: 133, variety: 'eevee-gmax' },
+    { id: 143, variety: 'snorlax-gmax' },
+    { id: 569, variety: 'garbodor-gmax' },
+    { id: 809, variety: 'melmetal-gmax' },
+
+    // Native Gen 8
+    { id: 812, variety: 'rillaboom-gmax' },
+    { id: 815, variety: 'cinderace-gmax' },
+    { id: 818, variety: 'inteleon-gmax' },
+    { id: 823, variety: 'corviknight-gmax' },
+    { id: 826, variety: 'orbeetle-gmax' },
+    { id: 834, variety: 'drednaw-gmax' },
+    { id: 839, variety: 'coalossal-gmax' },
+    // Use a single entry for the shared Appletun/Flapple G-Max (we’ll override the label next)
+    { id: 842, variety: 'appletun-gmax' },
+    { id: 844, variety: 'sandaconda-gmax' },
+    // Use a single entry for the shared Toxtricity G-Max (Amped/Low Key share the same G-Max)
+    { id: 849, variety: 'toxtricity-amped-gmax' },
+    { id: 851, variety: 'centiskorch-gmax' },
+    { id: 858, variety: 'hatterene-gmax' },
+    { id: 861, variety: 'grimmsnarl-gmax' },
+    { id: 869, variety: 'alcremie-gmax' },
+    { id: 879, variety: 'copperajah-gmax' },
+    { id: 884, variety: 'duraludon-gmax' },
+    { id: 892, variety: 'urshifu-single-strike-gmax' },
+    { id: 892, variety: 'urshifu-rapid-strike-gmax' },
+
+    // Eternamax (include with G-Max toggle per your request)
+    { id: 890, variety: 'eternatus-eternamax' },
+  ],
+};
 
 
-// Helper: build a nice display name for an alt/battle entry
+// Helper: build a nice display name for an alt/battle entry (and G-Max/Eternamax)
 function friendlyNameForVariety(variety){
   // 1) exact curated override
   if (FRIENDLY_NAME_OVERRIDES[variety]) return FRIENDLY_NAME_OVERRIDES[variety];
 
   const slug = String(variety || '');
 
+    // SPECIAL-CASE: Toxtricity (Amped/Low Key) share the same G-Max
+  if (/^toxtricity-(?:amped|low-key)-gmax$/i.test(slug)) {
+    return 'Toxtricity (G-Max)';
+  }
+
+  // SPECIAL-CASE: Appletun/Flapple share the same G-Max
+  if (/^(?:appletun|flapple)-gmax$/i.test(slug)) {
+    return 'Appletun/Flapple (G-Max)';
+  }
+
   // 2) Megas → "Mega <Base> (X/Y if present)"
-  //    Handles: "charizard-mega-x", "charizard-mega-y", "beedrill-mega", "rayquaza-mega", "mewtwo-mega-x|y", etc.
   if (/-mega(?:-[xy])?$/i.test(slug)) {
     const base = slug.replace(/-mega(?:-[xy])?$/i, '');
     let suffix = '';
     if (/-mega-x$/i.test(slug)) suffix = ' (X)';
     if (/-mega-y$/i.test(slug)) suffix = ' (Y)';
-    const prettyBase = base.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-    return `Mega ${prettyBase}${suffix}`;
+    return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
   }
 
-  // 3) fallback: derive "Base (Form ...)" from the slug
-  const parts = slug.split('-').filter(Boolean);
-  if (!parts.length) return '';
-  const base = parts.shift();
-  const form = parts.join(' ');
-  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-  const capWords = (s) => s.split(' ').map(cap).join(' ');
-  return `${cap(base)} (${capWords(form)})`;
+  // 3) G-Max → "<Base> (…optional form…) (G-Max)"
+  if (/-gmax$/i.test(slug)) {
+    const parts = slug.split('-');
+    const base = parts[0];
+    const pre = parts.slice(1, -1); // tokens before the trailing gmax
+    const preLabel = pre.length ? ` (${pre.map(s => titleize(s).replace(/-/g, ' ')).join(' ')})` : '';
+    return `${titleize(base).replace(/-/g, ' ')}${preLabel} (G-Max)`;
+  }
+
+  // 4) Eternamax → "Eternatus (Eternamax)"
+  if (/-eternamax$/i.test(slug)) {
+    const base = slug.replace(/-eternamax$/i, '');
+    return `${titleize(base).replace(/-/g, ' ')} (Eternamax)`;
+  }
+
+  // 5) Fallback: "<Base> (Form)" for common dashy slugs
+  const titled = titleize(slug).replace(/-/g, '-');
+  return normalizeFormHyphen(titled).replace(/-/g, ' ');
 }
+
 // ---------- Legendaries data (IDs only, no Paradox, no Megas) ----------
 const LEGENDS_CORE = [
   // Gen 1
@@ -346,8 +423,10 @@ function buildLegendariesPool() {
 // ----- Pool builder (Gen 1–2)
 function buildGenPool(gen){
   const toggles = (window.rankConfig && window.rankConfig.toggles) || window.toggles || {};
-  const includeRegional = !!toggles.regional;      // Regional forms (Alola / Galar / Hisui)
-  const includeAltBattle = !!toggles.altBattle;    // Alternate/Battle forms (e.g., Lycanroc)
+  const includeRegional  = !!toggles.regional;      // Regional forms (Alola / Galar / Hisui)
+  const includeAltBattle = !!toggles.altBattle;     // Alternate/Battle forms (e.g., Lycanroc)
+  const includeGmax      = !!toggles.gmax;          // NEW: G-Max / Eternamax
+  const gmaxOnly         = includeGmax && !!toggles.gmaxOnly; // NEW: G-Max only
 
   // ----- Regional/alt-form → generation overrides (forms that belong to a later gen)
   // Only include forms whose *base dex ID* is from an earlier gen, but the form debuted later.
@@ -400,14 +479,16 @@ function buildGenPool(gen){
   const [start, end] = ranges[gen] || [];
   if (!start) return [];
 
-  // Base pool by national dex range
-  const ids = Array.from({length: end - start + 1}, (_,i)=> start + i);
-  let pool = [];
-  ids.forEach(id => { pool.push(...entriesFor(id, null)); });
+ // Base pool by national dex range
+const ids = Array.from({length: end - start + 1}, (_,i)=> start + i);
+let pool = [];
+if (!gmaxOnly) {
+  ids.forEach(id => { pool.push(entriesFor(id, null)); });
+}
 
     // ✅ Inject Regional forms for this gen ONLY if toggle is on
-  if (includeRegional) {
-    const formsForGen = FORM_GEN_OVERRIDES.filter(f => f.gen === gen);
+  if (includeRegional && !gmaxOnly) {
+   const formsForGen = FORM_GEN_OVERRIDES.filter(f => f.gen === gen);
 
     // Track existing display names to avoid dup labels
     const existingNames = new Set(
@@ -423,8 +504,8 @@ function buildGenPool(gen){
     });
   }
 
-// ✅ Inject Alternate/Battle forms for this gen ONLY if toggle is on
-if (includeAltBattle && ALT_BATTLE_FORMS_BY_GEN[gen]?.length) {
+// ✅ Inject Alternate/Battle forms (disabled when G-Max only)
+if (!gmaxOnly && includeAltBattle && ALT_BATTLE_FORMS_BY_GEN[gen]?.length) {
   // Index existing entries by id
   const byId = new Map();
   pool.forEach((p, idx) => {
@@ -483,8 +564,31 @@ if (
     }
   });
 }
+  // ✅ Inject G-Max/Eternamax (Gen 8 or All) only if toggle is on
+  if (includeGmax && GMAX_FORMS_BY_GEN[gen]?.length) {
+    const existingNames = new Set(
+      pool.map(m => (m.name || '').toLowerCase()).filter(Boolean)
+    );
+    GMAX_FORMS_BY_GEN[gen].forEach(entry => {
+      const display = friendlyNameForVariety(entry.variety);
+      if (!existingNames.has(display.toLowerCase())) {
+        const base = { id: entry.id, name: display, variety: entry.variety };
+        if (window.shinyOnly) {
+          pool.push({ ...base, shiny: true });
+        } else if (window.includeShinies) {
+          pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+        } else {
+          pool.push({ ...base, shiny: false });
+        }
+        existingNames.add(display.toLowerCase());
+      }
+    });
+  }
+
   return pool;
 }
+
+
 
 // Build a pool containing every Gen (1–9), honoring the same toggles
 function buildAllPool(){
@@ -802,7 +906,16 @@ function rankerLabel(){
     }
   }
 
-  return label + (window.shinyOnly ? " • Shiny-only✨" : window.includeShinies ? " • +Shinies✨" : " • No Shinies");
+  const shinyTag = window.shinyOnly
+  ? " • Shiny-only✨"
+  : (window.includeShinies ? " • +Shinies✨" : " • No Shinies");
+
+const t = (window.rankConfig && window.rankConfig.toggles) || {};
+const gmaxTag = t.gmax
+  ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
+  : "";
+
+return label + shinyTag + gmaxTag;
 }
 
 function spriteUrl(id, shiny){
@@ -2398,25 +2511,32 @@ const obj = {
       category = 'Type';
     }
   }
+// after computing `category` in saveResults()…
+const t = (window.rankConfig && window.rankConfig.toggles) || {};
+const gmaxTag = t.gmax ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max") : "";
+category = category + gmaxTag;   // <- include G-Max in the saved label
 
-  const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
+const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
   const nowIso = new Date().toISOString();
 
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem("savedRankings") || "[]"); } catch {}
   saved = saved.filter(r => (r.key || r.id) !== comboKey);
-  saved.push({
-    key: comboKey,
-    lastModified: nowIso,
-    date: nowIso,
-    category,
-    includeShinies: !!window.includeShinies,
-    shinyOnly: !!window.shinyOnly,
-    champion:   pack(champion, 'CHAMP'),
-    runnerUp:   pack(runnerUp, 'RU'),
-    thirdPlace: pack(thirdPlace, 'THIRD'),
-    honorable:  pack(honorable, 'HM')
-  });
+ saved.push({
+  key: comboKey,
+  lastModified: nowIso,
+  date: nowIso,
+  category,
+  includeShinies: !!window.includeShinies,
+  shinyOnly: !!window.shinyOnly,
+  toggles: (window.rankConfig && window.rankConfig.toggles) || {},
+  label: rankerLabel(),  // <- full label e.g., "Gen 8 • No Shinies • +G-Max"
+  champion:   pack(champion, 'CHAMP'),
+  runnerUp:   pack(runnerUp, 'RU'),
+  thirdPlace: pack(thirdPlace, 'THIRD'),
+  honorable:  pack(honorable, 'HM')
+});
+
 
   try {
     localStorage.setItem("savedRankings", JSON.stringify(saved));

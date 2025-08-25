@@ -54,8 +54,8 @@
   lastSnap: null
 };
 
-    // Engine-local undo stack for KOTH (array of snapshots)
-    let history = [];
+// Single-step undo snapshot for KOTH
+let kothLastSnap = null;
 
     // ----- helpers -----
     const monKey = (p) => p ? `${p.id}-${p.shiny ? 1 : 0}` : "";
@@ -434,7 +434,9 @@ emitPhaseChange();
     // ---- KOTH choose ----
     function chooseKoth(side) {
       if (!current || !next) return;
-      history.push(snapshot()); // undo point
+     // AFTER (inside chooseKoth)
+      kothLastSnap = snapshot(); // one-step undo point
+
 
       const winner = (side === "left") ? current : next;
       const loser  = (side === "left") ? next : current;
@@ -560,14 +562,18 @@ emitPhaseChange();
       },
 
       undo() {
-        if (phase === "KOTH") {
-          if (history.length === 0) return snapshot();
-          const prev = history.pop();
-          restore(prev);
-          emitMatchReady();
-          emitProgress();
-          return snapshot();
-        }
+        // AFTER
+      if (phase === "KOTH") {
+        if (!kothLastSnap) return null;  // no-op: nothing to undo
+        const prev = kothLastSnap;
+        kothLastSnap = null;             // consume the one-step snapshot
+        restore(prev);
+        emitMatchReady();
+        emitProgress();
+        return snapshot();
+      }
+
+
         // RU/THIRD single-step
         postUndoToSnapshot();
         return snapshot();
@@ -601,7 +607,8 @@ emitPhaseChange();
         post.lastSnap = null;
         post.ruR1Pairs.clear();
 
-        history = [];
+        // AFTER (end of reset)
+        kothLastSnap = null;
         emitMatchReady();
         emitProgress();
         return this;

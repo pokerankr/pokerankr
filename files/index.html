@@ -168,15 +168,26 @@ extraOptions.innerHTML = `
     </div>
   </div>
 
-  <!-- Per-gen toggles (shown/hidden by JS) -->
+    <!-- Per-gen toggles (shown/hidden by JS) -->
   <div class="settings" id="genToggleRow" style="display:none; margin-top:8px;">
     <label id="lblToggleRegional" style="display:none;">
       <input type="checkbox" id="toggle-regional" />
       Include Regional Forms (Alola/Galar/Hisui)
     </label>
+
     <label id="lblToggleAltBattle" style="display:none;">
       <input type="checkbox" id="toggle-altbattle" />
       Include Alternate/Battle Forms
+    </label>
+
+    <!-- NEW: G-Max toggles (Gen 8 and All only) -->
+    <label id="lblToggleGmax" style="display:none;">
+      <input type="checkbox" id="toggle-gmax" />
+      Add G-Max Forms
+    </label>
+    <label id="lblToggleGmaxOnly" style="display:none;">
+      <input type="checkbox" id="toggle-gmax-only" />
+      G-Max only
     </label>
   </div>
 `;
@@ -200,29 +211,59 @@ extraOptions.innerHTML = `
  const REGIONAL_MIN_GEN = 7;
 const ALT_BATTLE_GENS = new Set([7,8,9]);
 
-const row           = extraOptions.querySelector('#genToggleRow');
-const chkRegional   = extraOptions.querySelector('#toggle-regional');
-const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
-const lblRegional   = extraOptions.querySelector('#lblToggleRegional');
-const lblAltBattle  = extraOptions.querySelector('#lblToggleAltBattle');
+const row             = extraOptions.querySelector('#genToggleRow');
+const chkRegional     = extraOptions.querySelector('#toggle-regional');
+const chkAltBattle    = extraOptions.querySelector('#toggle-altbattle');
+const lblRegional     = extraOptions.querySelector('#lblToggleRegional');
+const lblAltBattle    = extraOptions.querySelector('#lblToggleAltBattle');
+
+// NEW
+const chkGmax         = extraOptions.querySelector('#toggle-gmax');
+const chkGmaxOnly     = extraOptions.querySelector('#toggle-gmax-only');
+const lblGmax         = extraOptions.querySelector('#lblToggleGmax');
+const lblGmaxOnly     = extraOptions.querySelector('#lblToggleGmaxOnly');
 
 function updateGenTogglesVisibility() {
   const sel = extraOptions.dataset.selectedGen;
   const isAll = (sel === "ALL");
   const g = isAll ? NaN : parseInt(sel, 10);
 
-  const showRegional  = isAll || (g >= REGIONAL_MIN_GEN);
-  const showAltBattle = isAll || ALT_BATTLE_GENS.has(g);
+  const showRegional   = isAll || (g >= REGIONAL_MIN_GEN);
+  const showAltBattle  = isAll || ALT_BATTLE_GENS.has(g);
 
-  lblRegional.style.display  = showRegional  ? '' : 'none';
-  lblAltBattle.style.display = showAltBattle ? '' : 'none';
+  // Show "Add G-Max Forms" for Gen 8 and All
+  const showGmax       = isAll || g === 8;
 
-  row.style.display = (showRegional || showAltBattle) ? '' : 'none';
+  // Show "G-Max only" for Gen 8 ONLY (hide it for All)
+  const showGmaxOnly   = g === 8;
 
-  if (!showRegional && chkRegional)   chkRegional.checked = false;
-  if (!showAltBattle && chkAltBattle) chkAltBattle.checked = false;
+  lblRegional.style.display   = showRegional   ? '' : 'none';
+  lblAltBattle.style.display  = showAltBattle  ? '' : 'none';
+  lblGmax.style.display       = showGmax       ? '' : 'none';
+  lblGmaxOnly.style.display   = showGmaxOnly   ? '' : 'none';
+
+  // Row visible if any toggle is visible
+  row.style.display = (showRegional || showAltBattle || showGmax) ? '' : 'none';
+
+  // Reset toggles that are hidden
+  if (!showRegional && chkRegional)      chkRegional.checked = false;
+  if (!showAltBattle && chkAltBattle)    chkAltBattle.checked = false;
+  if (!showGmax && chkGmax)              chkGmax.checked = false;
+
+  // "G-Max only" is disabled unless G-Max is on; and hidden entirely for Gen All
+  if (chkGmaxOnly) {
+    if (!showGmaxOnly) {
+      chkGmaxOnly.checked = false;
+      chkGmaxOnly.disabled = true;
+    } else {
+      chkGmaxOnly.disabled = !chkGmax?.checked;
+      if (!chkGmax?.checked) chkGmaxOnly.checked = false;
+    }
+  }
 }
 
+// keep “G-Max only” in sync when the G-Max box is toggled
+chkGmax?.addEventListener('change', updateGenTogglesVisibility);
 
   // Initialize visibility for the default selected gen
   updateGenTogglesVisibility();
@@ -328,12 +369,17 @@ if (cat === 'type') {
   config.filters.generation = (gen === "ALL") ? "ALL" : parseInt(gen, 10);
 
   // pass toggles along
-  const chkRegional  = extraOptions.querySelector('#toggle-regional');
-  const chkAltBattle = extraOptions.querySelector('#toggle-altbattle');
-  config.toggles = {
-    regional: !!(chkRegional && chkRegional.checked),
-    altBattle: !!(chkAltBattle && chkAltBattle.checked),
-  };
+const chkRegional   = extraOptions.querySelector('#toggle-regional');
+const chkAltBattle  = extraOptions.querySelector('#toggle-altbattle');
+const chkGmax       = extraOptions.querySelector('#toggle-gmax');
+const chkGmaxOnly   = extraOptions.querySelector('#toggle-gmax-only');
+
+config.toggles = {
+  regional:  !!chkRegional?.checked,
+  altBattle: !!chkAltBattle?.checked,
+  gmax:      !!chkGmax?.checked,
+  gmaxOnly:  !!chkGmaxOnly?.checked, // only meaningful if gmax === true
+};
 }
 
 
