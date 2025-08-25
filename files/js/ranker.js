@@ -1291,22 +1291,28 @@ function awaitName(id){
     .catch(() => nameCache[id] || `#${String(id).padStart(3,"0")}`);
 }
 
-// Resolve when an <img> actually loads, or when all fallbacks are exhausted—no fixed delay.
 function awaitImgLoaded(img){
   return new Promise((resolve) => {
     if (!img) return resolve();
-    if (img.complete && img.naturalWidth > 0) return resolve();
 
-    const onLoad = () => { cleanup(); resolve(); };
+    const isRealSrc = () => img && typeof img.src === 'string' && !img.src.startsWith('data:');
+
+    // Only resolve immediately if a non-data image is already loaded
+    if (img.complete && img.naturalWidth > 0 && isRealSrc()) return resolve();
+
+    const onLoad = () => {
+      // Gate on REAL src (not the 1x1 data URI)
+      if (isRealSrc()) { cleanup(); resolve(); }
+    };
     const onError = () => {
-      // If there are still fallback URLs to try, the inline onerror will advance img.src.
-      // Keep listening. If there are no more, resolve so UI can continue gracefully.
+      // Wait through any queued fallbacks
       try {
         const steps = JSON.parse(img.dataset.fallbacks || '[]');
         const i = parseInt(img.dataset.step || '0', 10);
-        if (i < steps.length) return; // more fallbacks pending; wait
+        if (i < steps.length) return;
       } catch {}
-      cleanup(); resolve();
+      // If we've errored on a real URL (not data:), allow UI to continue
+      if (isRealSrc()) { cleanup(); resolve(); }
     };
     const cleanup = () => {
       img.removeEventListener('load', onLoad);
@@ -1385,11 +1391,27 @@ async function ensureArtworkIdForVariety(varietySlug){
 
   try {
     const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${key}`, { cache: 'force-cache' });
-    if (!resp.ok) {
-      artIdCache[key] = -1; // negative cache: don’t keep retrying this slug
-      saveArtIdCache();
-      return null;
+if (!resp.ok) {
+  artIdCache[key] = -1; // negative cache: don’t keep retrying this slug
+  saveArtIdCache();
+
+  // ⬇️ NEW: Any images on the page waiting on this variety should fall back to base art
+  const nodes = document.querySelectorAll(`img[data-variety="${varietySlug}"], img[data-variety="${key}"]`);
+  nodes.forEach(img => {
+    const baseId = parseInt(img.dataset.pid || '0', 10);
+    if (baseId > 0) {
+      const shiny = img.dataset.shiny === '1';
+      const chain = buildOfficialChainFromId(baseId, shiny);
+      img.dataset.step = "0";
+      img.src = chain[0];
+      img.dataset.fallbacks = JSON.stringify(chain.slice(1));
+      img.style.visibility = 'visible';
     }
+  });
+
+  return null;
+}
+
     const data = await resp.json();
     const id = data?.id;
     if (typeof id === 'number' && id > 0) {
@@ -1516,15 +1538,16 @@ function getImageTag(p, opts = {}) {
   const safeAlt = alt || (p.name || (nameCache && nameCache[p.id]) || "");
 
   return `<img
-    src="${first}"
-    alt="${safeAlt}"
-    style="visibility:hidden"
-    width="256" height="256"
-    data-variety="${variety || ''}"
-    data-shiny="${wantShiny ? '1' : '0'}"
-    data-step="0"
-    data-fallbacks='${JSON.stringify(chain.slice(1))}'
-    onload="if (this.src.indexOf('data:')!==0) this.style.visibility='visible'"
+  src="${first}"
+  alt="${safeAlt}"
+  style="visibility:hidden"
+  width="256" height="256"
+  data-pid="${p.id}"
+  data-variety="${variety || ''}"
+  data-shiny="${wantShiny ? '1' : '0'}"
+  data-step="0"
+  data-fallbacks='${JSON.stringify(chain.slice(1))}'
+  onload="if (this.src.indexOf('data:')!==0) this.style.visibility='visible'"
     onerror="
       try {
         this.style.visibility='hidden';
