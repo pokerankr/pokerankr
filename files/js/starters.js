@@ -928,65 +928,74 @@ function buildOrUpdateSide(sideId, mon){
   const container = document.getElementById(sideId);
   if (!container) return;
 
-  const key    = _monKeyForSide(mon);
+  // create once (now with a square wrapper to prevent layout shift)
+  let img = container.querySelector('img[data-role="poke"]');
+  let nameP = container.querySelector('p[data-role="label"]');
+  if (!img) {
+    // clear any old junk
+    container.innerHTML = '';
+
+    // square wrapper reserves space immediately (CSS uses aspect-ratio)
+    const wrap = document.createElement('div');
+    wrap.className = 'matchup-img-wrap';
+
+    img = document.createElement('img');
+    img.setAttribute('data-role', 'poke');
+    img.setAttribute('width', '256');
+    img.setAttribute('height', '256');
+    img.style.visibility = 'hidden'; // will show onload
+    wrap.appendChild(img);
+    container.appendChild(wrap);
+
+    nameP = document.createElement('p');
+nameP.setAttribute('data-role', 'label');
+nameP.className = 'pkr-label';
+container.appendChild(nameP);
+  }
+
+  const key = _monKeyForSide(mon);
   const isLeft = (sideId === 'left');
   const prevKey = isLeft ? _prevLeftKey : _prevRightKey;
 
-  // Same mon → ensure visible & label in sync; nothing else to do
+  // Name text updates are cheap—always keep them in sync
+  nameP.textContent = (mon.shiny ? '⭐ ' : '') + (mon.name || '');
+
+  // If same mon as before, do nothing else (prevents flash)
   if (key === prevKey) {
-    const img = container.querySelector('img');
-    const nameP = container.querySelector('p[data-role="label"]');
-    if (nameP) nameP.textContent = (mon.shiny ? '⭐ ' : '') + (mon.name || '');
-    if (img) img.style.visibility = 'visible';
+    img.style.visibility = 'visible';
     return;
   }
 
-  // Lock height to avoid layout shift while we load off-DOM
-  const prevMinHeight = container.style.minHeight;
-  const lockedHeight  = Math.max(container.offsetHeight || 0, 320); // 256 + label
-  container.style.minHeight = `${lockedHeight}px`;
+  // New mon → (re)wire fallback chain & load
+  const chain = spriteUrlChain(mon.id, !!mon.shiny);
+  const first = chain[0];
+  const fallbacks = chain.slice(1);
 
-  // Off-screen prerender: build the exact markup we will show
-  const temp = document.createElement('div');
-  temp.style.position = 'absolute';
-  temp.style.left = '-9999px';
-  temp.style.top  = '0';
-  temp.innerHTML = `
-    <div class="matchup-img-wrap">
-      ${getImageTag(mon, mon.shiny, mon.name)}
-    </div>
-    <p data-role="label" class="pkr-label">${mon.shiny ? '⭐ ' : ''}${mon.name || ''}</p>
-  `;
-  document.body.appendChild(temp);
+  img.style.visibility = 'hidden';
+  img.dataset.step = '0';
+  img.dataset.fallbacks = JSON.stringify(fallbacks);
 
-  const img = temp.querySelector('img');
-  if (img) {
-    // tiny hints; no extra requests
-    img.fetchPriority = 'high';
-    img.decoding = 'async';
-    img.loading = 'eager';
-  }
-
-  const done = img ? awaitImgLoaded(img) : Promise.resolve();
-  done.then(() => {
-    // Swap in the already-loaded nodes atomically
-    container.innerHTML = '';
-    while (temp.firstChild) {
-      const node = temp.firstChild;
-      temp.removeChild(node);
-      if (node.tagName === 'IMG') node.style.visibility = 'visible';
-      container.appendChild(node);
+  img.onload = () => { img.style.visibility = 'visible'; };
+  img.onerror = () => {
+    try {
+      img.style.visibility = 'hidden';
+      const steps = JSON.parse(img.dataset.fallbacks || '[]');
+      let i = parseInt(img.dataset.step || '0', 10);
+      if (i < steps.length) {
+        img.dataset.step = String(++i);
+        img.src = steps[i-1];
+      } else {
+        img.onerror = null; // give up
+      }
+    } catch {
+      img.onerror = null;
     }
-    try { document.body.removeChild(temp); } catch {}
+  };
 
-    if (isLeft) _prevLeftKey = key; else _prevRightKey = key;
-  }).finally(() => {
-    requestAnimationFrame(() => {
-      container.style.minHeight = prevMinHeight || '';
-    });
-  });
+  img.src = first;
+
+  if (isLeft) _prevLeftKey = key; else _prevRightKey = key;
 }
-
 
 
 function displayMatchup() {
