@@ -380,6 +380,10 @@ const LEGENDARY_FORMS = [
   { id: 646, variety: "kyurem-black" },
   { id: 646, variety: "kyurem-white" },
 
+  // Zacian / Zamazenta crowned forms
+{ id: 888, variety: "zacian-crowned" },
+{ id: 889, variety: "zamazenta-crowned" },
+
   // Necrozma forms
 { id: 800, variety: "necrozma-dusk-mane" },
 { id: 800, variety: "necrozma-dawn-wings" },
@@ -483,9 +487,13 @@ FRIENDLY_NAME_OVERRIDES["necrozma-dusk-mane"] = "Necrozma (Dusk Mane)";
 FRIENDLY_NAME_OVERRIDES["necrozma-dawn-wings"] = "Necrozma (Dawn Wings)";
 FRIENDLY_NAME_OVERRIDES["necrozma-ultra"]     = "Necrozma (Ultra)";
 
-
-
-
+FRIENDLY_NAME_OVERRIDES["zacian-crowned"]    = "Zacian (Crowned Sword)";
+FRIENDLY_NAME_OVERRIDES["zamazenta-crowned"] = "Zamazenta (Crowned Shield)";
+FRIENDLY_NAME_OVERRIDES["tapu-koko"] = "Tapu Koko";
+FRIENDLY_NAME_OVERRIDES["tapu-bulu"] = "Tapu Bulu";
+FRIENDLY_NAME_OVERRIDES["tapu-lele"] = "Tapu Lele";
+FRIENDLY_NAME_OVERRIDES["tapu-fini"] = "Tapu Fini";
+FRIENDLY_NAME_OVERRIDES["type-null"] = "Type: Null";
 
 function buildLegendariesPool() {
   const toggles = (window.rankConfig && window.rankConfig.toggles) || {};
@@ -1251,6 +1259,8 @@ function titleize(s){ return (s||"").split("-").map(w=>w? w[0].toUpperCase()+w.s
 
 function normalizeFormHyphen(name){
   return String(name || '')
+    // 👇 First, catch Type: Null explicitly so it doesn’t get mangled
+    .replace(/^Type[-:\s]*Null$/i, 'Type: Null')
     // 👇 Core “dash to (Form)” mappings
     .replace(/-Incarnate$/i, ' (Incarnate)')
     .replace(/-Therian$/i,   ' (Therian)')
@@ -1273,10 +1283,9 @@ function normalizeFormHyphen(name){
 
     // Tapu-Lele → Tapu Lele (safety if it ever sneaks in hyphenated)
     .replace(/^Tapu-Lele$/i, 'Tapu Lele')
-
-    // Type-Null / Type: Null → Type Null
-    .replace(/^Type-Null$/i, 'Type Null')
-    .replace(/^Type: Null$/i,'Type Null')
+    .replace(/^Tapu-Fini$/i, 'Tapu Fini')
+    .replace(/^Tapu-Koko$/i, 'Tapu Koko')
+    .replace(/^Tapu-Bulu$/i, 'Tapu Bulu')
 
     // Other existing mappings you already had
     .replace(/-Pirouette$/i, ' (Pirouette)')
@@ -1314,30 +1323,11 @@ function finalizeName(raw){
 
   // Canon cleanup (your requested fixes, resilient to punctuation)
   n = n
-    .replace(/^Tapu\-Lele$/i, 'Tapu Lele')            // Tapu Lele
-    .replace(/^Type[-:\s]*Null$/i, 'Type Null')       // Type Null
-    .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)');  // Hoopa (Unbound)
+    .replace(/^Type[-:\s]*Null$/i, 'Type: Null')
+    .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)');
 
   return n;
 }
-
-
-// Final pass used *everywhere* before showing a name.
-function finalizeName(raw){
-  let n = String(raw || '').trim();
-
-  // First, apply the general dash→(Form) rules
-  n = normalizeFormHyphen(n);
-
-  // Then, clean up specific canon oddities (covers all modes)
-  n = n
-    .replace(/^Tapu\-Lele$/i, 'Tapu Lele')          // stray hyphen in names map
-    .replace(/^Type[-:\s]*Null$/i, 'Type Null')     // handles 'Type-Null' or 'Type: Null'
-    .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)'); // consistent with form style
-
-  return n;
-}
-
 
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
