@@ -122,6 +122,10 @@ const FRIENDLY_NAME_OVERRIDES = {
   "squawkabilly-green-plumage": "Squawkabilly",
 
   "tauros-paldea-combat-breed":    "Combat Paldean Tauros",
+
+  // Urshifu G-Max, shorter for layout
+  "urshifu-rapid-strike-gmax":  "Urshifu (Rapid) (G-Max)",
+  "urshifu-single-strike-gmax": "Urshifu (Single) (G-Max)",
 };
 
 // Minimal starter set for Alternate/Battle forms by generation.
@@ -265,6 +269,12 @@ function friendlyNameForVariety(variety){
     return `Mega ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
   }
 
+  // just above the generic G-Max block inside friendlyNameForVariety()
+if (/^urshifu-(rapid|single)-strike-gmax$/i.test(slug)) {
+  const kind = /rapid/i.test(slug) ? "Rapid" : "Single";
+  return `Urshifu (${kind}) (G-Max)`;
+}
+
   // 3) G-Max → "<Base> (…optional form…) (G-Max)"
   if (/-gmax$/i.test(slug)) {
     const parts = slug.split('-');
@@ -280,10 +290,31 @@ function friendlyNameForVariety(variety){
     return `${titleize(base).replace(/-/g, ' ')} (Eternamax)`;
   }
 
-  // 5) Fallback: "<Base> (Form)" for common dashy slugs
+    // 5) Regional variants → "Galarian/Alolan/Hisuian/Paldean <Base>"
+  if (/-galar$/i.test(slug)) {
+    const base = slug.replace(/-galar$/i, '');
+    return `Galarian ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-alola$/i.test(slug)) {
+    const base = slug.replace(/-alola$/i, '');
+    return `Alolan ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-hisui$/i.test(slug) || /-hisuan$/i.test(slug)) {
+    const base = slug.replace(/-hisui$/i, '').replace(/-hisuan$/i, '');
+    return `Hisuian ${titleize(base).replace(/-/g, ' ')}`.trim();
+  }
+  if (/-paldea(?:-.+)?$/i.test(slug)) {
+    const base = slug.replace(/-paldea(?:-.+)?$/i, '');
+    const rest = (slug.match(/-paldea-(.+)$/i)?.[1] || '').replace(/-/g, ' ');
+    const suffix = rest ? ` (${titleize(rest)})` : '';
+    return `Paldean ${titleize(base).replace(/-/g, ' ')}${suffix}`.trim();
+  }
+
+  // 6) Fallback: "<Base> (Form)" for common dashy slugs
   const titled = titleize(slug).replace(/-/g, '-');
   return normalizeFormHyphen(titled).replace(/-/g, ' ');
 }
+
 
 // ---------- Legendaries data (IDs only, no Paradox, no Megas) ----------
 const LEGENDS_CORE = [
@@ -338,6 +369,11 @@ const LEGENDARY_FORMS = [
 
   // Giratina Origin
   { id: 487, variety: "giratina-origin" },
+
+   // Galarian legendary birds (regional variants)
+  { id: 144, variety: "articuno-galar" },
+  { id: 145, variety: "zapdos-galar"  },
+  { id: 146, variety: "moltres-galar" },
 
   // Kyurem forms
   { id: 646, variety: "kyurem-black" },
@@ -408,6 +444,20 @@ FRIENDLY_NAME_OVERRIDES["mimikyu-busted"] = "Mimikyu";    // safety, though bust
 FRIENDLY_NAME_OVERRIDES["squawkabilly-green-plumage"] = "Squawkabilly (Green)";
 FRIENDLY_NAME_OVERRIDES["meloetta-pirouette"] = "Meloetta (Pirouette)";
 FRIENDLY_NAME_OVERRIDES["keldeo-resolute"]    = "Keldeo (Resolute)";
+// add these lines alongside the other overrides
+FRIENDLY_NAME_OVERRIDES["hoopa-unbound"]  = "Hoopa (Unbound)";
+FRIENDLY_NAME_OVERRIDES["dialga-origin"]  = "Dialga (Origin)";
+FRIENDLY_NAME_OVERRIDES["palkia-origin"]  = "Palkia (Origin)";
+FRIENDLY_NAME_OVERRIDES["calyrex-ice"]    = "Calyrex (Ice)";
+FRIENDLY_NAME_OVERRIDES["calyrex-shadow"] = "Calyrex (Shadow)";
+FRIENDLY_NAME_OVERRIDES["articuno-galar"] = "Galarian Articuno";
+FRIENDLY_NAME_OVERRIDES["zapdos-galar"]  = "Galarian Zapdos";
+FRIENDLY_NAME_OVERRIDES["moltres-galar"] = "Galarian Moltres";
+// Urshifu G-Max — shorter for card width
+FRIENDLY_NAME_OVERRIDES["urshifu-rapid-strike-gmax"]  = "Urshifu (Rapid) (G-Max)";
+FRIENDLY_NAME_OVERRIDES["urshifu-single-strike-gmax"] = "Urshifu (Single) (G-Max)";
+
+
 
 
 function buildLegendariesPool() {
@@ -1180,12 +1230,26 @@ function normalizeFormHyphen(name){
     .replace(/-Midday$/i,    ' (Midday)')
     .replace(/-Midnight$/i,  ' (Midnight)')
     .replace(/-Dusk$/i,      ' (Dusk)')
-     // Urshifu forms
+    // Urshifu forms
     .replace(/-Single-Strike$/i, ' (Single Strike)')
     .replace(/-Rapid-Strike$/i,  ' (Rapid Strike)')
-    // ⭐ NEW:
-    .replace(/-Pirouette$/i, ' (Pirouette)')   // Meloetta (Pirouette)
-    .replace(/-Resolute$/i,  ' (Resolute)')    // Keldeo (Resolute)
+
+    // === Your requested fixes (generic so they work everywhere) ===
+    .replace(/-Unbound$/i, ' (Unbound)')   // Hoopa (Unbound)
+    .replace(/-Origin$/i,  ' (Origin)')    // Dialga/Palkia (Origin)
+    .replace(/-Ice$/i,     ' (Ice)')       // Calyrex (Ice)
+    .replace(/-Shadow$/i,  ' (Shadow)')    // Calyrex (Shadow)
+
+    // Tapu-Lele → Tapu Lele (safety if it ever sneaks in hyphenated)
+    .replace(/^Tapu-Lele$/i, 'Tapu Lele')
+
+    // Type-Null / Type: Null → Type Null
+    .replace(/^Type-Null$/i, 'Type Null')
+    .replace(/^Type: Null$/i,'Type Null')
+
+    // Other existing mappings you already had
+    .replace(/-Pirouette$/i, ' (Pirouette)')
+    .replace(/-Resolute$/i,  ' (Resolute)')
     .replace(/-Baile$/i,     ' (Baile)')
     .replace(/-Pom-Pom$/i,   ' (Pom-Pom)')
     .replace(/-Pau$/i,       " (Pa'u)")
@@ -1197,17 +1261,52 @@ function normalizeFormHyphen(name){
     .replace(/^Zygarde-50$/i,   'Zygarde (50%)')
     .replace(/^Deoxys-Normal$/i,'Deoxys (Normal)')
 
-    // 👇 Mimikyu special-case: collapse both default & busted to plain "Mimikyu"
+    // 👇 Mimikyu special-case
     .replace(/^Mimikyu-Disguised$/i, 'Mimikyu')
     .replace(/^Mimikyu-Busted$/i,    'Mimikyu')
 
-    // ✅ Squawkabilly: show only Green nicely; other colors are filtered elsewhere
-    .replace(/^Squawkabilly-Green-Plumage$/i,  'Squawkabilly (Green)')
-    // (If your names map ever returns lowercase slugs as display names, this catches them too)
-    .replace(/^squawkabilly-green-plumage$/i,  'Squawkabilly (Green)')
+    // ✅ Squawkabilly (Green only shown)
+    .replace(/^Squawkabilly-Green-Plumage$/i, 'Squawkabilly (Green)')
 
-    .replace(/^Groudon-Primal$/i, 'Groudon (Primal)')
+    // Primals
+    .replace(/^Groudon-Primal$/i, 'Groudon (Primal)');
 }
+//
+// Final pass used everywhere before showing a name.
+// Keeps formatting consistent across all screens.
+//
+function finalizeName(raw){
+  let n = String(raw || '').trim();
+
+  // General dash → (Form)
+  n = normalizeFormHyphen(n);
+
+  // Canon cleanup (your requested fixes, resilient to punctuation)
+  n = n
+    .replace(/^Tapu\-Lele$/i, 'Tapu Lele')            // Tapu Lele
+    .replace(/^Type[-:\s]*Null$/i, 'Type Null')       // Type Null
+    .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)');  // Hoopa (Unbound)
+
+  return n;
+}
+
+
+// Final pass used *everywhere* before showing a name.
+function finalizeName(raw){
+  let n = String(raw || '').trim();
+
+  // First, apply the general dash→(Form) rules
+  n = normalizeFormHyphen(n);
+
+  // Then, clean up specific canon oddities (covers all modes)
+  n = n
+    .replace(/^Tapu\-Lele$/i, 'Tapu Lele')          // stray hyphen in names map
+    .replace(/^Type[-:\s]*Null$/i, 'Type Null')     // handles 'Type-Null' or 'Type: Null'
+    .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)'); // consistent with form style
+
+  return n;
+}
+
 
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
@@ -1259,7 +1358,8 @@ function displayName(p){
   const id = p.id;
   const fromCache = p.name || nameCache[id];
   const fromMap = NAMES_MAP && NAMES_MAP[id];
-  const nm = fromCache || fromMap;
+  const nm0 = fromCache || fromMap;
+  const nm  = nm0 ? finalizeName(nm0) : null;
   return (p.shiny ? "⭐ " : "") + (nm || `#${String(id).padStart(3,"0")}`);
 }
 
@@ -1284,7 +1384,7 @@ async function ensureName(id){
     const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`, { cache: 'force-cache' });
     if (!resp.ok) return;
     const data = await resp.json();
-    const pretty = normalizeFormHyphen(titleize(data?.name || ""));
+    const pretty = finalizeName(titleize(data?.name || ""));
     nameCache[id] = pretty || `#${String(id).padStart(3,"0")}`;
     saveNameCache();
     updateLabelsIfVisible(id);
@@ -1304,10 +1404,10 @@ async function ensureNames(list){
 
     // 1) Local map first
     if (map && map[id]) {
-      p.name = map[id];
-      nameCache[id] = p.name;
-      return;
-    }
+        p.name = finalizeName(map[id]);
+        nameCache[id] = p.name;
+        return;
+      }
 
     // 2) Fallback to API
     try {
@@ -3416,4 +3516,3 @@ function goToMainMenu(){
 
 // ----- Boot
 // Initial render is performed after pool construction inside initRanker()
-
