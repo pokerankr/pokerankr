@@ -150,7 +150,7 @@ const ALT_BATTLE_FORMS_BY_GEN = {
     // Urshifu (default = Single-Strike)
     { id: 892, variety: "urshifu-single-strike" },   // default
     { id: 892, variety: "urshifu-rapid-strike" },
-
+    
     // Zarude (default = base Zarude)
     { id: 893, variety: "zarude-dada" },
 
@@ -357,6 +357,10 @@ const LEGENDARY_FORMS = [
   { id: 898, variety: "calyrex-ice" },
   { id: 898, variety: "calyrex-shadow" },
 
+    // ⭐ NEW: Gen 5 Mythicals/forms
+  { id: 648, variety: "meloetta-pirouette" }, // shows as "Meloetta (Pirouette)"
+  { id: 647, variety: "keldeo-resolute" },    // shows as "Keldeo (Resolute)"
+
    // Urshifu forms (base is Single-Strike, but base gets skipped when Forms are ON)
   { id: 892, variety: "urshifu-single-strike" },
   { id: 892, variety: "urshifu-rapid-strike" },
@@ -375,6 +379,8 @@ const LEGENDARY_MEGA_FORMS = [
    // 👇 Add Primals here
   { id: 382, variety: "kyogre-primal" },
   { id: 383, variety: "groudon-primal" },
+   // ⭐ NEW:
+  { id: 719, variety: "diancie-mega" },
 ];
 
 
@@ -400,6 +406,8 @@ FRIENDLY_NAME_OVERRIDES["mimikyu"] = "Mimikyu"; // safeguard
 FRIENDLY_NAME_OVERRIDES["mimikyu-disguised"] = "Mimikyu"; // already there, but keep
 FRIENDLY_NAME_OVERRIDES["mimikyu-busted"] = "Mimikyu";    // safety, though busted is skipped
 FRIENDLY_NAME_OVERRIDES["squawkabilly-green-plumage"] = "Squawkabilly (Green)";
+FRIENDLY_NAME_OVERRIDES["meloetta-pirouette"] = "Meloetta (Pirouette)";
+FRIENDLY_NAME_OVERRIDES["keldeo-resolute"]    = "Keldeo (Resolute)";
 
 
 function buildLegendariesPool() {
@@ -1175,6 +1183,9 @@ function normalizeFormHyphen(name){
      // Urshifu forms
     .replace(/-Single-Strike$/i, ' (Single Strike)')
     .replace(/-Rapid-Strike$/i,  ' (Rapid Strike)')
+    // ⭐ NEW:
+    .replace(/-Pirouette$/i, ' (Pirouette)')   // Meloetta (Pirouette)
+    .replace(/-Resolute$/i,  ' (Resolute)')    // Keldeo (Resolute)
     .replace(/-Baile$/i,     ' (Baile)')
     .replace(/-Pom-Pom$/i,   ' (Pom-Pom)')
     .replace(/-Pau$/i,       " (Pa'u)")
