@@ -145,9 +145,10 @@ const ALT_BATTLE_FORMS_BY_GEN = {
     { id: 741, variety: "oricorio-sensu" },
 
     // Necrozma (default = base Necrozma)
-    { id: 800, variety: "necrozma-dusk" },
-    { id: 800, variety: "necrozma-dawn" },
-    { id: 800, variety: "necrozma-ultra" },
+{ id: 800, variety: "necrozma-dusk-mane" },
+{ id: 800, variety: "necrozma-dawn-wings" },
+{ id: 800, variety: "necrozma-ultra" },
+
   ],
 
   8: [
@@ -379,6 +380,11 @@ const LEGENDARY_FORMS = [
   { id: 646, variety: "kyurem-black" },
   { id: 646, variety: "kyurem-white" },
 
+  // Necrozma forms
+{ id: 800, variety: "necrozma-dusk-mane" },
+{ id: 800, variety: "necrozma-dawn-wings" },
+{ id: 800, variety: "necrozma-ultra" },
+
   // Hoopa Unbound (Mythical)
   { id: 720, variety: "hoopa-unbound" },
 
@@ -472,6 +478,11 @@ FRIENDLY_NAME_OVERRIDES["ogerpon-wellspring-mask"]   = "Ogerpon (Wellspring)";
 FRIENDLY_NAME_OVERRIDES["ogerpon-hearthflame-mask"]  = "Ogerpon (Hearthflame)";
 FRIENDLY_NAME_OVERRIDES["ogerpon-cornerstone-mask"]  = "Ogerpon (Cornerstone)";
 FRIENDLY_NAME_OVERRIDES["terapagos-terastal"]        = "Terapagos (Terastal)";
+//Necrozma Trials
+FRIENDLY_NAME_OVERRIDES["necrozma-dusk-mane"] = "Necrozma (Dusk Mane)";
+FRIENDLY_NAME_OVERRIDES["necrozma-dawn-wings"] = "Necrozma (Dawn Wings)";
+FRIENDLY_NAME_OVERRIDES["necrozma-ultra"]     = "Necrozma (Ultra)";
+
 
 
 
@@ -1255,6 +1266,10 @@ function normalizeFormHyphen(name){
     .replace(/-Origin$/i,  ' (Origin)')    // Dialga/Palkia (Origin)
     .replace(/-Ice$/i,     ' (Ice)')       // Calyrex (Ice)
     .replace(/-Shadow$/i,  ' (Shadow)')    // Calyrex (Shadow)
+    .replace(/-Dusk-Mane$/i,   ' (Dusk Mane)')
+    .replace(/-Dawn-Wings$/i,  ' (Dawn Wings)')
+    .replace(/-Ultra$/i,       ' (Ultra)')
+
 
     // Tapu-Lele → Tapu Lele (safety if it ever sneaks in hyphenated)
     .replace(/^Tapu-Lele$/i, 'Tapu Lele')
@@ -1361,9 +1376,23 @@ async function loadNamesMapOnce() {
 
 // Artwork ID cache (variety slug -> numeric pokemon id, e.g. "growlithe-hisui" -> 10229)
 const ART_ID_CACHE_KEY = "artIdCache";
+
+// ✅ Known artwork-id overrides for forms that we want to resolve instantly
+const ARTWORK_ID_OVERRIDES = {
+  "necrozma-dusk-mane": 10155,
+  "necrozma-dawn-wings": 10156,
+  "necrozma-ultra": 10157 // keep if you want Ultra to resolve instantly too
+};
+
 const artIdCache = (() => {
-  try { return JSON.parse(localStorage.getItem(ART_ID_CACHE_KEY) || "{}"); }
-  catch { return {}; }
+  let cached = {};
+  try { cached = JSON.parse(localStorage.getItem(ART_ID_CACHE_KEY) || "{}"); }
+  catch { cached = {}; }
+  // Merge our overrides (don’t clobber if user already has a value)
+  for (const [k, v] of Object.entries(ARTWORK_ID_OVERRIDES)) {
+    if (typeof cached[k] !== 'number' || cached[k] <= 0) cached[k] = v;
+  }
+  return cached;
 })();
 function saveArtIdCache(){
   try { localStorage.setItem(ART_ID_CACHE_KEY, JSON.stringify(artIdCache)); } catch {}
@@ -1641,21 +1670,33 @@ function buildOfficialChainFromId(numId, shiny){
 // Return official-artwork URL for a form if we can, else official-artwork by base ID (string URL only, used in previews)
 function spriteUrlForMon(p, shiny) {
   const variety = varietySlugFromMon(p);
-  if (variety) {
-    const artId = artIdCache[variety];
-    if (artId) {
-      return shiny
-        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${artId}.png`
-        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${artId}.png`;
+if (variety) {
+  // ✅ Use override immediately if present
+  if (ARTWORK_ID_OVERRIDES[variety]) {
+    const artId = ARTWORK_ID_OVERRIDES[variety];
+    // also persist in the cache so results/export paths use numeric immediately
+    if (artIdCache[variety] !== artId) {
+      artIdCache[variety] = artId;
+      try { localStorage.setItem(ART_ID_CACHE_KEY, JSON.stringify(artIdCache)); } catch {}
     }
-    // try slug first; kick off async resolve
-    ensureArtworkIdForVariety(variety);
     return shiny
-      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${variety}.png`
-      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${variety}.png`;
+      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${artId}.png`
+      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${artId}.png`;
   }
-  // Fall back to base species official-artwork by ID
-  return spriteUrl(p.id, shiny);
+
+  const artId = artIdCache[variety];
+  if (artId && artId > 0) {
+    return shiny
+      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${artId}.png`
+      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${artId}.png`;
+  }
+
+  // Kick off async resolve; fall back briefly only if needed
+  ensureArtworkIdForVariety(variety);
+  return shiny
+    ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${p.id}.png`
+    : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`;
+}
 }
 
 // OFFICIAL-ARTWORK ONLY fallback chain with numeric-ID preference:
