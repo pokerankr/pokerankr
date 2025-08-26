@@ -346,10 +346,6 @@ const LEGENDARY_FORMS = [
   // Hoopa Unbound (Mythical)
   { id: 720, variety: "hoopa-unbound" },
 
-  // Primals (Gen 3)
-  { id: 382, variety: "kyogre-primal" },
-  { id: 383, variety: "groudon-primal" },
-
   // Origin (Legends Arceus)
   { id: 483, variety: "dialga-origin" },
   { id: 484, variety: "palkia-origin" },
@@ -361,7 +357,8 @@ const LEGENDARY_FORMS = [
   { id: 898, variety: "calyrex-ice" },
   { id: 898, variety: "calyrex-shadow" },
 
-  // Urshifu Rapid-Strike (Single-Strike is the base)
+   // Urshifu forms (base is Single-Strike, but base gets skipped when Forms are ON)
+  { id: 892, variety: "urshifu-single-strike" },
   { id: 892, variety: "urshifu-rapid-strike" },
 
   // Shaymin Sky (Mythical)
@@ -375,6 +372,9 @@ const LEGENDARY_MEGA_FORMS = [
   { id: 380, variety: "latias-mega" },
   { id: 381, variety: "latios-mega" },
   { id: 384, variety: "rayquaza-mega" },
+   // 👇 Add Primals here
+  { id: 382, variety: "kyogre-primal" },
+  { id: 383, variety: "groudon-primal" },
 ];
 
 
@@ -414,12 +414,17 @@ function buildLegendariesPool() {
     ? toggles.ubsMode                       // 'exclude' | 'include' | 'only'
     : (toggles.ultraBeasts ? 'include' : 'exclude');
 
-  // Support old name 'formsSpecialMode' just in case, else 'formsMode', else legacy boolean
+    // Support old name 'formsSpecialMode' just in case, else 'formsMode', else legacy boolean
   let formsMode = (typeof toggles.formsMode === 'string')
-    ? toggles.formsMode                     // 'off' | 'gmax' | 'mega' | 'both'
+    ? toggles.formsMode
     : ((typeof toggles.formsSpecialMode === 'string')
         ? toggles.formsSpecialMode
         : (toggles.forms ? 'both' : 'off'));
+
+  // 🔧 Normalize: accept UI label "all" as "both" (and make it case-insensitive)
+  formsMode = String(formsMode || 'off').toLowerCase();
+  if (formsMode === 'all') formsMode = 'both';
+
 
   // --- HARDENING: make "Only" mutually exclusive ---------------------------
   // If both arrive as "only", prefer UBs=Only and force Mythicals=Excluded.
@@ -458,66 +463,80 @@ function buildLegendariesPool() {
     return [{ ...base, shiny: false }];
   }
 
-  // Base pool from species IDs
-  const pool = [];
-  ids.forEach(id => pool.push(...entriesFor(id, null)));
-
-  // --- 2) Add forms (standard + special per dropdown) ----------------------
-  const includeAnyForms = (formsMode !== 'off');
-  if (includeAnyForms) {
-    const idset = new Set(ids);
-
-    // 2a) Standard legendary forms (Therian/Origin/Primal/Riders/etc.)
-    const stdForms = LEGENDARY_FORMS.filter(f => {
-      // Respect Mythicals gating
-      if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
-      if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
-      // Only add forms for species present in the base ID set
-      return idset.has(f.id);
-    });
-
-    // 2b) Special forms from the dropdown: Mega / G-Max(+Eternamax)
-    let special = [];
-    if (formsMode === 'mega' || formsMode === 'both') {
-      // e.g., Mega Mewtwo X/Y, Mega Latias/Latios, Mega Rayquaza
-      special = special.concat(
-        (Array.isArray(LEGENDARY_MEGA_FORMS) ? LEGENDARY_MEGA_FORMS : []).filter(f => idset.has(f.id))
-      );
+// Base pool from species IDs
+const pool = [];
+ids.forEach(id => {
+  // Special-case: Urshifu
+  if (id === 892) {
+    const includeAnyForms = (formsMode !== 'off');
+    if (includeAnyForms) {
+      // When forms are ON, skip the base Urshifu entirely.
+      return;
     }
-    if (formsMode === 'gmax' || formsMode === 'both') {
-      // Use Gen 8 G-Max list (includes Eternamax Eternatus in our data)
-      const g8 = (GMAX_FORMS_BY_GEN && Array.isArray(GMAX_FORMS_BY_GEN[8])) ? GMAX_FORMS_BY_GEN[8] : [];
-      special = special.concat(g8.filter(f => idset.has(f.id)));
-    }
-
-    // Mythicals gating also applies to special forms
-    special = special.filter(f => {
-      if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
-      if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
-      return true;
-    });
-
-    const allForms = stdForms.concat(special);
-
-    // Push unique display names only (avoid duplicates when forms share names)
-    const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
-    allForms.forEach(entry => {
-      const display = friendlyNameForVariety(entry.variety);
-      const key = (display || '').toLowerCase();
-      if (!display || existingNames.has(key)) return;
-
-      const base = { id: entry.id, name: display, variety: entry.variety };
-      if (window.shinyOnly) {
-        pool.push({ ...base, shiny: true });
-      } else if (window.includeShinies) {
-        pool.push({ ...base, shiny: false }, { ...base, shiny: true });
-      } else {
-        pool.push({ ...base, shiny: false });
-      }
-      existingNames.add(key);
-    });
+    // When forms are OFF, force the name to plain "Urshifu".
+    pool.push(...entriesFor(892, 'Urshifu'));
+    return;
   }
 
+  // Default behavior for everyone else
+  pool.push(...entriesFor(id, null));
+});
+
+  // --- 2) Add forms (standard + special per dropdown) ----------------------
+const includeAnyForms = (formsMode !== 'off');
+if (includeAnyForms) {
+  const idset = new Set(ids);
+
+  // ✅ Only include "standard forms" (Therian/Origin/Primal/Riders/etc.)
+  // when the dropdown is BOTH/ALL. Do NOT include them for Mega-only or G-Max-only.
+  const includeStdForms = (formsMode === 'both'); // 'all' is normalized to 'both' earlier
+  const stdForms = includeStdForms
+    ? LEGENDARY_FORMS.filter(f => {
+        if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
+        if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+        return idset.has(f.id);
+      })
+    : [];
+
+  // Special forms from the dropdown: Mega / G-Max(+Eternamax)
+  let special = [];
+  if (formsMode === 'mega' || formsMode === 'both') {
+    special = special.concat(
+      (Array.isArray(LEGENDARY_MEGA_FORMS) ? LEGENDARY_MEGA_FORMS : []).filter(f => idset.has(f.id))
+    );
+  }
+  if (formsMode === 'gmax' || formsMode === 'both') {
+    const g8 = (GMAX_FORMS_BY_GEN && Array.isArray(GMAX_FORMS_BY_GEN[8])) ? GMAX_FORMS_BY_GEN[8] : [];
+    special = special.concat(g8.filter(f => idset.has(f.id)));
+  }
+
+  // Mythicals gating also applies to special forms
+  special = special.filter(f => {
+    if (!wantMyth && LEGENDS_MYTHICALS.includes(f.id)) return false;
+    if (mythOnly && !LEGENDS_MYTHICALS.includes(f.id)) return false;
+    return true;
+  });
+
+  const allForms = stdForms.concat(special);
+
+  // Push unique display names only (avoid duplicates when forms share names)
+  const existingNames = new Set(pool.map(m => (m.name || '').toLowerCase()).filter(Boolean));
+  allForms.forEach(entry => {
+    const display = friendlyNameForVariety(entry.variety);
+    const key = (display || '').toLowerCase();
+    if (!display || existingNames.has(key)) return;
+
+    const base = { id: entry.id, name: display, variety: entry.variety };
+    if (window.shinyOnly) {
+      pool.push({ ...base, shiny: true });
+    } else if (window.includeShinies) {
+      pool.push({ ...base, shiny: false }, { ...base, shiny: true });
+    } else {
+      pool.push({ ...base, shiny: false });
+    }
+    existingNames.add(key);
+  });
+}
   return pool;
 }
 
@@ -1153,6 +1172,9 @@ function normalizeFormHyphen(name){
     .replace(/-Midday$/i,    ' (Midday)')
     .replace(/-Midnight$/i,  ' (Midnight)')
     .replace(/-Dusk$/i,      ' (Dusk)')
+     // Urshifu forms
+    .replace(/-Single-Strike$/i, ' (Single Strike)')
+    .replace(/-Rapid-Strike$/i,  ' (Rapid Strike)')
     .replace(/-Baile$/i,     ' (Baile)')
     .replace(/-Pom-Pom$/i,   ' (Pom-Pom)')
     .replace(/-Pau$/i,       " (Pa'u)")
