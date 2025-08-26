@@ -402,7 +402,18 @@ const LEGENDARY_FORMS = [
   { id: 892, variety: "urshifu-rapid-strike" },
 
   // Shaymin Sky (Mythical)
-  { id: 492, variety: "shaymin-sky" }
+  { id: 492, variety: "shaymin-sky" },
+
+   // Mythical: Zarude (Dada)
+  { id: 893, variety: "zarude-dada" },
+
+  // Ogerpon masks (base = Teal Mask; these are the other three)
+  { id: 1017, variety: "ogerpon-wellspring-mask" },
+  { id: 1017, variety: "ogerpon-hearthflame-mask" },
+  { id: 1017, variety: "ogerpon-cornerstone-mask" },
+
+  // Terapagos forms
+  { id: 1024, variety: "terapagos-terastal" },
 ];
 
 // NEW: Mega forms we want to treat as legendary forms
@@ -456,6 +467,11 @@ FRIENDLY_NAME_OVERRIDES["moltres-galar"] = "Galarian Moltres";
 // Urshifu G-Max — shorter for card width
 FRIENDLY_NAME_OVERRIDES["urshifu-rapid-strike-gmax"]  = "Urshifu (Rapid) (G-Max)";
 FRIENDLY_NAME_OVERRIDES["urshifu-single-strike-gmax"] = "Urshifu (Single) (G-Max)";
+FRIENDLY_NAME_OVERRIDES["zarude-dada"]               = "Zarude (Dada)";
+FRIENDLY_NAME_OVERRIDES["ogerpon-wellspring-mask"]   = "Ogerpon (Wellspring)";
+FRIENDLY_NAME_OVERRIDES["ogerpon-hearthflame-mask"]  = "Ogerpon (Hearthflame)";
+FRIENDLY_NAME_OVERRIDES["ogerpon-cornerstone-mask"]  = "Ogerpon (Cornerstone)";
+FRIENDLY_NAME_OVERRIDES["terapagos-terastal"]        = "Terapagos (Terastal)";
 
 
 
