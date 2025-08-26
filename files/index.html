@@ -342,11 +342,11 @@ if (cat === 'legendaries') {
           </select>
         </label>
         <label style="font-weight:600;">Forms:
-          <select id="formsMode" aria-label="Forms">
-            <option value="off" selected>Excluded</option>
-            <option value="gmax">G-Max only</option>
-            <option value="mega">Mega only</option>
-            <option value="both">Both</option>
+          <select id="formsMode">
+            <option value="off">No Forms</option> <!-- Disable all forms -->
+            <option value="gmax">+G-Max</option> <!-- Only G-Max forms -->
+            <option value="mega">+Mega/Primal</option> <!-- Only Mega and Primal forms -->
+            <option value="all">+All Forms</option> <!-- Include all forms (G-Max, Mega, Primal, etc.) -->
           </select>
         </label>
       </div>
@@ -442,15 +442,15 @@ if (cat === 'type') {
   function getEl(id){ return extraOptions.querySelector('#' + id); }
 
   // Start Ranking
-  document.getElementById('btnStartRanking').addEventListener('click', () => {
-    const category = categorySelect.value || 'starters';
+document.getElementById('btnStartRanking').addEventListener('click', () => {
+  const category = categorySelect.value || 'starters';
 
-    const config = {
-      includeShinies: !!includeShiniesCheckbox.checked,
-      shinyOnly: !!shinyOnlyCheckbox.checked,
-      category,
-      filters: {}
-    };
+  const config = {
+    includeShinies: !!includeShiniesCheckbox.checked,
+    shinyOnly: !!shinyOnlyCheckbox.checked,
+    category,
+    filters: {}
+  };
 
    if (category === 'generation') {
  const gen = extraOptions.dataset.selectedGen;
@@ -493,6 +493,19 @@ if (category === 'starters') {
   // Also mirror into this run’s config (handy if you read rankConfig)
   config.toggles = { addPikaEevee, includeStarterLines };
 }
+
+  // ✅ NEW: capture Legendaries selectors → config.toggles
+  if (category === 'legendaries') {
+    const mythSel  = extraOptions.querySelector('#mythicals');
+    const ubSel    = extraOptions.querySelector('#ubMode');
+    const formsSel = extraOptions.querySelector('#formsMode');
+
+    config.toggles = {
+      mythMode:  mythSel  ? mythSel.value  : 'none',     // 'none' | 'include' | 'only'
+      ubsMode:   ubSel    ? ubSel.value    : 'exclude',  // 'exclude' | 'include' | 'only'
+      formsMode: formsSel ? formsSel.value : 'off'  // 'off' | 'gmax' | 'mega' | 'all'
+    };
+  }
 
 if (category === 'type') {
   const isDual = !!getEl('modeDual')?.checked;
