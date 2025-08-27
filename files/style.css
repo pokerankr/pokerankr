@@ -519,11 +519,15 @@ input[type="checkbox"]{
   .category-button, .menu-button, button {
     width: 100%;
     min-height: 44px;
-    padding: 12px 14px;
   }
-  .button-row, .button-group, .menu-buttons, .category-buttons {
-    gap: 10px;
+  
+  /* Apply mobile sizing to the .button_top spans instead of the buttons themselves */
+  .category-button .button_top, 
+  .menu-button .button_top, 
+  button .button_top {
+    padding: 12px 14px;
     width: 100%;
+    box-sizing: border-box;
   }
 
   /* Stack the matchup cards; center VS between them */
