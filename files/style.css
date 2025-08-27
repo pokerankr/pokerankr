@@ -611,6 +611,58 @@ input[type="checkbox"]{
   }
 }
 
+@media (max-width: 768px) {
+  /* More compact title */
+  h1 {
+    font-size: clamp(18px, 4.5vw, 22px);
+    margin: 4px 0 6px;
+  }
+  
+  /* Smaller Pokemon cards */
+  .pokemon-card {
+    padding: 8px 10px 6px;
+    border-width: 2px;
+  }
+  
+  /* Much smaller Pokemon images */
+  .matchup-img-wrap {
+    width: min(50vw, 180px);
+  }
+  
+  /* Tighter spacing around VS */
+  .matchup-container, #matchup {
+    gap: 6px;
+    margin-top: 4px;
+  }
+  
+  /* Smaller VS pill */
+  #vs-text {
+    font-size: .8rem;
+    padding: .18rem .45rem;
+    margin: 0;
+  }
+  
+  /* More compact progress section */
+  .progress-wrap {
+    height: 16px;
+    margin: 8px auto 4px;
+  }
+  
+  #remaining-text {
+    font-size: .85rem;
+    margin: 4px 0 8px;
+  }
+  
+  /* Reduce body padding */
+  body {
+    padding: 8px;
+  }
+  
+  .container {
+    padding: 0 4px;
+  }
+}
+
 /* Slightly wider phones / small tablets */
 @media (max-width: 768px) {
   .progress-wrap { width: 100%; }
