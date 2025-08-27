@@ -851,6 +851,26 @@ const POOL_BUILDERS = {
 
 // ---- Type Mode support: load DB + build pool async, then boot engine ----
 (async function initRanker() {
+  // Check for pending resume FIRST, before doing anything else
+  const slotIdxStr = localStorage.getItem('PR_PENDING_RESUME_SLOT');
+  let resumeSession = null;
+  
+  if (slotIdxStr) {
+    localStorage.removeItem('PR_PENDING_RESUME_SLOT');
+    const idx = parseInt(slotIdxStr, 10);
+    if (!Number.isNaN(idx)) {
+      try {
+        const slots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
+        const s = Array.isArray(slots) ? slots[idx] : null;
+        if (s && s.type === 'ranker') {
+          resumeSession = s;
+        }
+      } catch (e) {
+        console.warn('Could not resume slot:', e);
+      }
+    }
+  }
+
   const rc = window.rankConfig || {};
   let pool = [];
 
@@ -1048,16 +1068,23 @@ if (shinyOnly) {
 
   // Continue original boot sequence now that we have the pool
   window.pool = pool; // if other code expects it
-  // Initialize state now that we have a pool
-remaining  = shuffle([...pool]);
-eliminated = [];
-current    = remaining.pop() || null;
-next       = remaining.pop() || null;
-if (current) current.roundsSurvived = 0;
-if (next)    next.roundsSurvived    = 0;
+// Only initialize fresh state if we're not resuming from a save
+if (!resumeSession) {
+  // Fresh start - initialize state normally
+  remaining  = shuffle([...pool]);
+  eliminated = [];
+  current    = remaining.pop() || null;
+  next       = remaining.pop() || null;
+  if (current) current.roundsSurvived = 0;
+  if (next)    next.roundsSurvived    = 0;
 
-leftHistory.length = 0;
-if (current) leftHistory.push(current);
+  leftHistory.length = 0;
+  if (current) leftHistory.push(current);
+} else {
+  // Resuming - restore the saved session immediately
+  loadRankerSession(resumeSession);
+  return; // Exit early, don't do the normal initialization
+}
 
 // --- Engine init + hydrate (now that state is ready) ---
 if (window.prEngine && typeof prEngine.init === 'function') {
@@ -3524,25 +3551,6 @@ function loadRankerSession(s){
   updateUndoButton();
 }
 
-
-// Auto-resume if index.html set a pending slot for ranker
-(function tryAutoResumeRanker(){
-  const slotIdxStr = localStorage.getItem('PR_PENDING_RESUME_SLOT');
-  if (!slotIdxStr) return;
-  localStorage.removeItem('PR_PENDING_RESUME_SLOT');
-  const idx = parseInt(slotIdxStr, 10);
-  if (Number.isNaN(idx)) return;
-
-  try {
-    const slots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
-    const s = Array.isArray(slots) ? slots[idx] : null;
-    if (s && s.type === 'ranker') {
-      loadRankerSession(s);
-    }
-  } catch (e) {
-    console.warn('Could not resume slot:', e);
-  }
-})();
 
 function goToMainMenu(){
   // Consider it "in progress" if you’ve done anything beyond the initial state
