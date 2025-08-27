@@ -324,6 +324,19 @@ input[type="checkbox"]{
 #btnStartRanking{margin-top:10px}
 #btnBackToMenu{margin-left:10px}
 
+@media (max-width: 768px) {
+  /* Fix config page button alignment */
+  #btnStartRanking, #btnBackToMenu {
+    margin: 10px 0 0 0; /* Reset margins - top margin only */
+    width: 100%;
+  }
+  
+  .button-row {
+    flex-direction: column; /* Stack buttons vertically */
+    width: 100%;
+  }
+}
+
 /* Mobile tweaks for config page */
 @media (max-width:700px){
   .logo{font-size:1.6rem}
