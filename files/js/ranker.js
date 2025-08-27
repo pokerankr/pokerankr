@@ -8,39 +8,79 @@ window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === '
   : null;
 
 // ----- Title / Mode label
+// Replace the existing setTitle function in ranker.js with this:
 (function setTitle(){
   const titleEl = document.getElementById("modeTitle");
   const rc = window.rankConfig || {};
   let label = "PokéRankr";
 
-if (rc?.category === "generation") {
-  const g = rc?.filters?.generation;
-  const regionByGen = {
-    1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
-    6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
-  };
-  if (g === "ALL") {
-    label = "All Generations";
-  } else if (g) {
-    label = `Generation ${g} (${regionByGen[g] || "??"})`;
-  }
-} else if (rc?.category === "legendaries") {
-    label = "Legendaries";
+  if (rc?.category === "generation") {
+    const g = rc?.filters?.generation;
+    const regionByGen = {
+      1:"Kanto", 2:"Johto", 3:"Hoenn", 4:"Sinnoh", 5:"Unova",
+      6:"Kalos", 7:"Alola", 8:"Galar/Hisui", 9:"Paldea"
+    };
+    if (g === "ALL") {
+      label = "All Generations";
+    } else if (g) {
+      label = `Generation ${g} (${regionByGen[g] || "??"})`;
+    }
+  } else if (rc?.category === "legendaries") {
+    // Handle legendaries with dynamic toggles
+    const mythMode = rc?.toggles?.mythMode || 'none';     // 'none' | 'include' | 'only'
+    const ubsMode  = rc?.toggles?.ubsMode  || 'exclude';  // 'exclude' | 'include' | 'only'
+    
+    if (mythMode === 'only') {
+      label = "Mythicals";
+    } else if (ubsMode === 'only') {
+      label = "Ultra Beasts";
+    } else {
+      // Build composite label
+      const parts = [];
+      
+      // Base legendaries (unless excluded by "only" modes)
+      if (mythMode !== 'only' && ubsMode !== 'only') {
+        parts.push("Legendaries");
+      }
+      
+      // Add mythicals if included
+      if (mythMode === 'include') {
+        parts.push("Mythicals");
+      }
+      
+      // Add ultra beasts if included
+      if (ubsMode === 'include') {
+        parts.push("Ultra Beasts");
+      }
+      
+      label = parts.length > 1 ? parts.join(" + ") : (parts[0] || "Legendaries");
+    }
+  } else if (rc?.category === "type") {
+    // NEW: Handle Type category properly
+    const t = rc?.filters?.type || {};
+    if (t.mode === "dual" && Array.isArray(t.types) && t.types.length === 2) {
+      label = `${t.types[0]}/${t.types[1]} Type`;
+    } else if (t.mode === "mono" && Array.isArray(t.types) && t.types.length === 1) {
+      const typeLabel = t.strictMono ? `Pure ${t.types[0]}` : `Mono ${t.types[0]}`;
+      label = `${typeLabel} Type`;
+    } else {
+      label = "Type";
+    }
   }
 
-  // NEW: include a Forms tag when any forms are enabled
+  // Include Forms tag when any forms are enabled
   const t = rc?.toggles || {};
 
   const regionalMode  = (typeof t.regionalMode === 'string')
-    ? t.regionalMode                     // 'off' | 'include'
-    : (t.regional ? 'include' : 'off');  // legacy boolean -> mode
+    ? t.regionalMode
+    : (t.regional ? 'include' : 'off');
 
   const altBattleMode = (typeof t.altBattleMode === 'string')
-    ? t.altBattleMode                    // 'off' | 'include'
-    : (t.altBattle ? 'include' : 'off'); // legacy boolean -> mode
+    ? t.altBattleMode
+    : (t.altBattle ? 'include' : 'off');
 
   const specialFormsMode = (typeof t.formsMode === 'string')
-    ? t.formsMode                        // 'off' | 'gmax' | 'mega' | 'both'
+    ? t.formsMode
     : ((typeof t.formsSpecialMode === 'string') ? t.formsSpecialMode : 'off');
 
   const formsTag = (
@@ -57,10 +97,9 @@ if (rc?.category === "generation") {
     ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max")
     : "";
 
-  // Order to match your spec: Label • +Forms • +Shinies • (+G-Max)
+  // Order: Label • +Forms • +Shinies • (+G-Max)
   titleEl.textContent = label + formsTag + shinyTag + gmaxTag;
 })();
-
 
 // ===== Type Mode — data loader + filter (additive) =====
 async function _prLoadPokemonDb() {
@@ -1203,10 +1242,11 @@ function slotsWrite(slots){
   localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
 }
 
-// Label for this ranker session (match title bullet style)
+// Replace the rankerLabel() function in ranker.js with this updated version:
+
 function rankerLabel(){
   const rc = window.rankConfig || {};
-    let label = "PokéRankr";
+  let label = "PokéRankr";
 
   if (rc?.category === "generation") {
     const g = rc?.filters?.generation;
@@ -1221,32 +1261,57 @@ function rankerLabel(){
     }
 
   } else if (rc?.category === "legendaries") {
-    label = "Legendaries";
+    // NEW: Handle legendaries with dynamic toggles (same logic as page title)
+    const mythMode = rc?.toggles?.mythMode || 'none';
+    const ubsMode  = rc?.toggles?.ubsMode  || 'exclude';
+    
+    if (mythMode === 'only') {
+      label = "Mythicals";
+    } else if (ubsMode === 'only') {
+      label = "Ultra Beasts";
+    } else {
+      const parts = [];
+      
+      if (mythMode !== 'only' && ubsMode !== 'only') {
+        parts.push("Legendaries");
+      }
+      
+      if (mythMode === 'include') {
+        parts.push("Mythicals");
+      }
+      
+      if (ubsMode === 'include') {
+        parts.push("Ultra Beasts");
+      }
+      
+      label = parts.length > 1 ? parts.join(" + ") : (parts[0] || "Legendaries");
+    }
 
   } else if (rc?.category === "type") {
     const t = rc?.filters?.type || {};
     if (t.mode === "dual" && Array.isArray(t.types) && t.types.length === 2) {
-      label = `Type: ${t.types[0]}/${t.types[1]}`;
+      label = `${t.types[0]}/${t.types[1]} Type`;
     } else if (t.mode === "mono" && Array.isArray(t.types) && t.types.length === 1) {
-      label = `Type: ${t.types[0]}${t.strictMono ? " (Strict)" : ""}`;
+      const typeLabel = t.strictMono ? `Pure ${t.types[0]}` : `Mono ${t.types[0]}`;
+      label = `${typeLabel} Type`;
     } else {
       label = "Type";
     }
   }
 
-  // NEW: include a Forms tag when any forms are enabled
+  // Include Forms tag when any forms are enabled
   const t = (window.rankConfig && window.rankConfig.toggles) || {};
 
   const regionalMode  = (typeof t.regionalMode === 'string')
-    ? t.regionalMode                     // 'off' | 'include'
-    : (t.regional ? 'include' : 'off');  // legacy boolean -> mode
+    ? t.regionalMode
+    : (t.regional ? 'include' : 'off');
 
   const altBattleMode = (typeof t.altBattleMode === 'string')
-    ? t.altBattleMode                    // 'off' | 'include'
-    : (t.altBattle ? 'include' : 'off'); // legacy boolean -> mode
+    ? t.altBattleMode
+    : (t.altBattle ? 'include' : 'off');
 
   const specialFormsMode = (typeof t.formsMode === 'string')
-    ? t.formsMode                        // 'off' | 'gmax' | 'mega' | 'both'
+    ? t.formsMode
     : ((typeof t.formsSpecialMode === 'string') ? t.formsSpecialMode : 'off');
 
   const formsTag = (
@@ -1264,7 +1329,6 @@ function rankerLabel(){
     : "";
 
   return label + formsTag + shinyTag + gmaxTag;
-
 }
 
 function spriteUrl(id, shiny){
@@ -2890,8 +2954,31 @@ const g   = rc?.filters?.generation || 1;
 let headerText;
 
 if (rc?.category === 'legendaries') {
-  headerText = 'Your Favorite Legendary Pokémon is:';
-
+  const mythMode = rc?.toggles?.mythMode || 'none';
+  const ubsMode  = rc?.toggles?.ubsMode  || 'exclude';
+  
+  if (mythMode === 'only') {
+    headerText = 'Your Favorite Mythical Pokémon is:';
+  } else if (ubsMode === 'only') {
+    headerText = 'Your Favorite Ultra Beast is:';
+  } else {
+    const parts = [];
+    
+    if (mythMode !== 'only' && ubsMode !== 'only') {
+      parts.push("Legendary");
+    }
+    
+    if (mythMode === 'include') {
+      parts.push("Mythical");
+    }
+    
+    if (ubsMode === 'include') {
+      parts.push("Ultra Beast");
+    }
+    
+    const typeText = parts.length > 1 ? parts.join("/") : (parts[0] || "Legendary");
+    headerText = `Your Favorite ${typeText} Pokémon is:`;
+  }
 } else if (rc?.category === 'type') {
   const t = rc?.filters?.type || {};
   if (t.mode === 'dual' && Array.isArray(t.types) && t.types.length === 2) {
@@ -2909,7 +2996,7 @@ if (rc?.category === 'legendaries') {
   headerText = 'Your All Time Favorite Pokémon Is:';
 
 } else {
-  headerText = `Your Favorite (Gen ${g}) Pokémon is:`;
+  headerText = `Your Favorite Gen ${g} Pokémon is:`;
 }
 document.getElementById("result").innerHTML = `
   <h2>${headerText}</h2>
@@ -3020,26 +3107,8 @@ const obj = {
     return obj;
   };
 
-  const rc = window.rankConfig || {};
-  let category = 'PokéRankr';
+let category = rankerLabel(); // Use the dynamic label we just created'
 
-  if (rc?.category === 'generation') {
-    const g = rc?.filters?.generation || 1;
-    category = (g === 'ALL') ? 'All Generations' : `Gen ${g}`;
-
-  } else if (rc?.category === 'legendaries') {
-    category = 'Legendaries';
-
-  } else if (rc?.category === 'type') {
-    const t = rc?.filters?.type || {};
-    if (t.mode === 'dual' && Array.isArray(t.types) && t.types.length === 2) {
-      category = `Type: ${t.types[0]}/${t.types[1]}`;
-    } else if (t.mode === 'mono' && Array.isArray(t.types) && t.types.length === 1) {
-      category = `Type: ${t.types[0]}${t.strictMono ? ' (Strict)' : ''}`;
-    } else {
-      category = 'Type';
-    }
-  }
 // after computing `category` in saveResults()…
 const t = (window.rankConfig && window.rankConfig.toggles) || {};
 const gmaxTag = t.gmax ? (t.gmaxOnly ? " • G-Max only" : " • +G-Max") : "";
@@ -3069,7 +3138,7 @@ const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
 
   try {
     localStorage.setItem("savedRankings", JSON.stringify(saved));
-    alert(`Saved! Your ${category} ranking (${window.shinyOnly ? "shiny only✨" : window.includeShinies ? "+ shinies✨" : "no shinies"}) has been updated.`);
+    alert(`Saved! Your ${category} ranking has been updated.`);
   } catch(e){
     console.error(e);
     alert("Could not save rankings.");

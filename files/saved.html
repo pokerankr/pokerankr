@@ -230,12 +230,18 @@
       render();
     }
 
-    function formatMode(run) {
-      const base = run.category || "Ranking";
-      if (run.shinyOnly) return `${base} • Shiny‑only`;
-      if (run.includeShinies) return `${base} • +Shinies`;
-      return `${base} • No Shinies`;
-    }
+   function formatMode(run) {
+  // Use the full label if available (new saves), otherwise fall back to old format
+  if (run.label) {
+    return run.label;
+  }
+  
+  // Fallback for older saves without dynamic labels
+  const base = run.category || "Ranking";
+  if (run.shinyOnly) return `${base} • Shiny‑only`;
+  if (run.includeShinies) return `${base} • +Shinies`;
+  return `${base} • No Shinies`;
+}
 
     /* ---------- Search / Filter / Sort ---------- */
     const $q   = () => document.getElementById("q");
