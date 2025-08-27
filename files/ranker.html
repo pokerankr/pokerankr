@@ -96,5 +96,17 @@
 
   <script src="engine/rankingengine.js"></script>
   <script src="js/ranker.js"></script>
+
+  <script>
+// Ensure all buttons have the .button_top styling
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('button:not(:has(.button_top))').forEach(btn => {
+    const span = document.createElement('span');
+    span.className = 'button_top';
+    while (btn.firstChild) span.appendChild(btn.firstChild);
+    btn.appendChild(span);
+  });
+});
+</script>
 </body>
 </html>

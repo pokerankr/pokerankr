@@ -494,7 +494,7 @@ input[type="checkbox"]{
 
 /* ========================================================= */
 /* === MOBILE IMPROVEMENTS (phones only; desktop untouched) === */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
 
   /* Global safety: no sideways scroll + fluid media */
   html, body { overflow-x: hidden; }
