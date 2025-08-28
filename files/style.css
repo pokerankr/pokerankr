@@ -546,9 +546,9 @@ input[type="checkbox"]{
     box-sizing: border-box;
   }
 
-/* Reduce spacing to fit buttons on screen - keep button styling unchanged */
-  .button-row {
-    margin-top: 2px !important;
+ .button-row {
+    margin-top: 0px !important;
+    margin-bottom: 4px !important;  /* Add bottom margin for visual breathing room */
   }
 
   /* Stack the matchup cards; center VS between them */
@@ -645,16 +645,15 @@ input[type="checkbox"]{
     border-radius: 10px;
   }
   
-  .progress-wrap {
+ .progress-wrap {
     height: 14px;
-    margin: 8px auto 4px;
+    margin: 4px auto 2px;  /* Reduce top/bottom margins */
   }
   
-  #remaining-text {
+   #remaining-text {
     font-size: .8rem;
-    margin: 4px 0 6px;
+    margin: 2px 0 2px;  /* Tighter spacing around progress text */
   }
-  
   .pokemon-card p {
     font-size: .85rem;
     margin-top: 6px;
