@@ -623,17 +623,18 @@ input[type="checkbox"]{
     margin: 2px 0 8px;
   }
   
-   .pokemon-card {
-    width: min(85vw, 300px);
-    padding: 4px 8px 2px;
+  .pokemon-card {
+    width: min(82vw, 280px);  /* Match starters exactly */
+    padding: 2px 8px 2px;
     border-width: 2px;
     border-radius: 12px;
-    min-height: 180px;
+    min-height: 180px;        /* Match starters exactly */
   }
   
-   .matchup-img-wrap {
-    width: min(65vw, 220px);
+  .matchup-img-wrap {
+    width: min(55vw, 200px);  /* Smaller images */
   }
+  
   .matchup-container, #matchup {
     gap: 6px;
     margin-top: 2px;
@@ -646,15 +647,16 @@ input[type="checkbox"]{
     border-radius: 10px;
   }
   
- .progress-wrap {
+  .progress-wrap {
     height: 14px;
-    margin: 4px auto 2px;  /* Reduce top/bottom margins */
+    margin: 4px auto 2px;
   }
   
-   #remaining-text {
+  #remaining-text {
     font-size: .8rem;
-    margin: 2px 0 2px;  /* Tighter spacing around progress text */
+    margin: 2px 0 2px;
   }
+  
   .pokemon-card p {
     font-size: .85rem;
     margin-top: 6px;
@@ -667,6 +669,12 @@ input[type="checkbox"]{
   
   .container {
     padding: 0 2px;
+  }
+  
+  .button-row {
+    margin-top: 0px !important;
+    margin-bottom: 4px !important;
+    gap: 4px !important;
   }
 }
 
@@ -796,4 +804,76 @@ fieldset {
   #vs-text { font-size: .65rem; padding: .1rem .3rem; margin: 0; }
   .progress-wrap { height: 10px; margin: 4px auto 2px; }
   #remaining-text { font-size: .7rem; margin: 2px 0 3px; }
+}
+
+/* Fix save modal buttons on mobile */
+@media (max-width: 768px) {
+  #saveSlotModal .slot-card,
+  #manageSavesModal .slot-card {
+    padding: 8px !important;
+  }
+  
+  #saveSlotModal .slot-body,
+  #manageSavesModal .slot-body {
+    flex-direction: column !important;
+    gap: 8px !important;
+    min-height: auto !important;
+  }
+  
+  /* Stack buttons vertically on small screens */
+  #saveSlotModal .slot-actions,
+  #manageSavesModal .slot-actions {
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+  
+  #saveSlotModal .slot-actions button,
+  #manageSavesModal .slot-actions button {
+    width: 100% !important;
+    min-height: 36px !important;
+  }
+}
+
+/* Make manage saves modal mobile friendly */
+@media (max-width: 768px) {
+  #manageSavesModal > div {
+    width: 95% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    padding: 12px !important;
+  }
+  
+  #manageSlotsGrid {
+    grid-template-columns: 1fr !important; /* Single column on mobile */
+    gap: 8px !important;
+  }
+  
+  #manageSavesModal h3 {
+    font-size: 1.1rem !important;
+    margin: 0 0 8px 0 !important;
+  }
+  
+  #manageSavesModal p {
+    font-size: 0.9rem !important;
+    margin: 0 0 12px 0 !important;
+  }
+  
+  /* Bottom buttons area */
+  #manageSavesModal > div > div:last-child {
+    flex-direction: column !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+  }
+  
+  #manageSavesModal > div > div:last-child > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  
+  #manageSavesModal button {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
 }

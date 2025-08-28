@@ -26,7 +26,7 @@
   <title>PokéRankr - Ranking</title>
   <link rel="stylesheet" href="style.css" />
 <style>
-  /* Stabilize matchup cards only — do NOT touch compact result cards */
+  /* Desktop only: Stabilize matchup cards */
   .pokemon-card:not(.compact-card) {
     min-height: 320px;
     display: flex;
@@ -38,39 +38,6 @@
     height: 256px;
     object-fit: contain;
     display: block;
-  }
-
-  /* Mobile: prioritize large artwork + fit everything on screen */
-  @media (max-width: 768px) {
-    .pokemon-card:not(.compact-card) {
-      min-height: 160px; /* Much shorter cards */
-      width: min(85vw, 300px);
-      padding: 6px 8px 4px; /* Tight padding */
-    }
-    .pokemon-card:not(.compact-card) > img {
-      width: min(60vw, 200px); /* Larger artwork */
-      height: min(60vw, 200px);
-    }
-    .pokemon-card:not(.compact-card) p {
-      font-size: 0.85rem;
-      margin: 4px 0 0 0; /* Minimal margin */
-    }
-  }
-
-  @media (max-width: 640px) {
-    .pokemon-card:not(.compact-card) {
-      min-height: 140px; /* Even shorter */
-      width: min(82vw, 280px);
-      padding: 4px 6px 2px;
-    }
-    .pokemon-card:not(.compact-card) > img {
-      width: min(55vw, 180px); /* Still large artwork */
-      height: min(55vw, 180px);
-    }
-    .pokemon-card:not(.compact-card) p {
-      font-size: 0.8rem;
-      margin: 3px 0 0 0;
-    }
   }
 </style>
 
