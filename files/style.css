@@ -546,18 +546,10 @@ input[type="checkbox"]{
     box-sizing: border-box;
   }
 
-  /* Ensure buttons fit on screen with compact matchups */
-@media (max-width: 768px) {
+/* Reduce spacing to fit buttons on screen - keep button styling unchanged */
   .button-row {
-    margin-top: 6px; /* Tighter spacing above buttons */
-    gap: 8px;
+    margin-top: 2px !important;
   }
-  
-  .button-row button .button_top {
-    padding: 8px 12px; /* Slightly more compact buttons */
-    font-size: 0.85rem;
-  }
-}
 
   /* Stack the matchup cards; center VS between them */
   .matchup-container, #matchup {
@@ -630,17 +622,17 @@ input[type="checkbox"]{
     margin: 2px 0 8px;
   }
   
-  .pokemon-card {
+   .pokemon-card {
     width: min(85vw, 300px);
-    padding: 8px 10px 6px;
+    padding: 4px 8px 2px;
     border-width: 2px;
     border-radius: 12px;
+    min-height: 180px;
   }
   
-  .matchup-img-wrap {
-    width: min(45vw, 160px);
+   .matchup-img-wrap {
+    width: min(65vw, 220px);
   }
-  
   .matchup-container, #matchup {
     gap: 6px;
     margin-top: 2px;
@@ -804,15 +796,4 @@ fieldset {
   #vs-text { font-size: .65rem; padding: .1rem .3rem; margin: 0; }
   .progress-wrap { height: 10px; margin: 4px auto 2px; }
   #remaining-text { font-size: .7rem; margin: 2px 0 3px; }
-}
-
-/* Ensure square cards on mobile for all matchup pages */
-@media (max-width: 768px) {
-  .pokemon-card {
-    aspect-ratio: 1 / 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-  }
 }
