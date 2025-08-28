@@ -546,6 +546,19 @@ input[type="checkbox"]{
     box-sizing: border-box;
   }
 
+  /* Ensure buttons fit on screen with compact matchups */
+@media (max-width: 768px) {
+  .button-row {
+    margin-top: 6px; /* Tighter spacing above buttons */
+    gap: 8px;
+  }
+  
+  .button-row button .button_top {
+    padding: 8px 12px; /* Slightly more compact buttons */
+    font-size: 0.85rem;
+  }
+}
+
   /* Stack the matchup cards; center VS between them */
   .matchup-container, #matchup {
     flex-direction: column;
