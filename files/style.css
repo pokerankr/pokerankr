@@ -792,3 +792,14 @@ fieldset {
   .progress-wrap { height: 10px; margin: 4px auto 2px; }
   #remaining-text { font-size: .7rem; margin: 2px 0 3px; }
 }
+
+/* Ensure square cards on mobile for all matchup pages */
+@media (max-width: 768px) {
+  .pokemon-card {
+    aspect-ratio: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+}
