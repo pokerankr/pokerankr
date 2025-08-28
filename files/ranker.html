@@ -25,23 +25,25 @@
   <link rel="dns-prefetch" href="https://pokeapi.co">
   <title>PokéRankr - Ranking</title>
   <link rel="stylesheet" href="style.css" />
-<style>
-  /* Desktop only: Stabilize matchup cards */
-  .pokemon-card:not(.compact-card) {
-    min-height: 320px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .pokemon-card:not(.compact-card) > img {
-    width: 256px;
-    height: 256px;
-    object-fit: contain;
-    display: block;
-  }
-</style>
 
 </head>
+<style>
+  @media (max-width: 768px) {
+    .pokemon-card {
+      width: min(82vw, 280px) !important;
+      min-height: 180px !important;
+      padding: 2px 8px 2px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .pokemon-card img {
+      width: min(40vw, 140px) !important;
+      height: min(40vw, 140px) !important;
+    }
+  }
+</style>
 <body>
   <div class="container">
     <h1 id="modeTitle">PokéRankr</h1>
