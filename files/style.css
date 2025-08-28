@@ -548,7 +548,8 @@ input[type="checkbox"]{
 
  .button-row {
     margin-top: 0px !important;
-    margin-bottom: 4px !important;  /* Add bottom margin for visual breathing room */
+    margin-bottom: 4px !important;
+    gap: 6px !important;  /* Tighten button spacing from 8px to 4px */
   }
 
   /* Stack the matchup cards; center VS between them */
