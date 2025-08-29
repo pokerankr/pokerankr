@@ -30,6 +30,9 @@
   <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
   <!-- NEW: hidden input specifically for Upload Rankings -->
   <input type="file" id="uploadInput" accept="application/json" style="display:none" />
+
+  <!-- NEW: Submit Feedback -->
+  <button id="btnFeedback" class="menu-button"><span class="button_top">Submit Feedback</span></button>
 </div>
 
     <!-- Manage Saves Modal -->
@@ -52,6 +55,51 @@
         </div>
       </div>
     </div>
+
+    <!-- Feedback Modal -->
+<div id="feedbackModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1100; align-items:center; justify-content:center;">
+  <div role="dialog" aria-modal="true" aria-labelledby="fbTitle"
+       style="background:#fff; width:min(720px,94%); border-radius:12px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); position:relative;">
+    <!-- X (close) -->
+   <!-- X (close) -->
+      <span id="fbClose" aria-label="Close"
+      style="position:absolute; top:10px; right:10px; font-size:22px; line-height:1; cursor:pointer;">×</span>
+
+
+    <h3 id="fbTitle" style="margin:0 28px 12px 0;">Submit Feedback</h3>
+
+    <!-- Netlify-captured form -->
+    <form id="feedbackForm"
+      action="https://formspree.io/f/xrbaevlg"
+      method="POST">
+  <input type="hidden" name="_subject" value="PokeRankr Feedback">
+
+  <!-- Feedback Type -->
+  <label for="fbType" style="display:block; font-weight:600; margin:8px 0 4px;">Feedback Type</label>
+  <select id="fbType" name="type" required style="width:100%; padding:10px;">
+    <option value="">-- Choose --</option>
+    <option>Bug</option>
+    <option>Feature Request</option>
+    <option>New Mode</option>
+  </select>
+
+  <!-- Feature Description -->
+  <label for="fbMessage" style="display:block; font-weight:600; margin:12px 0 4px;">Feature Description</label>
+  <small style="display:block; font-style:italic; color:#6b7280; margin-bottom:6px;">
+    tell me about what you experienced or what you'd like to see!
+  </small>
+  <textarea id="fbMessage" name="message" required
+          placeholder="Write your feedback…"
+          style="width:100%; min-height:120px; padding:10px; resize:none;"></textarea>
+
+  <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
+    <button type="button" id="feedbackCancel" class="alt"><span class="button_top">Cancel</span></button>
+    <button type="submit"><span class="button_top">Send</span></button>
+  </div>
+</form>
+  </div>
+</div>
+
 
   </div> <!-- ✅ close loading-page -->
 
@@ -881,15 +929,76 @@ if (btnUpload && uploadInput) {
 } else {
   console.warn('Upload UI is missing: #btnUpload or #uploadInput not found.');
 }
-  </script>
-  <script>
-// Ensure all buttons have the .button_top styling
+</script>
+<script>
+// Ensure all buttons have the .button_top styling + wire feedback modal
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('button:not(:has(.button_top))').forEach(btn => {
     const span = document.createElement('span');
     span.className = 'button_top';
     while (btn.firstChild) span.appendChild(btn.firstChild);
     btn.appendChild(span);
+  });
+
+  // === Feedback modal wiring ===
+  const btnOpen  = document.getElementById('btnFeedback');
+  const modal    = document.getElementById('feedbackModal');
+  const closeX   = document.getElementById('fbClose');
+  const cancel   = document.getElementById('feedbackCancel');
+  const message  = document.getElementById('fbMessage');
+  const form     = document.getElementById('feedbackForm');
+
+  function openModal() {
+    if (!modal) return;
+    modal.style.display = 'flex';
+    setTimeout(() => message?.focus(), 0);
+  }
+  function closeModal() {
+    if (!modal) return;
+    modal.style.display = 'none';
+  }
+
+  btnOpen?.addEventListener('click', openModal);
+  closeX?.addEventListener('click', closeModal);
+  cancel?.addEventListener('click', closeModal);
+
+  // Close on click outside the dialog
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // Close on Esc
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // === NEW: AJAX submit to Formspree (no page reload) ===
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const endpoint = form.getAttribute('action');
+    const data = new FormData(form);
+
+    // Optional: include page context
+    data.append('page', 'PokeRankr Home');
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: data
+      });
+
+      if (res.ok) {
+        // success UX
+        form.reset();
+        closeModal();
+        alert('Thanks! Your feedback was sent.'); // swap for a toast later if you want
+      } else {
+        alert('Could not send feedback. Please try again.');
+      }
+    } catch (err) {
+      alert('Network error. Please try again.');
+    }
   });
 });
 </script>
