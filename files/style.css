@@ -36,16 +36,71 @@ body {
   font-family: var(--font);
   color: var(--text);
   text-align: center;
-
-  background: linear-gradient(180deg, #e9f0ff 0%, #c9dcff 50%, #3a6ff8 100%);
+  background: linear-gradient(135deg, 
+    #e9f0ff 0%, 
+    #c9dcff 25%, 
+    #3a6ff8 50%, 
+    #5c86ff 75%, 
+    #c9dcff 90%,
+    #e9f0ff 100%);
+  background-size: 400% 400%;
+  animation: gradientWave 15s ease infinite;
+  position: relative;
 }
 
+@keyframes gradientWave {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Subtle floating orbs for depth */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+body::before {
+  width: 80vw;
+  height: 80vw;
+  background: radial-gradient(circle, #ffffff 0%, transparent 70%);
+  top: -40vw;
+  left: -20vw;
+  animation: floatOrb 20s ease-in-out infinite;
+}
+
+body::after {
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, #3a6ff8 0%, transparent 70%);
+  bottom: -30vw;
+  right: -15vw;
+  animation: floatOrb 25s ease-in-out infinite reverse;
+}
+
+@keyframes floatOrb {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -30px) scale(1.05); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
 
 
 .container{max-width:1100px;margin:0 auto}
 
 /* HEADINGS */
-h1{font-size:2.4rem;letter-spacing:.4px;margin:0 0 8px}
+h1{
+  font-size:2.4rem;
+  letter-spacing:.4px;
+  margin:0 0 8px;
+  color: var(--text);
+  text-shadow: 0 2px 4px rgba(255,255,255,0.8),
+               0 1px 2px rgba(255,255,255,0.4);
+  position: relative;
+}
 h2{font-size:1.25rem;color:var(--text);margin:12px 0 6px}
 h3{font-size:1.05rem;margin:10px 0 4px}
 p{margin:.25rem 0}
@@ -164,10 +219,37 @@ button.compact .button_top,
   display:flex;justify-content:center;align-items:center;gap:28px;flex-wrap:wrap;margin-top:22px
 }
 #vs-text{
-  font-weight:900;font-size:1.6rem;color:#fff;
-  background:linear-gradient(180deg,#ffc94d,#ff9d00);
-  padding:.35rem .75rem;border-radius:14px;box-shadow:0 8px 18px rgba(255,157,0,.25);
+  font-weight:900;
+  font-size:1.6rem;
+  color:#fff;
+  background:linear-gradient(135deg,#ffc94d,#ff9d00);
+  padding:.35rem .75rem;
+  border-radius:14px;
+  box-shadow:0 8px 18px rgba(255,157,0,.25),
+             inset 0 1px 0 rgba(255,255,255,.4);
   text-shadow:0 1px 0 rgba(0,0,0,.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.2);
+  position: relative;
+  overflow: hidden;
+}
+#vs-text::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, 
+    transparent, 
+    rgba(255,255,255,.1), 
+    transparent);
+  transform: rotate(45deg);
+  animation: vsGlint 3s ease-in-out infinite;
+}
+@keyframes vsGlint {
+  0%, 100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+  50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
 }
 
 /* CARD */
@@ -244,11 +326,43 @@ button.compact .button_top,
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-#remaining-text{color:#000000;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+#remaining-text{
+  color:#0d1b2a;
+  text-shadow: 0 1px 3px rgba(255,255,255,0.9),
+               0 2px 8px rgba(255,255,255,0.7);
+  font-weight: 600;
+}
 
 /* RESULT / CHAMPION */
 .result-container{margin-top:10px}
-.champion-card{background:transparent;box-shadow:none;border:none;padding:0;margin:0 auto 10px}
+.champion-card{
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2),
+              inset 0 2px 4px rgba(255, 255, 255, 0.3);
+  border-radius: 24px;
+  padding: 8px;  /* <- Reduced from 20px to 8px */
+  margin: 0 auto 10px;
+  position: relative;
+  width: fit-content;
+  max-width: 400px;
+  display: inline-block;
+}
+.champion-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, 
+    rgba(255,255,255,0.1) 0%, 
+    transparent 100%);
+  border-radius: 24px;
+  pointer-events: none;
+}
 .champion-image-wrapper{position:relative;display:inline-block}
 .champion-img{width:320px;max-width:80vw;animation:pulse 2s infinite ease-in-out}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
@@ -356,8 +470,52 @@ button.compact .button_top,
 .config-section,
 #extra-options{
   text-align:left; margin:14px auto; padding:16px;
-  background:var(--panel-soft); border:4px solid #d2deff; outline:1px solid #eef3ff;
-  border-radius:18px; box-shadow:var(--shadow); width:min(760px,92vw)
+  background: linear-gradient(135deg, 
+    rgba(243, 246, 255, 0.95) 0%,
+    rgba(243, 246, 255, 0.85) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border:3px solid rgba(210, 222, 255, 0.6);
+  outline:1px solid rgba(255, 255, 255, 0.8);
+  border-radius:18px; 
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  width:min(760px,92vw);
+  position: relative;
+  overflow: hidden;
+}
+.config-section::before,
+#extra-options::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, 
+    #3a6ff8, #5c86ff, #a8c5ff, #ffffff, #5c86ff, #3a6ff8);
+  border-radius: 18px;
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+  background-size: 300% 300%;
+  animation: gradientShift 8s ease infinite;
+}
+.config-section:hover::before,
+#extra-options:hover::before {
+  opacity: 0.12;  /* <- Also reduced opacity slightly for subtlety */
+}
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.config-section:hover::before,
+#extra-options:hover::before {
+  opacity: 0.15;
+}
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 .config-section label,
 #extra-options label{
@@ -853,11 +1011,90 @@ input[type="checkbox"]{
   transform: translateY(0);
 }
 .skel {
-  background: rgba(0,0,0,0.06);
-  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(58, 111, 248, 0.05) 0%,
+    rgba(92, 134, 255, 0.1) 20%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(92, 134, 255, 0.1) 80%,
+    rgba(58, 111, 248, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 18px;
   height: 280px;
   width: 280px;
-  animation: pulse 1s infinite ease-in-out;
+  position: relative;
+  overflow: hidden;
+  border: 4px solid rgba(210, 222, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08);
+  animation: shimmerSkeleton 2s infinite ease-in-out;
+}
+
+@keyframes shimmerSkeleton {
+  0% { 
+    background-position: -200% 0;
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% { 
+    background-position: 200% 0;
+    opacity: 0.7;
+  }
+}
+
+/* Premium loading dots for any loading text */
+.loading-dots::after {
+  content: '';
+  animation: loadingDots 1.5s infinite;
+}
+
+@keyframes loadingDots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Add a pulse ring effect to skeleton cards */
+.skel::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(58, 111, 248, 0.3);
+  border-radius: 18px;
+  transform: translate(-50%, -50%);
+  animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0;
+  }
+}
+
+/* Enhance the loading page with a subtle bounce */
+#loading-page .logo {
+  animation: gentleBounce 2s ease-in-out infinite;
+}
+
+@keyframes gentleBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 @keyframes pulse {
   0% { opacity: .6 } 50% { opacity: .3 } 100% { opacity: .6 }
