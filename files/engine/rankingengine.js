@@ -452,8 +452,11 @@ emitPhaseChange();
       next = remaining.pop() || null;
 
       if (leftHistory.length === 0 || monKey(leftHistory[leftHistory.length - 1]) !== monKey(winner)) {
-        leftHistory.push({ ...winner });
-      }
+  leftHistory.push({ ...winner });
+} else {
+  // Update the existing entry with the current winner's data (including updated roundsSurvived)
+  leftHistory[leftHistory.length - 1] = { ...winner };
+}
 
       roundNum += 1;
 
