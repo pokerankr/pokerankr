@@ -41,9 +41,11 @@
 
     <!-- In-game controls -->
     <div class="button-row" id="ingame-controls">
-      <button id="btnUndo" disabled title="Undo last pick (Backspace)">Undo</button>
-      <button id="btnSaveExit" title="Save & exit to menu">Save & Exit</button>
-    </div>
+  <button id="btnUndo" disabled><span class="button_top">Undo</span></button>
+  <button id="btnPickForMe" disabled><span class="button_top">Pick For Me! (3)</span></button>
+  <button id="btnSaveExit"><span class="button_top">Save & Exit</span></button>
+  <button id="btnMainMenu"><span class="button_top">Main Menu</span></button>
+</div>
 
     <!-- Save Slot Modal -->
     <div
@@ -70,38 +72,22 @@
     <div id="result" class="result-container" style="display: none;"></div>
   </div>
 
-   <script>
-    // Grab shiny settings from localStorage and store globally (used by export image label)
-    window.includeShinies = localStorage.getItem('includeShinies') === 'true';
-    window.shinyOnly = localStorage.getItem('shinyOnly') === 'true';
-  </script>
-  <script src="engine/rankingEngine.js"></script>
-  <script src="js/legendaries.js"></script>
+<script>
+  // Make shiny settings + config available to ranker.js
+  window.includeShinies = localStorage.getItem('includeShinies') === 'true';
+  window.shinyOnly      = localStorage.getItem('shinyOnly') === 'true';
+  window.rankConfig     = JSON.parse(localStorage.getItem('rankConfig') || '{}');
 
-  <!-- Auto-resume from Index's "Continue / Manage Saves" -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const pending = localStorage.getItem('PR_PENDING_RESUME_SLOT');
-        if (pending !== null) {
-          localStorage.removeItem('PR_PENDING_RESUME_SLOT');
-          const slots = (typeof readSlots === 'function') ? readSlots() : [];
-          const idx = parseInt(pending, 10);
-          const s = Array.isArray(slots) ? slots[idx] : null;
-          if (s && s.type === 'starters' && typeof loadStarterSession === 'function') {
-            loadStarterSession(s);
-            return; // stop; loadStarterSession will render the correct screen
-          }
-        }
-      } catch (e) {
-        console.warn('Pending resume check failed:', e);
-      }
-
-      // No pending resume → render a fresh run
-      if (typeof displayMatchup === 'function') displayMatchup();
-      if (typeof updateProgress === 'function') updateProgress();
-      if (typeof updateUndoButton === 'function') updateUndoButton();
-    });
-  </script>
+  // Fallback defaults if user hits this page directly
+  if (!window.rankConfig.category) {
+    window.rankConfig = {
+      category: 'legendaries',
+      filters: {},
+      toggles: { mythMode: 'none', ubsMode: 'exclude', formsMode: 'off' }
+    };
+  }
+</script>
+<script src="engine/rankingengine.js"></script>
+<script src="js/ranker.js"></script>
 </body>
 </html>

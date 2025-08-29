@@ -2121,6 +2121,13 @@ function undoLast() {
   // After an undo, clear KOTH one-step flag so button disables
   kothLastSnap = false;
 
+  // If the last move was Pick For Me, restore the use
+  if (lastMoveWasPickForMe) {
+    pickForMeUsesLeft++;
+    updatePickForMeButton();
+    lastMoveWasPickForMe = false; // Reset the flag
+  }
+
   withScrollLock(() => {
     displayMatchup();
     (state.phase === 'RU' || state.phase === 'THIRD') ? updatePostProgress() : updateProgress();
@@ -2663,7 +2670,48 @@ function onKeydown(e){
 document.addEventListener("keydown", onKeydown);
 document.getElementById("btnUndo")?.addEventListener("click", undoLast);
 
+// Pick For Me button functionality
+let pickForMeUsesLeft = 3;
+let lastMoveWasPickForMe = false; // Track if last move was Pick For Me
+
+function handlePickForMe() {
+  if (pickForMeUsesLeft <= 0) return;
+  
+  // Mark that this move was made with Pick For Me
+  lastMoveWasPickForMe = true;
+  
+  // Randomly choose left or right
+  const choice = Math.random() < 0.5 ? 'left' : 'right';
+  
+  // Use the existing pick function
+  pick(choice);
+  
+  // Decrease uses and update button
+  pickForMeUsesLeft--;
+  updatePickForMeButton();
+}
+
+function updatePickForMeButton() {
+  const btn = document.getElementById('btnPickForMe');
+  if (!btn) return;
+  
+  if (pickForMeUsesLeft <= 0) {
+    btn.disabled = true;
+    btn.querySelector('.button_top').textContent = 'Pick For Me! (0)';
+  } else {
+    btn.disabled = false;
+    btn.querySelector('.button_top').textContent = `Pick For Me! (${pickForMeUsesLeft})`;
+  }
+}
+
+// Add event listener for the button
+document.getElementById('btnPickForMe')?.addEventListener('click', handlePickForMe);
+
+// Initialize button state
+updatePickForMeButton();
+
 function pick(side) {
+  
   if (!window.prEngine || typeof prEngine.choose !== 'function') return;
   if (gameOver) return;
 

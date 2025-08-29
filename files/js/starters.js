@@ -931,6 +931,12 @@ function undoLast() {
   // Consuming an undo = disarm both single-step flags locally
   kothLastSnap = false;
   post.lastSnap = null;
+  // If the last move was Pick For Me, restore the use
+  if (lastMoveWasPickForMe) {
+    pickForMeUsesLeft++;
+    updatePickForMeButton();
+    lastMoveWasPickForMe = false; // Reset the flag
+  }
 
   withScrollLock(() => {
     displayMatchup();
@@ -1490,19 +1496,48 @@ document.getElementById("btnUndo")?.addEventListener("click", undoLast);
 document.getElementById('btnSaveExit')?.addEventListener('click', openSaveModal);
 document.getElementById('btnCancelSave')?.addEventListener('click', closeSaveModal);
 
-// Create "Main Menu" button on the ranking screen
-(function addMainMenuButton(){
-  const container = document.getElementById('ingame-controls');
-  if (!container || document.getElementById('btnMainMenu')) return;
+// Pick For Me button functionality
+let pickForMeUsesLeft = 3;
+let lastMoveWasPickForMe = false; // Track if last move was Pick For Me
 
-  const btn = document.createElement('button');
-  btn.id = 'btnMainMenu';
-  btn.textContent = 'Main Menu';
-  btn.addEventListener('click', goToMainMenu);
+function handlePickForMe() {
+  if (pickForMeUsesLeft <= 0) return;
+  
+  // Mark that this move was made with Pick For Me
+  lastMoveWasPickForMe = true;
+  
+  // Randomly choose left or right
+  const choice = Math.random() < 0.5 ? 'left' : 'right';
+  
+  // Use the existing pick function
+  pick(choice);
+  
+  // Decrease uses and update button
+  pickForMeUsesLeft--;
+  updatePickForMeButton();
+}
 
-  // Put it at the end of the controls row
-  container.appendChild(btn);
-})();
+function updatePickForMeButton() {
+  const btn = document.getElementById('btnPickForMe');
+  if (!btn) return;
+  
+  if (pickForMeUsesLeft <= 0) {
+    btn.disabled = true;
+    btn.querySelector('.button_top').textContent = 'Pick For Me! (0)';
+  } else {
+    btn.disabled = false;
+    btn.querySelector('.button_top').textContent = `Pick For Me! (${pickForMeUsesLeft})`;
+  }
+}
+
+// Add event listener for the button
+document.getElementById('btnPickForMe')?.addEventListener('click', handlePickForMe);
+
+// Initialize button state
+updatePickForMeButton();
+
+// Add event listener to existing Main Menu button
+document.getElementById('btnMainMenu')?.addEventListener('click', goToMainMenu);
 
 // Optional: expose resume helper globally if we decide to deep-link
 window._PR_loadStarterSession = loadStarterSession;
