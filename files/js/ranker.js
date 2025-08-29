@@ -110,8 +110,41 @@ async function _prLoadPokemonDb() {
   window._pokemonDbCache = Array.isArray(data) ? data : [];
   return window._pokemonDbCache;
 }
-// Exclude non-battle/travel builds and Starter Pikachu everywhere
-const EXCLUDED_TYPE_MODE_RE = /^(?:miraidon-(?:aquatic-mode|drive-mode|glide-mode|low-power-mode)|koraidon-(?:sprinting-build|limited-build|gliding-build|swimming-build)|pikachu-starter)$/i;
+// Helper to safely escape any slug we add (future-proof)
+const _reEscape = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Maintain the list here (lowercase, kebab-case slugs)
+const EXCLUDED_SLUGS = [
+  // Starters / special
+  'pikachu-starter',
+  'eevee-starter',
+
+  // Maushold/Dudunsparce
+  'dudunsparce-three-segment',
+  'maushold-family-of-three',
+
+  // Terapagos
+  'terapagos-stellar',
+
+  // Miraidon travel modes
+  'miraidon-aquatic-mode',
+  'miraidon-drive-mode',
+  'miraidon-glide-mode',
+  'miraidon-low-power-mode',
+
+  // Koraidon builds
+  'koraidon-sprinting-build',
+  'koraidon-limited-build',
+  'koraidon-gliding-build',
+  'koraidon-swimming-build',
+];
+
+// Auto-build the same regex name used everywhere else (so no other code changes needed)
+const EXCLUDED_TYPE_MODE_RE = new RegExp(
+  `^(?:${EXCLUDED_SLUGS.map(_reEscape).join('|')})$`,
+  'i'
+);
+
 
 // Track completion for achievements (separate from saving)
 function trackRankingCompletion(category, resultsCount) {
@@ -764,6 +797,7 @@ function buildGenPool(gen){
     { id: 144,  name: "Galarian Articuno", gen: 8 },
     { id: 145,  name: "Galarian Zapdos",  gen: 8 },
     { id: 146,  name: "Galarian Moltres", gen: 8 },
+    { id: 83,  name: "Galarian Farfetchd", gen: 8 },
   ];
 
    // helper: build entries honoring shinyOnly/includeShinies flags
@@ -1024,12 +1058,12 @@ function flattenWithForms(list) {
     const formSlug = String(f.name || '').toLowerCase().replace(/\s+/g, '-');
     if (EXCLUDED_TYPE_MODE_RE.test(formSlug)) continue;
 
-    // ✅ Base species goes in
+    // ✅ Push the actual FORM, with its own id/types/slug
     out.push({
-      id: p.id,
-      name: toFriendlyWithGmax(p.name),
-      types: p.types,
-      variety: p.name
+      id: f.id,
+      name: toFriendlyWithGmax(f.name),
+      types: f.types,
+      variety: f.name
     });
   }
 }
@@ -1478,6 +1512,9 @@ function normalizeFormHyphen(name){
 .replace(/^Tatsugiri-Stretchy$/i,   'Tatsugiri (Stretchy)')
 .replace(/^Tatsugiri-Stretchy$/i,   'Tatsugiri (Curly)')
 
+// ✅ Maushold Annoyance Name
+.replace(/^Maushold-family-of-four$/i, 'Maushold')
+
 // Primals
 .replace(/^Groudon-Primal$/i, 'Groudon (Primal)')
 .replace(/^Kyogre-Primal$/i, 'Kyogre (Primal)');
@@ -1495,11 +1532,13 @@ function finalizeName(raw){
 
   // Canon cleanup (your requested fixes, resilient to punctuation)
   n = n
+    .replace(/\bFarfetchd\b/gi, "Farfetch'd")          // ← NEW: global fix
     .replace(/^Type[-:\s]*Null$/i, 'Type: Null')
     .replace(/^Hoopa Unbound$/i, 'Hoopa (Unbound)');
 
   return n;
 }
+
 
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
