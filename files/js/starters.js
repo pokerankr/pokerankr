@@ -1363,7 +1363,10 @@ function findByKey(key){
 }
 
 // ----- Results (page UI)
-function showWinner(finalWinner) {
+function showWinner(finalWinner){
+  // Track completion for achievements (NEW!)
+  const category = window.rankConfig?.category || 'unknown';
+  trackRankingCompletion(category, pool.length);
   gameOver = true;
   document.removeEventListener("keydown", onKeydown);
 
