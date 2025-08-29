@@ -431,17 +431,16 @@ emitPhaseChange();
       _callbacks.onResults?.(this.computeResults());
     }
 
-    // ---- KOTH choose ----
-    function chooseKoth(side) {
-      if (!current || !next) return;
-     // AFTER (inside chooseKoth)
-      kothLastSnap = snapshot(); // one-step undo point
-
-
-      const winner = (side === "left") ? current : next;
-      const loser  = (side === "left") ? next : current;
-
-      winner.roundsSurvived = (winner.roundsSurvived || 0) + 1;
+   function chooseKoth(side) {
+  if (!current || !next) return;
+  
+  kothLastSnap = snapshot();
+  
+  const winner = (side === "left") ? current : next;
+  const loser = (side === "left") ? next : current;
+  
+  // Make sure this line exists and is working:
+  winner.roundsSurvived = (winner.roundsSurvived || 0) + 1;
 
       const lKey = monKey(loser);
       const wKey = monKey(winner);

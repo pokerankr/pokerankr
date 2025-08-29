@@ -2918,36 +2918,40 @@ function showWinner(finalWinner){
   }
 
   const renderCard = (title, p) => {
-    if (!p) return "";
-    const survivedLine = `<p class="rounds-text">Survived ${pluralize(p.roundsSurvived || 0, "Round", "Rounds")}</p>`;
-    if (title === "Runner-up" || title === "Third Place") {
-      const wins = bracketWinsFor(title, p);
-      const total = (title === "Runner-up") ? (post.ruTotal || 0) : (post.thirdTotal || 0);
-      const winsLine = (wins > 0)
-        ? `<p class="rounds-text">Won ${pluralize(wins, "Match", "Matches")}</p>`
-        : `<p class="rounds-text">Auto-advanced</p>`;
-      return `
-        <div class="pokemon-card compact-card">
-          ${getImageTag(p, p.shiny, displayName(p), true)}
-
-          <p>${displayName(p)}</p>
-          ${survivedLine}
-          ${total === 0 ? `<p class="rounds-text">Auto-advanced</p>` : winsLine}
-          <p class="placement-tag">${title}</p>
-        </div>
-      `;
-    }
+  if (!p) return "";
+  const survivedLine = `<p class="rounds-text">Survived ${pluralize(p.roundsSurvived || 0, "Round", "Rounds")}</p>`;
+  
+  if (title === "Runner-up" || title === "Third Place") {
+    const wins = bracketWinsFor(title, p);
+    const total = (title === "Runner-up") ? (post.ruTotal || 0) : (post.thirdTotal || 0);
+    
+    const winsLine = (wins > 0)
+      ? `<p class="rounds-text">Won ${pluralize(wins, "Match", "Matches")}</p>`
+      : (total === 0 ? `<p class="rounds-text">Auto-advanced</p>`
+                     : `<p class="rounds-text">Won 0 Matches</p>`);
+    
     return `
       <div class="pokemon-card compact-card">
         ${getImageTag(p, p.shiny, displayName(p), true)}
-
         <p>${displayName(p)}</p>
         ${survivedLine}
-        <p class="rounds-text" style="visibility:hidden;">placeholder</p>
+        ${winsLine}
         <p class="placement-tag">${title}</p>
       </div>
     `;
-  };
+  }
+  
+  // THIS WAS MISSING - Honorable Mention case:
+  return `
+    <div class="pokemon-card compact-card">
+      ${getImageTag(p, p.shiny, displayName(p), true)}
+      <p>${displayName(p)}</p>
+      ${survivedLine}
+      <p class="rounds-text" style="visibility:hidden;">placeholder</p>
+      <p class="placement-tag">${title}</p>
+    </div>
+  `;
+};
 
 const rc  = window.rankConfig || {};
 const g   = rc?.filters?.generation || 1;
@@ -3395,30 +3399,30 @@ ctx.fillText(MODE, size/2, 148);
     lines: [ `Survived ${pluralize(champion.roundsSurvived || 0, "Round", "Rounds")}` ]
   });
 
-  // Helper to build stat lines for bottom cards
-  function buildLinesFor(title, mon) {
-    if (!mon) return [];
-    const survived = `Survived ${pluralize(mon.roundsSurvived || 0, "Round", "Rounds")}`;
+ function buildLinesFor(title, mon) {
+  if (!mon) return [];
+  const survived = `Survived ${pluralize(mon.roundsSurvived || 0, "Round", "Rounds")}`;
 
-    if (title === 'Runner-up') {
-      const wins  = (post?.ruWinsByMon?.[monKey(mon)] || 0);
-      const total = (typeof post?.ruTotal === 'number' ? post.ruTotal : 0);
-      const auto  = (total === 0);
-      return auto ? [survived, 'Auto-advanced']
-                  : [survived, `Won ${pluralize(wins, "Match", "Matches")}`];
-    }
-
-    if (title === 'Third Place') {
-      const wins  = (post?.thirdWinsByMon?.[monKey(mon)] || 0);
-      const total = (typeof post?.thirdTotal === 'number' ? post.thirdTotal : 0);
-      const auto  = (total === 0);
-      return auto ? [survived, 'Auto-advanced']
-                  : [survived, `Won ${pluralize(wins, "Match", "Matches")}`];
-    }
-
-    // Honorable Mention: only survived line
-    return [survived];
+  if (title === 'Runner-up') {
+    const wins = (post?.ruWinsByMon?.[monKey(mon)] || 0);
+    const total = (typeof post?.ruTotal === 'number' ? post.ruTotal : 0);
+    return (wins > 0) 
+      ? [survived, `Won ${pluralize(wins, "Match", "Matches")}`]
+      : (total === 0 ? [survived, 'Auto-advanced'] 
+                     : [survived, 'Won 0 Matches']);
   }
+
+  if (title === 'Third Place') {
+    const wins = (post?.thirdWinsByMon?.[monKey(mon)] || 0);
+    const total = (typeof post?.thirdTotal === 'number' ? post.thirdTotal : 0);
+    return (wins > 0)
+      ? [survived, `Won ${pluralize(wins, "Match", "Matches")}`]
+      : (total === 0 ? [survived, 'Auto-advanced']
+                     : [survived, 'Won 0 Matches']);
+  }
+
+  return [survived];
+}
 
   // Bottom row cards
   const rowY = 840;

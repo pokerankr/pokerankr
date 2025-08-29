@@ -508,7 +508,6 @@ input[type="checkbox"]{
   .saved-row-slots{ flex-direction:column; }
 }
 
-/* ========================================================= */
 /* === MOBILE IMPROVEMENTS (phones only; desktop untouched) === */
 @media (max-width: 768px) {
 
@@ -537,7 +536,7 @@ input[type="checkbox"]{
     min-height: 44px;
   }
   
-  /* Apply mobile sizing to the .button_top spans instead of the buttons themselves */
+  /* Apply mobile sizing to the .button_top spans */
   .category-button .button_top, 
   .menu-button .button_top, 
   button .button_top {
@@ -546,10 +545,10 @@ input[type="checkbox"]{
     box-sizing: border-box;
   }
 
- .button-row {
+  .button-row {
     margin-top: 0px !important;
     margin-bottom: 4px !important;
-    gap: 4px !important;  /* Tighten button spacing from 8px to 4px */
+    gap: 4px !important;
   }
 
   /* Stack the matchup cards; center VS between them */
@@ -567,15 +566,34 @@ input[type="checkbox"]{
     padding: .28rem .6rem;
   }
 
-  /* Cards scale to viewport, slightly less padding */
+  /* Cards scale to viewport - UNIFIED FOR BOTH STARTERS AND RANKER */
   .pokemon-card { 
-    width: min(92vw, 440px); 
-    padding: 14px 14px 12px; 
+    width: min(82vw, 280px) !important;
+    min-height: 180px !important;
+    padding: 6px 8px 4px !important;
+    border-width: 3px;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
+  
+  /* Unified image sizing within cards */
+  .pokemon-card img,
+  .matchup-img-wrap img {
+    width: min(40vw, 180px) !important;
+    height: min(40vw, 180px) !important;
+    object-fit: contain;
+  }
+  
+  /* The wrapper itself should match image size */
   .matchup-img-wrap { 
-  width: min(70vw, 260px); 
+    width: min(40vw, 180px) !important;
+    height: min(40vw, 180px) !important;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
   }
-
 
   /* Progress bar fills width */
   .progress-wrap { width: 100%; margin-left: 0; margin-right: 0; }
