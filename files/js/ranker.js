@@ -1410,6 +1410,12 @@ function normalizeFormHyphen(name){
 function finalizeName(raw){
   let n = String(raw || '').trim();
 
+  // NEW: Paradox Pokémon — drop the dash & title-case both words
+  // (Great|Scream|Brute|Flutter|Slither|Sandy|Roaring|Walking|Raging|Gouging|Iron)-<word>
+  if (/^(?:Great|Scream|Brute|Flutter|Slither|Sandy|Roaring|Walking|Raging|Gouging|Iron)-/i.test(n)) {
+    n = n.split('-').map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w).join(' ');
+  }
+
   // General dash → (Form)
   n = normalizeFormHyphen(n);
 
@@ -1420,6 +1426,8 @@ function finalizeName(raw){
 
   return n;
 }
+
+
 
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
