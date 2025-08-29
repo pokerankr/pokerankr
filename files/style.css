@@ -44,7 +44,7 @@ body {
     #c9dcff 90%,
     #e9f0ff 100%);
   background-size: 400% 400%;
-  animation: gradientWave 15s ease infinite;
+  animation: gradientWave 45s ease infinite;
   position: relative;
 }
 
@@ -70,7 +70,7 @@ body::before {
   background: radial-gradient(circle, #ffffff 0%, transparent 70%);
   top: -40vw;
   left: -20vw;
-  animation: floatOrb 20s ease-in-out infinite;
+  animation: floatOrb 40s ease-in-out infinite;
 }
 
 body::after {
@@ -79,7 +79,7 @@ body::after {
   background: radial-gradient(circle, #3a6ff8 0%, transparent 70%);
   bottom: -30vw;
   right: -15vw;
-  animation: floatOrb 25s ease-in-out infinite reverse;
+  animation: floatOrb 50s ease-in-out infinite reverse;
 }
 
 @keyframes floatOrb {
@@ -461,7 +461,56 @@ button.compact .button_top,
 }
 
 
-.menu-buttons{margin-top:6px}
+.menu-buttons{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 24px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Primary action area - the main buttons */
+.menu-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu-primary button {
+  width: 100%;
+  font-size: 19px;
+}
+
+.menu-primary button .button_top {
+  padding: 1em 1.75em;
+}
+
+/* Secondary actions - smaller buttons in a grid */
+.menu-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 2px solid rgba(58, 111, 248, 0.1);
+}
+
+.menu-secondary button {
+  width: 100%;
+  font-size: 15px;
+}
+
+.menu-secondary button .button_top {
+  padding: 0.8em 1.2em;
+}
+
+/* Mobile: stack secondary buttons vertically */
+@media (max-width: 480px) {
+  .menu-secondary {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ====== CONFIG PAGE ====== */
 #config-page{max-width:880px;margin:0 auto}

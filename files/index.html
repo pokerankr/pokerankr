@@ -23,17 +23,20 @@
   <img src="assets/logo.png" alt="PokéRankr Logo">
 </div>
     <div class="menu-buttons">
-  <button id="btnStart" class="menu-button"><span class="button_top">Start</span></button>
-  <button id="btnManageSaves" class="menu-button" style="display:none;"><span class="button_top">Continue / Manage Saves</span></button>
-  <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
-  <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
-  <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
-  <!-- NEW: hidden input specifically for Upload Rankings -->
-  <input type="file" id="uploadInput" accept="application/json" style="display:none" />
-
-  <!-- NEW: Submit Feedback -->
-  <button id="btnFeedback" class="menu-button"><span class="button_top">Submit Feedback</span></button>
+  <div class="menu-primary">
+    <button id="btnStart" class="menu-button"><span class="button_top">Start New Ranking</span></button>
+    <button id="btnManageSaves" class="menu-button" style="display:none;"><span class="button_top">Continue / Manage Saves</span></button>
+  </div>
+  
+  <div class="menu-secondary">
+    <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
+    <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
+    <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
+    <button id="btnFeedback" class="menu-button"><span class="button_top">Submit Feedback</span></button>
+  </div>
 </div>
+<!-- Keep the hidden input for uploads -->
+<input type="file" id="uploadInput" accept="application/json" style="display:none" />
 
     <!-- Manage Saves Modal -->
     <div id="manageSavesModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
