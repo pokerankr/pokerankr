@@ -110,6 +110,9 @@ async function _prLoadPokemonDb() {
   window._pokemonDbCache = Array.isArray(data) ? data : [];
   return window._pokemonDbCache;
 }
+// Exclude non-battle/travel builds and Starter Pikachu everywhere
+const EXCLUDED_TYPE_MODE_RE = /^(?:miraidon-(?:aquatic-mode|drive-mode|glide-mode|low-power-mode)|koraidon-(?:sprinting-build|limited-build|gliding-build|swimming-build)|pikachu-starter)$/i;
+
 
 function _prFilterByTypes(db, mode, typeA, typeB) {
   const A = String(typeA || '').trim();
@@ -122,10 +125,14 @@ function _prFilterByTypes(db, mode, typeA, typeB) {
     const variants = [e, ...(Array.isArray(e.forms) ? e.forms : [])];
 
     for (const v of variants) {
-      const t = Array.isArray(v.types) ? v.types : [];
-      if (!dual) {
-        // Monotype = include any Pokémon that HAS the chosen type (even if it's a dual-type mon).
-        if (t.includes(A)) out.push({ id: v.id, name: v.name });
+  // Skip ride/travel forms for Koraidon/Miraidon (normalize spaces → hyphens first)
+  const slugName = String(v.name || '').toLowerCase().replace(/\s+/g, '-');
+  if (EXCLUDED_TYPE_MODE_RE.test(slugName)) continue;
+
+  const t = Array.isArray(v.types) ? v.types : [];
+  if (!dual) {
+    // Monotype = include any Pokémon that HAS the chosen type (even if it's a dual-type mon).
+    if (t.includes(A)) out.push({ id: v.id, name: v.name });
       } else {
         // Dual = exactly A + B in any order, and exactly 2 slots
         if (t.length === 2 && ((t[0] === A && t[1] === B) || (t[0] === B && t[1] === A))) {
@@ -979,21 +986,27 @@ function flattenWithForms(list) {
     out.push({ id: p.id, name: toFriendlyWithGmax(p.name), types: p.types });
 
     if (Array.isArray(p.forms)) {
-      for (const f of p.forms) {
-        if (!f) continue;
-        // 🚫 Skip busted Mimikyu + non-green Squawkabilly
-        if (/^mimikyu-busted$/i.test(f.name)) continue;
-        if (/^squawkabilly-(blue|yellow|white)-plumage$/i.test(f.name)) continue;
+  for (const f of p.forms) {
+    if (!f) continue;
 
-        // ✅ Forms keep their slug in `variety`, so artwork can resolve to the correct form
-        out.push({
-          id: f.id,
-          name: toFriendlyWithGmax(f.name), // pretty label (incl. G-Max/Eternamax cases)
-          types: f.types,
-          variety: f.name                    // <-- key addition
-        });
-      }
-    }
+    // 🚫 Skip busted Mimikyu + non-green Squawkabilly
+    if (/^mimikyu-busted$/i.test(f.name)) continue;
+    if (/^squawkabilly-(blue|yellow|white)-plumage$/i.test(f.name)) continue;
+
+    // 🚫 NEW: Skip non-battle ride/build forms for Koraidon/Miraidon
+    // (we already define EXCLUDED_TYPE_MODE_RE earlier in the file)
+    const formSlug = String(f.name || '').toLowerCase().replace(/\s+/g, '-');
+    if (EXCLUDED_TYPE_MODE_RE.test(formSlug)) continue;
+
+    // ✅ Forms keep their slug in `variety`, so artwork can resolve to the correct form
+    out.push({
+      id: f.id,
+      name: toFriendlyWithGmax(f.name),
+      types: f.types,
+      variety: f.name
+    });
+  }
+}
   }
   return out;
 }
@@ -1012,8 +1025,11 @@ function flattenWithForms(list) {
     const [T1, T2] = norm;
 
     // For Type mode we consider base mons + any forms that match
-    const ALL = flattenWithForms(DB);
-
+      // Guard: hard-drop any Koraidon/Miraidon travel forms (in case data changes later)
+  const ALL = flattenWithForms(DB).filter(p => {
+    const nm = String(p.variety || p.name || '').toLowerCase().replace(/\s+/g, '-');
+    return !EXCLUDED_TYPE_MODE_RE.test(nm);
+  });
     const strictMono = !!rc?.filters?.type?.strictMono;
 
 function matchesType(m) {
@@ -1353,6 +1369,13 @@ function normalizeFormHyphen(name){
   return String(name || '')
     // 👇 First, catch Type: Null explicitly so it doesn’t get mangled
     .replace(/^Type[-:\s]*Null$/i, 'Type: Null')
+
+    // ✅ Paradox species: use spaces instead of hyphens
+    // (Safe list of known prefixes so we don't touch Ho-Oh, Porygon-Z, Kommo-o, etc.)
+    .replace(
+      /\b(Iron|Great|Scream|Brute|Flutter|Slither|Sandy|Roaring|Walking|Raging|Gouging)-([A-Z][a-z]+)\b/g,
+      (_m, a, b) => `${a} ${b}`
+    )
     // 👇 Core “dash to (Form)” mappings
     .replace(/-Incarnate$/i, ' (Incarnate)')
     .replace(/-Therian$/i,   ' (Therian)')
@@ -1393,15 +1416,46 @@ function normalizeFormHyphen(name){
     .replace(/^Zygarde-50$/i,   'Zygarde (50%)')
     .replace(/^Deoxys-Normal$/i,'Deoxys (Normal)')
 
-    // 👇 Mimikyu special-case
-    .replace(/^Mimikyu-Disguised$/i, 'Mimikyu')
-    .replace(/^Mimikyu-Busted$/i,    'Mimikyu')
+   // 👇 Mimikyu special-case
+.replace(/^Mimikyu-Disguised$/i, 'Mimikyu')
+.replace(/^Mimikyu-Busted$/i,    'Mimikyu')
 
-    // ✅ Squawkabilly (Green only shown)
-    .replace(/^Squawkabilly-Green-Plumage$/i, 'Squawkabilly (Green)')
+// ✅ Squawkabilly (Green only shown)
+.replace(/^Squawkabilly-Green-Plumage$/i, 'Squawkabilly (Green)')
 
-    // Primals
-    .replace(/^Groudon-Primal$/i, 'Groudon (Primal)');
+// ✅ Rotom appliance forms → "Rotom (Wash/Heat/Frost/Mow/Fan)"
+.replace(/^Rotom-Wash$/i,  'Rotom (Wash)')
+.replace(/^Rotom-Heat$/i,  'Rotom (Heat)')
+.replace(/^Rotom-Frost$/i, 'Rotom (Frost)')
+.replace(/^Rotom-Mow$/i,   'Rotom (Mow)')
+.replace(/^Rotom-Fan$/i,   'Rotom (Fan)')
+
+// ✅ Morpeko modes → "Morpeko (Full Belly/Hangry)"
+.replace(/^Morpeko-Full-Belly$/i, 'Morpeko (Full Belly)')
+.replace(/^Morpeko-Hangry$/i,     'Morpeko (Hangry)')
+
+// ✅ Basculin forms → "Basculin (stripes)"
+.replace(/^Basculin-Blue-Striped$/i,   'Basculin (Blue Striped)')
+.replace(/^Basculin-White-Striped$/i, 'Basculin (White Striped)')
+.replace(/^Basculin-Red-Striped$/i, 'Basculin (Red Striped)')
+
+// ✅ Basculegion forms → "Basculegion (M/f)"
+.replace(/^Basculegion-Male$/i,   'Basculin (Male)')
+.replace(/^Basculin-Female$/i, 'Basculin (Female)')
+
+// ✅ Toxtricity forms → "Toxtricity (Amped/Low Key)"
+.replace(/^Toxtricity-Amped$/i,   'Toxtricity (Amped)')
+.replace(/^Toxtricity-Low-Key$/i, 'Toxtricity (Low Key)')
+
+// ✅ Tatsugiri forms → "Tatsugiri (Droopy/Stretchy)"
+.replace(/^Tatsugiri-Droopy$/i,   'Tatsugiri (Droopy)')
+.replace(/^Tatsugiri-Stretchy$/i,   'Tatsugiri (Stretchy)')
+.replace(/^Tatsugiri-Stretchy$/i,   'Tatsugiri (Curly)')
+
+// Primals
+.replace(/^Groudon-Primal$/i, 'Groudon (Primal)')
+.replace(/^Kyogre-Primal$/i, 'Kyogre (Primal)');
+
 }
 //
 // Final pass used everywhere before showing a name.
@@ -1409,12 +1463,6 @@ function normalizeFormHyphen(name){
 //
 function finalizeName(raw){
   let n = String(raw || '').trim();
-
-  // NEW: Paradox Pokémon — drop the dash & title-case both words
-  // (Great|Scream|Brute|Flutter|Slither|Sandy|Roaring|Walking|Raging|Gouging|Iron)-<word>
-  if (/^(?:Great|Scream|Brute|Flutter|Slither|Sandy|Roaring|Walking|Raging|Gouging|Iron)-/i.test(n)) {
-    n = n.split('-').map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w).join(' ');
-  }
 
   // General dash → (Form)
   n = normalizeFormHyphen(n);
@@ -1426,8 +1474,6 @@ function finalizeName(raw){
 
   return n;
 }
-
-
 
 // One-time normalization pass over existing cached names
 (function migrateNameCache(){
@@ -3138,11 +3184,14 @@ const friendlyFromVariety = (slug) => {
   return null;
 };
 
-const displayNameSafe =
-  p.name                                    // already-friendly from the pool
-  || friendlyFromVariety(variety)           // derive from variety slug (Megas, Paldea, etc.)
-  || nameCache[p.id]                        // as a last resort, base species cached name
-  || null;
+// Always normalize the final label to catch any stray hyphens (e.g., Iron-Thorns)
+const displayNameSafe = finalizeName(
+  p.name
+  || friendlyFromVariety(variety)
+  || nameCache[p.id]
+  || ''
+) || null;
+
 
 const obj = {
   id: p.id,
