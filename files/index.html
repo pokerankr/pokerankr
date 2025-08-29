@@ -29,12 +29,17 @@
   </div>
   
   <div class="menu-secondary">
-    <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
-    <button id="btnDownload" class="menu-button"><span class="button_top">Download Rankings</span></button>
-    <button id="btnUpload" class="menu-button"><span class="button_top">Upload Rankings</span></button>
-    <button id="btnFeedback" class="menu-button"><span class="button_top">Submit Feedback</span></button>
-  </div>
+  <button onclick="window.location.href='saved.html'"><span class="button_top">Saved Rankings</span></button>
+  <button onclick="window.location.href='badges.html'" id="btnBadges" style="position:relative;">
+    <span class="button_top">Badges</span>
+    <span id="badgeNotification" class="notification-bubble" style="display:none;"></span>
+  </button>
+  <button id="btnDownload" class="menu-button"><span class="button_top">Download</span></button>
+  <button id="btnUpload" class="menu-button"><span class="button_top">Upload</span></button>
+  <button id="btnFeedback" class="menu-button"><span class="button_top">Feedback</span></button>
 </div>
+</div>
+
 <!-- Keep the hidden input for uploads -->
 <input type="file" id="uploadInput" accept="application/json" style="display:none" />
 
@@ -143,6 +148,8 @@
     </div>
   </div>
   <script>
+
+    
   /* =========================
      App/version constants
      ========================= */
@@ -1003,6 +1010,97 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Network error. Please try again.');
     }
   });
+});
+
+// === Badge Notification System ===
+function updateBadgeNotification() {
+  const notification = document.getElementById('badgeNotification');
+  if (!notification) return;
+  
+  // Get achievements data
+  const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
+  
+  // Count new badges that haven't been viewed this session
+  let newCount = 0;
+  Object.keys(achievements).forEach(badgeId => {
+    if (achievements[badgeId]?.isNew && !sessionStorage.getItem(`badge_${badgeId}_viewed`)) {
+      newCount++;
+    }
+  });
+  
+  // Update notification bubble
+  if (newCount > 0) {
+    notification.textContent = newCount;
+    notification.style.display = 'flex';
+  } else {
+    notification.style.display = 'none';
+  }
+}
+
+// Check for new badges whenever a ranking is completed
+function checkForNewBadges() {
+  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
+  
+  const stats = {
+    totalRankings: completions.length,
+    uniqueCategories: new Set(completions.map(c => c.category)).size,
+    totalPokemonRanked: completions.reduce((sum, c) => sum + (c.pokemonCount || 0), 0),
+    shinyRankings: completions.filter(c => c.includeShinies || c.shinyOnly).length
+  };
+  
+  let hasNewBadge = false;
+  
+  // Check each badge condition (same as before but using completions)
+  if (stats.totalRankings >= 1 && !achievements.boulder?.unlocked) {
+    achievements.boulder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.totalRankings >= 5 && !achievements.cascade?.unlocked) {
+    achievements.cascade = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.totalRankings >= 10 && !achievements.thunder?.unlocked) {
+    achievements.thunder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.uniqueCategories >= 3 && !achievements.rainbow?.unlocked) {
+    achievements.rainbow = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.totalRankings >= 25 && !achievements.soul?.unlocked) {
+    achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.totalPokemonRanked >= 500 && !achievements.marsh?.unlocked) {
+    achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.shinyRankings >= 1 && !achievements.volcano?.unlocked) {
+    achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  if (stats.totalRankings >= 50 && !achievements.earth?.unlocked) {
+    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  
+  if (hasNewBadge) {
+    localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(achievements));
+  }
+  
+  return hasNewBadge;
+}
+
+// Update notification on page load
+document.addEventListener('DOMContentLoaded', () => {
+  checkForNewBadges();
+  updateBadgeNotification();
+});
+
+// Also update when returning from other pages
+window.addEventListener('pageshow', () => {
+  updateBadgeNotification();
 });
 </script>
 </body>

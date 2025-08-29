@@ -375,6 +375,28 @@ function startersLabel() {
   return `${base}${extras}${shinyBit}`;
 }
 
+// Track completion for achievements (separate from saving)
+function trackRankingCompletion(category, pokemonCount) {
+  // Get existing completion data
+  let completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  
+  // Add this completion
+  completions.push({
+    date: new Date().toISOString(),
+    category: category,
+    pokemonCount: pokemonCount || 0,
+    includeShinies: window.includeShinies || false,
+    shinyOnly: window.shinyOnly || false
+  });
+  
+  // Keep only last 100 completions to avoid bloat
+  if (completions.length > 100) {
+    completions = completions.slice(-100);
+  }
+  
+  localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completions));
+}
+
 // NEW: write a dynamic title into #modeTitle for Starters mode
 function setStartersTitle() {
   const includeShinies = localStorage.getItem("includeShinies") === "true";

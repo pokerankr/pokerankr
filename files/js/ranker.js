@@ -113,6 +113,32 @@ async function _prLoadPokemonDb() {
 // Exclude non-battle/travel builds and Starter Pikachu everywhere
 const EXCLUDED_TYPE_MODE_RE = /^(?:miraidon-(?:aquatic-mode|drive-mode|glide-mode|low-power-mode)|koraidon-(?:sprinting-build|limited-build|gliding-build|swimming-build)|pikachu-starter)$/i;
 
+// Track completion for achievements (separate from saving)
+function trackRankingCompletion(category, resultsCount) {
+  // Get existing completion data
+  let completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  
+  // Add this completion
+  completions.push({
+    date: new Date().toISOString(),
+    category: category || window.rankConfig?.category || 'unknown',
+    pokemonCount: resultsCount,
+    includeShinies: window.includeShinies || false,
+    shinyOnly: window.shinyOnly || false
+  });
+  
+  // Keep only last 100 completions to avoid bloat
+  if (completions.length > 100) {
+    completions = completions.slice(-100);
+  }
+  
+  localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completions));
+  
+  // Trigger achievement check (we'll add this to index.html)
+  if (typeof checkForNewBadges === 'function') {
+    checkForNewBadges();
+  }
+}
 
 function _prFilterByTypes(db, mode, typeA, typeB) {
   const A = String(typeA || '').trim();
@@ -2995,6 +3021,9 @@ function scheduleNextPostMatch(){
 
 // ----- Results + save
 function showWinner(finalWinner){
+  // Track completion for achievements (NEW!)
+  const category = window.rankConfig?.category || 'unknown';
+  trackRankingCompletion(category, pool.length);
   gameOver = true;
   document.removeEventListener("keydown", onKeydown);
   history = [];

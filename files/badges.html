@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>PokeRankr - Badge Case</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <style>
+    /* Badge Case Specific Styles */
+    .badge-case-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .badge-case {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
+      border: 3px solid rgba(210, 222, 255, 0.6);
+      margin-top: 20px;
+    }
+    
+    .badges-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 30px;
+      margin: 30px 0;
+    }
+    
+    .badge-slot {
+      position: relative;
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    
+    .badge-slot:hover {
+      transform: scale(1.05);
+    }
+    
+    .badge-image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: all 0.3s ease;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    }
+    
+    .badge-image.locked {
+      filter: brightness(0.3) contrast(1.2);
+      opacity: 0.6;
+    }
+    
+    .badge-name {
+      position: absolute;
+      bottom: -25px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+      width: 100%;
+    }
+    
+    .badge-new {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: #ff3b30;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      animation: bounce 1s infinite;
+      z-index: 10;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    
+    @keyframes badgeUnlock {
+      0% { 
+        transform: scale(0) rotate(0deg);
+        opacity: 0;
+      }
+      50% {
+        transform: scale(1.2) rotate(180deg);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1) rotate(360deg);
+        opacity: 1;
+      }
+    }
+    
+    .badge-unlocking {
+      animation: badgeUnlock 0.8s ease-out;
+    }
+    
+    .badge-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+      padding: 20px;
+      background: var(--panel-soft);
+      border-radius: 12px;
+    }
+    
+    .stat-item {
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: var(--primary);
+    }
+    
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-soft);
+    }
+    
+    /* Badge Details Modal */
+    .badge-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    
+    .badge-modal-content {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .badge-modal-image {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 20px;
+    }
+    
+    .badge-modal-title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    
+    .badge-modal-description {
+      color: var(--text-soft);
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .badge-modal-requirement {
+      background: var(--panel-soft);
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+    
+    .badge-modal-date {
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    
+    @media (max-width: 768px) {
+      .badges-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .badges-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+      }
+      
+      .badge-case {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="badge-case-container">
+    <h1>Badge Case</h1>
+    
+    <!-- Stats Overview -->
+    <div class="badge-stats">
+      <div class="stat-item">
+        <div class="stat-value" id="badgesEarned">0</div>
+        <div class="stat-label">Badges Earned</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="totalRankings">0</div>
+        <div class="stat-label">Total Rankings</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="completion">0%</div>
+        <div class="stat-label">Completion</div>
+      </div>
+    </div>
+    
+    <!-- Badge Case -->
+    <div class="badge-case">
+      <div class="badges-grid" id="badgesGrid">
+        <!-- Badges will be populated here -->
+      </div>
+    </div>
+    
+    <!-- Back Button -->
+    <div class="button-row" style="margin-top: 30px;">
+      <button onclick="window.location.href='index.html'">
+        <span class="button_top">Back to Menu</span>
+      </button>
+    </div>
+  </div>
+  
+  <!-- Badge Details Modal -->
+  <div id="badgeModal" class="badge-modal">
+    <div class="badge-modal-content">
+      <img id="modalBadgeImage" class="badge-modal-image" src="" alt="">
+      <h2 id="modalBadgeName" class="badge-modal-title"></h2>
+      <p id="modalBadgeDescription" class="badge-modal-description"></p>
+      <div id="modalBadgeRequirement" class="badge-modal-requirement"></div>
+      <div id="modalBadgeDate" class="badge-modal-date"></div>
+      <button onclick="closeBadgeModal()">
+        <span class="button_top">Close</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Badge definitions
+    const BADGES = [
+      {
+        id: 'boulder',
+        name: 'Boulder Badge',
+        description: 'Your first step into the world of Pokemon ranking!',
+        requirement: 'Complete your first ranking',
+        image: 'assets/achievements/boulder-badge.png',
+        silhouette: 'assets/achievements/boulder-silhouette.png'
+      },
+      {
+        id: 'cascade',
+        name: 'Cascade Badge',
+        description: 'Getting into the flow of ranking Pokemon!',
+        requirement: 'Complete 5 rankings',
+        image: 'assets/achievements/cascade-badge.png',
+        silhouette: 'assets/achievements/cascade-silhouette.png'
+      },
+      {
+        id: 'thunder',
+        name: 'Thunder Badge',
+        description: 'Electrifying dedication to ranking!',
+        requirement: 'Complete 10 rankings',
+        image: 'assets/achievements/thunder-badge.png',
+        silhouette: 'assets/achievements/thunder-silhouette.png'
+      },
+      {
+        id: 'rainbow',
+        name: 'Rainbow Badge',
+        description: 'A colorful collection of rankings!',
+        requirement: 'Complete rankings in 3 different categories',
+        image: 'assets/achievements/rainbow-badge.png',
+        silhouette: 'assets/achievements/rainbow-silhouette.png'
+      },
+      {
+        id: 'soul',
+        name: 'Soul Badge',
+        description: 'Showing true dedication to your favorites!',
+        requirement: 'Complete 25 rankings',
+        image: 'assets/achievements/soul-badge.png',
+        silhouette: 'assets/achievements/soul-silhouette.png'
+      },
+      {
+        id: 'marsh',
+        name: 'Marsh Badge',
+        description: 'Deep into the ranking journey!',
+        requirement: 'Rank 500 total Pokemon',
+        image: 'assets/achievements/marsh-badge.png',
+        silhouette: 'assets/achievements/marsh-silhouette.png'
+      },
+      {
+        id: 'volcano',
+        name: 'Volcano Badge',
+        description: 'Burning passion for Pokemon ranking!',
+        requirement: 'Complete a ranking with shinies',
+        image: 'assets/achievements/volcano-badge.png',
+        silhouette: 'assets/achievements/volcano-silhouette.png'
+      },
+      {
+        id: 'earth',
+        name: 'Earth Badge',
+        description: 'The ultimate ranking champion!',
+        requirement: 'Complete 50 rankings',
+        image: 'assets/achievements/earth-badge.png',
+        silhouette: 'assets/achievements/earth-silhouette.png'
+      }
+    ];
+    
+    // Load achievement data
+    function loadAchievements() {
+      return JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
+    }
+    
+    // Save achievement data
+    function saveAchievements(data) {
+      localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(data));
+    }
+    
+    // Check and unlock achievements
+    function checkAchievements() {
+      const achievements = loadAchievements();
+      const stats = getStats();
+      let newUnlocks = [];
+      
+      // Boulder Badge - First ranking
+      if (stats.totalRankings >= 1 && !achievements.boulder) {
+        achievements.boulder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('boulder');
+      }
+      
+      // Cascade Badge - 5 rankings
+      if (stats.totalRankings >= 5 && !achievements.cascade) {
+        achievements.cascade = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('cascade');
+      }
+      
+      // Thunder Badge - 10 rankings
+      if (stats.totalRankings >= 10 && !achievements.thunder) {
+        achievements.thunder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('thunder');
+      }
+      
+      // Rainbow Badge - 3 different categories
+      if (stats.uniqueCategories >= 3 && !achievements.rainbow) {
+        achievements.rainbow = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('rainbow');
+      }
+      
+      // Soul Badge - 25 rankings
+      if (stats.totalRankings >= 25 && !achievements.soul) {
+        achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('soul');
+      }
+      
+      // Marsh Badge - 500 Pokemon ranked
+      if (stats.totalPokemonRanked >= 500 && !achievements.marsh) {
+        achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('marsh');
+      }
+      
+      // Volcano Badge - Shiny ranking
+      if (stats.shinyRankings >= 1 && !achievements.volcano) {
+        achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('volcano');
+      }
+      
+      // Earth Badge - 50 rankings
+      if (stats.totalRankings >= 50 && !achievements.earth) {
+        achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
+        newUnlocks.push('earth');
+      }
+      
+      saveAchievements(achievements);
+      return newUnlocks;
+    }
+    
+    // Get player statistics
+    function getStats() {
+      const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
+      const categories = new Set();
+      let totalPokemonRanked = 0;
+      let shinyRankings = 0;
+      
+      savedRankings.forEach(ranking => {
+        if (ranking.category) categories.add(ranking.category);
+        if (ranking.results) totalPokemonRanked += ranking.results.length;
+        if (ranking.includeShinies || ranking.shinyOnly) shinyRankings++;
+      });
+      
+      return {
+        totalRankings: savedRankings.length,
+        uniqueCategories: categories.size,
+        totalPokemonRanked,
+        shinyRankings
+      };
+    }
+    
+    // Render badges
+    function renderBadges() {
+      const achievements = loadAchievements();
+      const grid = document.getElementById('badgesGrid');
+      const stats = getStats();
+      
+      // Clear any "new" flags that are older than this session
+      Object.keys(achievements).forEach(key => {
+        if (achievements[key].isNew && !sessionStorage.getItem(`badge_${key}_seen`)) {
+          sessionStorage.setItem(`badge_${key}_seen`, 'true');
+        }
+      });
+      
+      grid.innerHTML = BADGES.map(badge => {
+        const achievement = achievements[badge.id];
+        const isUnlocked = achievement?.unlocked;
+        const isNew = achievement?.isNew && !sessionStorage.getItem(`badge_${badge.id}_viewed`);
+        
+        return `
+          <div class="badge-slot" onclick="showBadgeDetails('${badge.id}')">
+            <img 
+              class="badge-image ${!isUnlocked ? 'locked' : ''}" 
+              src="${isUnlocked ? badge.image : badge.silhouette}"
+              alt="${badge.name}"
+            >
+            <div class="badge-name">${badge.name}</div>
+            ${isNew ? '<div class="badge-new">NEW!</div>' : ''}
+          </div>
+        `;
+      }).join('');
+      
+      // Update stats
+      const unlockedCount = Object.values(achievements).filter(a => a?.unlocked).length;
+      document.getElementById('badgesEarned').textContent = unlockedCount;
+      document.getElementById('totalRankings').textContent = stats.totalRankings;
+      document.getElementById('completion').textContent = Math.round((unlockedCount / BADGES.length) * 100) + '%';
+      
+      // Update notification count on parent page
+      updateNotificationCount();
+    }
+    
+    // Show badge details modal
+    function showBadgeDetails(badgeId) {
+      const badge = BADGES.find(b => b.id === badgeId);
+      const achievements = loadAchievements();
+      const achievement = achievements[badgeId];
+      
+      document.getElementById('modalBadgeImage').src = achievement?.unlocked ? badge.image : badge.silhouette;
+      document.getElementById('modalBadgeName').textContent = badge.name;
+      document.getElementById('modalBadgeDescription').textContent = badge.description;
+      document.getElementById('modalBadgeRequirement').textContent = `Requirement: ${badge.requirement}`;
+      
+      if (achievement?.unlocked) {
+        const date = new Date(achievement.date);
+        document.getElementById('modalBadgeDate').textContent = `Earned on ${date.toLocaleDateString()}`;
+        
+        // Mark as viewed
+        if (achievement.isNew) {
+          sessionStorage.setItem(`badge_${badgeId}_viewed`, 'true');
+          achievement.isNew = false;
+          saveAchievements(achievements);
+          renderBadges();
+        }
+      } else {
+        document.getElementById('modalBadgeDate').textContent = 'Not yet earned';
+      }
+      
+      document.getElementById('badgeModal').style.display = 'flex';
+    }
+    
+    // Close badge modal
+    function closeBadgeModal() {
+      document.getElementById('badgeModal').style.display = 'none';
+    }
+    
+    // Update notification count
+    function updateNotificationCount() {
+      const achievements = loadAchievements();
+      const newCount = Object.values(achievements).filter(a => 
+        a?.isNew && !sessionStorage.getItem(`badge_${Object.keys(achievements).find(k => achievements[k] === a)}_viewed`)
+      ).length;
+      
+      // Store for the main page to read
+      sessionStorage.setItem('newBadgeCount', newCount);
+    }
+    
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAchievements();
+      renderBadges();
+    });
+    
+    // Close modal on outside click
+    document.getElementById('badgeModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeBadgeModal();
+    });
+  </script>
+</body>
+</html>
