@@ -998,12 +998,12 @@ function flattenWithForms(list) {
     const formSlug = String(f.name || '').toLowerCase().replace(/\s+/g, '-');
     if (EXCLUDED_TYPE_MODE_RE.test(formSlug)) continue;
 
-    // ✅ Forms keep their slug in `variety`, so artwork can resolve to the correct form
+    // ✅ Base species goes in
     out.push({
-      id: f.id,
-      name: toFriendlyWithGmax(f.name),
-      types: f.types,
-      variety: f.name
+      id: p.id,
+      name: toFriendlyWithGmax(p.name),
+      types: p.types,
+      variety: p.name
     });
   }
 }
