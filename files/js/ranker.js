@@ -11,6 +11,7 @@ window.prEngine = (window.PokeRankrEngine && typeof PokeRankrEngine.create === '
 // Replace the existing setTitle function in ranker.js with this:
 (function setTitle(){
   const titleEl = document.getElementById("modeTitle");
+  if (!titleEl) return; // Page has no modeTitle; skip without breaking the app
   const rc = window.rankConfig || {};
   let label = "PokéRankr";
 
