@@ -2071,6 +2071,57 @@ const post = {
   ruTotal: 0,
   thirdTotal: 0,
 };
+
+// --- Head-to-Head (per run; shows rematch context) ---
+const H2H = Object.create(null); // "ak|bk" -> { aKey, bKey, aWins, bWins, total, last }
+
+function h2hRecord(winner, loser) {
+  if (!winner || !loser) return;
+  const k = pairKey(winner, loser);          // uses monKey() ordering under the hood
+  const [aKey, bKey] = k.split('|');
+  if (!H2H[k]) H2H[k] = { aKey, bKey, aWins: 0, bWins: 0, total: 0, last: null };
+  const rec = H2H[k];
+  const wKey = monKey(winner);
+  if (wKey === rec.aKey) rec.aWins++; else rec.bWins++;
+  rec.total++; 
+  rec.last = wKey;
+}
+
+function h2hFor(leftMon, rightMon) {
+  const k = pairKey(leftMon, rightMon);
+  const rec = H2H[k];
+  if (!rec) return null;
+  const leftKey  = monKey(leftMon);
+  const rightKey = monKey(rightMon);
+  const winsFor = (k) => (k === rec.aKey ? rec.aWins : rec.bWins);
+  return {
+    leftWins:  winsFor(leftKey),
+    rightWins: winsFor(rightKey),
+    total:     rec.total,
+    lastWinnerKey: rec.last
+  };
+}
+
+function h2hBadgeText(myWins, theirWins) {
+  const mw = myWins|0, tw = theirWins|0;
+  if (mw + tw === 0) return '';                    // first meeting → no badge
+  if (mw === tw) return `Tied ${mw}–${tw}`;
+  return (mw > tw) ? `Leads ${mw}–${tw}` : `Trails ${mw}–${tw}`;
+}
+
+function refreshH2HBadges() {
+  try {
+    const L = document.querySelector('#left .h2h-badge');
+    const R = document.querySelector('#right .h2h-badge');
+    if (!L || !R) return;
+    if (!current || !next) { L.textContent = ''; R.textContent = ''; return; }
+    const rec = h2hFor(current, next);
+    if (!rec) { L.textContent = ''; R.textContent = ''; return; }
+    L.textContent = h2hBadgeText(rec.leftWins,  rec.rightWins);
+    R.textContent = h2hBadgeText(rec.rightWins, rec.leftWins);
+  } catch {}
+}
+
 // --- Single-step undo for post-phase (RU/THIRD) ---
 function postSaveLastSnapshot() {
   post.lastSnap = {
@@ -2511,15 +2562,17 @@ document.getElementById('btnMainMenu')?.addEventListener('click', goToMainMenu);
 })();
 
 // ----- Rendering
-function labelHTML(p){
+function labelHTML(p, side){
   const nm = p.name || nameCache[p.id] || "";
   const text = nm ? (p.shiny ? `⭐ ${nm}` : nm) : "";
-  // Lock one text line height and prevent wrapping; always reserve space even when empty.
   return `<p data-id="${p.id}" class="pkr-label"
             style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; min-height:1.2em; margin:6px 0 0; text-align:center;">
             ${text || "&nbsp;"}
-          </p>`;
+          </p>
+          <div class="h2h-badge" data-side="${side || ''}"
+               style="text-align:center; font-size:.8rem; color:#6b7280; min-height:1em; margin-top:2px;"></div>`;
 }
+
 
 
 // 🔹 Track last rendered mon on each side to skip left re-renders
@@ -2578,7 +2631,8 @@ function renderOpponentSmooth(mon){
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
   temp.style.top = '0';
-  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon, 'right')}`;
+
   document.body.appendChild(temp);
   pendingRightTemp = temp;
 
@@ -2633,7 +2687,7 @@ function renderLeftSmooth(mon){
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
   temp.style.top = '0';
-  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon)}`;
+  temp.innerHTML = `${getImageTag(mon)}${labelHTML(mon, 'left')}`;
   document.body.appendChild(temp);
 
   const img = temp.querySelector('img');
@@ -2726,18 +2780,19 @@ if (lk !== lastLeftKey) {
 
 
 // RIGHT: do a flicker-free swap — keep the old one visible until the new image has fully loaded
-if (rk !== lastRightKey) {
-  // If we’re reusing the right as the new left, add a soft-dim class until the new opponent is ready
-  const rightEl = document.getElementById("right");
-  if (rightEl && lastRightKey && lastRightKey === lk) {
-    rightEl.classList.add('recycling');
+  if (rk !== lastRightKey) {
+    const rightEl = document.getElementById("right");
+    if (rightEl && lastRightKey && lastRightKey === lk) {
+      rightEl.classList.add('recycling');
+    }
+    renderOpponentSmooth(next)?.finally(() => {
+      rightEl?.classList.remove('recycling');
+      refreshH2HBadges(); // ← update badges after the new opponent is in the DOM
+    });
+  } else {
+    updateLabelText(rightEl, next);
+    refreshH2HBadges();   // ← also update if the right didn’t re-render
   }
-  renderOpponentSmooth(next)?.finally(() => {
-    rightEl?.classList.remove('recycling');
-  });
-} else {
-  updateLabelText(rightEl, next);
-}
 
 // Silent name prefetch (cache only; the smooth render will swap when ready)
 awaitName(current.id);
@@ -2859,10 +2914,19 @@ function pick(side) {
     // KOTH: arm one-step undo
     kothLastSnap = true;
   }
-  updateUndoButton();
+    updateUndoButton();
+
+  // Capture the pair BEFORE calling the engine, so we know who fought
+  const beforeLeft  = current;
+  const beforeRight = next;
 
   const state = prEngine.choose(side === 'left' ? 'left' : 'right');
   if (!state) return;
+
+  // Record the head-to-head result for this exact pair
+  const winnerMon = (side === 'left') ? beforeLeft : beforeRight;
+  const loserMon  = (side === 'left') ? beforeRight : beforeLeft;
+  if (winnerMon && loserMon) h2hRecord(winnerMon, loserMon);
 
   // ---- Mirror engine → local ----
   remaining  = state.remaining  || [];
