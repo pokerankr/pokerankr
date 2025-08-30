@@ -108,7 +108,7 @@ p{margin:.25rem 0}
 /* MENU (index.html) */
 .settings{
   display:flex;justify-content:center;gap:1.25rem;
-  margin:16px 0 20px;color:var(--text-soft);font-weight:600
+  margin:16px 0 20px;color:#000000(--text-soft);font-weight:600
 }
 .settings input{margin-right:.4rem}
 
@@ -511,7 +511,42 @@ button.compact .button_top,
     grid-template-columns: 1fr;
   }
 }
-
+@media (max-width: 480px) {
+  .badges-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 40px;  /* Add space before button */
+  }
+  
+  .badge-case {
+    padding: 20px 15px 30px 15px;  /* More bottom padding */
+    margin-bottom: 20px;
+  }
+  
+  .badge-slot {
+    margin-bottom: 35px;  /* Space for the name below */
+  }
+  
+  .badge-name {
+    bottom: -30px;  /* Move text lower on mobile */
+    font-size: 0.75rem;  /* Smaller text */
+  }
+  
+  /* Ensure Back to Menu button has space */
+  .button-row {
+    margin-top: 40px !important;
+    padding: 0 15px;
+  }
+  
+  /* Modal adjustments for mobile */
+  .badge-modal-content {
+    padding: 20px;
+  }
+  
+  .badge-modal-date {
+    margin: 15px 0 20px 0;
+  }
+}
 /* Achievement notification bubble */
 .notification-bubble {
   position: absolute;

@@ -375,21 +375,40 @@ function startersLabel() {
   return `${base}${extras}${shinyBit}`;
 }
 
-// Track completion for achievements (separate from saving)
 function trackRankingCompletion(category, pokemonCount) {
-  // Get existing completion data
+  // Get the champion from your results
+  const { champion } = computeResults();
+  
   let completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
   
-  // Add this completion
+  // Build detailed subcategory info
+  let subcategory = category;
+  if (category === 'generation') {
+    const gen = window.rankConfig?.filters?.generation;
+    subcategory = gen === 'ALL' ? 'generation-all' : `generation-${gen}`;
+  } else if (category === 'legendaries') {
+    const mythMode = window.rankConfig?.toggles?.mythMode || 'none';
+    const ubsMode = window.rankConfig?.toggles?.ubsMode || 'exclude';
+    if (mythMode === 'only') subcategory = 'legendaries-mythicals';
+    else if (ubsMode === 'only') subcategory = 'legendaries-ultrabeasts';
+    else if (mythMode === 'include' && ubsMode === 'include') subcategory = 'legendaries-all';
+    else subcategory = 'legendaries-base';
+  } else if (category === 'type') {
+    const types = window.rankConfig?.filters?.type?.types || [];
+    subcategory = `type-${types.join('-')}`;
+  }
+  
   completions.push({
     date: new Date().toISOString(),
     category: category,
+    subcategory: subcategory,
     pokemonCount: pokemonCount || 0,
     includeShinies: window.includeShinies || false,
-    shinyOnly: window.shinyOnly || false
+    shinyOnly: window.shinyOnly || false,
+    championId: champion?.id || null,
+    championShiny: champion?.shiny || false
   });
   
-  // Keep only last 100 completions to avoid bloat
   if (completions.length > 100) {
     completions = completions.slice(-100);
   }

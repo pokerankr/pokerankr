@@ -8,11 +8,11 @@
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
   <style>
     /* Badge Case Specific Styles */
-    .badge-case-container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+  .badge-case-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px 20px 60px 20px;  /* Extra bottom padding for button */
+}
     
     .badge-case {
       background: rgba(255, 255, 255, 0.95);
@@ -60,14 +60,18 @@
     }
     
     .badge-name {
-      position: absolute;
-      bottom: -25px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text);
-      text-align: center;
-      width: 100%;
-    }
+  position: absolute;
+  bottom: -25px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 5px;
+}
     
     .badge-new {
       position: absolute;
@@ -182,10 +186,11 @@
     }
     
     .badge-modal-date {
-      font-size: 0.85rem;
-      color: var(--accent);
-      font-weight: 600;
-    }
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 20px 0 25px 0;  /* Added proper spacing */
+}
     
     @media (max-width: 768px) {
       .badges-grid {
@@ -263,6 +268,7 @@
         name: 'Boulder Badge',
         description: 'Your first step into the world of Pokemon ranking!',
         requirement: 'Complete your first ranking',
+        mysteryText: '???',
         image: 'assets/achievements/boulder-badge.png',
         silhouette: 'assets/achievements/boulder-silhouette.png'
       },
@@ -271,6 +277,7 @@
         name: 'Cascade Badge',
         description: 'Getting into the flow of ranking Pokemon!',
         requirement: 'Complete 5 rankings',
+        mysteryText: '???',
         image: 'assets/achievements/cascade-badge.png',
         silhouette: 'assets/achievements/cascade-silhouette.png'
       },
@@ -279,6 +286,7 @@
         name: 'Thunder Badge',
         description: 'Electrifying dedication to ranking!',
         requirement: 'Complete 10 rankings',
+        mysteryText: '???',
         image: 'assets/achievements/thunder-badge.png',
         silhouette: 'assets/achievements/thunder-silhouette.png'
       },
@@ -286,39 +294,44 @@
         id: 'rainbow',
         name: 'Rainbow Badge',
         description: 'A colorful collection of rankings!',
-        requirement: 'Complete rankings in 3 different categories',
+        requirement: 'Complete one ranking in each category!',
+        mysteryText: '???',
         image: 'assets/achievements/rainbow-badge.png',
         silhouette: 'assets/achievements/rainbow-silhouette.png'
       },
       {
         id: 'soul',
         name: 'Soul Badge',
-        description: 'Showing true dedication to your favorites!',
-        requirement: 'Complete 25 rankings',
+        description: 'Old School Cool',
+        requirement: 'Have a Gen 1 Pokemon win a ranking',
+        mysteryText: '???',
         image: 'assets/achievements/soul-badge.png',
         silhouette: 'assets/achievements/soul-silhouette.png'
       },
       {
         id: 'marsh',
         name: 'Marsh Badge',
-        description: 'Deep into the ranking journey!',
-        requirement: 'Rank 500 total Pokemon',
+        description: 'Gotta rank \'em all!',
+        requirement: 'Rank all 1025 Pokemon across all modes',
+        mysteryText: '???',
         image: 'assets/achievements/marsh-badge.png',
         silhouette: 'assets/achievements/marsh-silhouette.png'
       },
       {
         id: 'volcano',
         name: 'Volcano Badge',
-        description: 'Burning passion for Pokemon ranking!',
-        requirement: 'Complete a ranking with shinies',
+        description: 'Shiny Charm!',
+        requirement: 'Have a shiny Pokemon win (excl. Shiny Only Mode)',
+        mysteryText: '???',
         image: 'assets/achievements/volcano-badge.png',
         silhouette: 'assets/achievements/volcano-silhouette.png'
       },
       {
         id: 'earth',
         name: 'Earth Badge',
-        description: 'The ultimate ranking champion!',
-        requirement: 'Complete 50 rankings',
+        description: 'You are the Dan of PokeRankr!',
+        requirement: 'Complete every type of ranking available',
+        mysteryText: '???',
         image: 'assets/achievements/earth-badge.png',
         silhouette: 'assets/achievements/earth-silhouette.png'
       }
@@ -336,83 +349,101 @@
     
     // Check and unlock achievements
     function checkAchievements() {
-      const achievements = loadAchievements();
-      const stats = getStats();
-      let newUnlocks = [];
-      
-      // Boulder Badge - First ranking
-      if (stats.totalRankings >= 1 && !achievements.boulder) {
-        achievements.boulder = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('boulder');
-      }
-      
-      // Cascade Badge - 5 rankings
-      if (stats.totalRankings >= 5 && !achievements.cascade) {
-        achievements.cascade = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('cascade');
-      }
-      
-      // Thunder Badge - 10 rankings
-      if (stats.totalRankings >= 10 && !achievements.thunder) {
-        achievements.thunder = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('thunder');
-      }
-      
-      // Rainbow Badge - 3 different categories
-      if (stats.uniqueCategories >= 3 && !achievements.rainbow) {
-        achievements.rainbow = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('rainbow');
-      }
-      
-      // Soul Badge - 25 rankings
-      if (stats.totalRankings >= 25 && !achievements.soul) {
-        achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('soul');
-      }
-      
-      // Marsh Badge - 500 Pokemon ranked
-      if (stats.totalPokemonRanked >= 500 && !achievements.marsh) {
-        achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('marsh');
-      }
-      
-      // Volcano Badge - Shiny ranking
-      if (stats.shinyRankings >= 1 && !achievements.volcano) {
-        achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('volcano');
-      }
-      
-      // Earth Badge - 50 rankings
-      if (stats.totalRankings >= 50 && !achievements.earth) {
-        achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
-        newUnlocks.push('earth');
-      }
-      
-      saveAchievements(achievements);
-      return newUnlocks;
-    }
+  const achievements = loadAchievements();
+  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  let newUnlocks = [];
+  
+  // Basic completion counts
+  const totalRankings = completions.length;
+  
+  // Boulder Badge - First ranking
+  if (totalRankings >= 1 && !achievements.boulder) {
+    achievements.boulder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('boulder');
+  }
+  
+  // Cascade Badge - 5 rankings
+  if (totalRankings >= 5 && !achievements.cascade) {
+    achievements.cascade = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('cascade');
+  }
+  
+  // Thunder Badge - 10 rankings
+  if (totalRankings >= 10 && !achievements.thunder) {
+    achievements.thunder = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('thunder');
+  }
+  
+  // Rainbow Badge - One ranking in each main category
+  const categories = new Set(completions.map(c => c.category));
+  if (categories.has('generation') && categories.has('starters') && 
+      categories.has('legendaries') && categories.has('type') && !achievements.rainbow) {
+    achievements.rainbow = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('rainbow');
+  }
+  
+  // Soul Badge - Win with Gen 1 Pokemon
+  const hasGen1Winner = completions.some(c => c.championId && c.championId <= 151);
+  if (hasGen1Winner && !achievements.soul) {
+    achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('soul');
+  }
+  
+  // Marsh Badge - Rank 1025 total Pokemon
+  const totalPokemonRanked = completions.reduce((sum, c) => sum + (c.pokemonCount || 0), 0);
+  if (totalPokemonRanked >= 1025 && !achievements.marsh) {
+    achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('marsh');
+  }
+  
+  // Volcano Badge - Shiny winner (not in shiny-only mode)
+  const shinyWinnerInMixed = completions.some(c => 
+    c.championShiny && c.includeShinies && !c.shinyOnly
+  );
+  if (shinyWinnerInMixed && !achievements.volcano) {
+    achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('volcano');
+  }
+  
+  // Earth Badge - Complete comprehensive set
+  const subcategories = new Set(completions.map(c => c.subcategory));
+  const hasAllGens = ['1','2','3','4','5','6','7','8','9','all'].every(g => 
+    subcategories.has(`generation-${g}`)
+  );
+  const hasStarters = categories.has('starters');
+  const hasLegendaries = subcategories.has('legendaries-base') || 
+                         subcategories.has('legendaries-all');
+  const hasTypes = categories.has('type');
+  
+  if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth) {
+    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('earth');
+  }
+  
+  if (newUnlocks.length > 0) {
+    saveAchievements(achievements);
+  }
+  
+  return newUnlocks;
+}
     
     // Get player statistics
-    function getStats() {
-      const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
-      const categories = new Set();
-      let totalPokemonRanked = 0;
-      let shinyRankings = 0;
-      
-      savedRankings.forEach(ranking => {
-        if (ranking.category) categories.add(ranking.category);
-        if (ranking.results) totalPokemonRanked += ranking.results.length;
-        if (ranking.includeShinies || ranking.shinyOnly) shinyRankings++;
-      });
-      
-      return {
-        totalRankings: savedRankings.length,
-        uniqueCategories: categories.size,
-        totalPokemonRanked,
-        shinyRankings
-      };
-    }
-    
+   function getStats() {
+  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  const categories = new Set();
+  let totalPokemonRanked = 0;
+  
+  completions.forEach(completion => {
+    if (completion.category) categories.add(completion.category);
+    if (completion.pokemonCount) totalPokemonRanked += completion.pokemonCount;
+  });
+  
+  return {
+    totalRankings: completions.length,  // Use completions, not saved
+    uniqueCategories: categories.size,
+    totalPokemonRanked
+  };
+}
     // Render badges
     function renderBadges() {
       const achievements = loadAchievements();
@@ -455,33 +486,39 @@
     }
     
     // Show badge details modal
-    function showBadgeDetails(badgeId) {
-      const badge = BADGES.find(b => b.id === badgeId);
-      const achievements = loadAchievements();
-      const achievement = achievements[badgeId];
-      
-      document.getElementById('modalBadgeImage').src = achievement?.unlocked ? badge.image : badge.silhouette;
-      document.getElementById('modalBadgeName').textContent = badge.name;
-      document.getElementById('modalBadgeDescription').textContent = badge.description;
-      document.getElementById('modalBadgeRequirement').textContent = `Requirement: ${badge.requirement}`;
-      
-      if (achievement?.unlocked) {
-        const date = new Date(achievement.date);
-        document.getElementById('modalBadgeDate').textContent = `Earned on ${date.toLocaleDateString()}`;
-        
-        // Mark as viewed
-        if (achievement.isNew) {
-          sessionStorage.setItem(`badge_${badgeId}_viewed`, 'true');
-          achievement.isNew = false;
-          saveAchievements(achievements);
-          renderBadges();
-        }
-      } else {
-        document.getElementById('modalBadgeDate').textContent = 'Not yet earned';
-      }
-      
-      document.getElementById('badgeModal').style.display = 'flex';
+   function showBadgeDetails(badgeId) {
+  const badge = BADGES.find(b => b.id === badgeId);
+  const achievements = loadAchievements();
+  const achievement = achievements[badgeId];
+  const isUnlocked = achievement?.unlocked;
+  
+  document.getElementById('modalBadgeImage').src = isUnlocked ? badge.image : badge.silhouette;
+  document.getElementById('modalBadgeName').textContent = badge.name;
+  
+  // Only show description and requirement if unlocked
+  if (isUnlocked) {
+    document.getElementById('modalBadgeDescription').textContent = badge.description;
+    document.getElementById('modalBadgeRequirement').textContent = `Requirement: ${badge.requirement}`;
+    
+    const date = new Date(achievement.date);
+    document.getElementById('modalBadgeDate').textContent = `Earned on ${date.toLocaleDateString()}`;
+    
+    // Mark as viewed
+    if (achievement.isNew) {
+      sessionStorage.setItem(`badge_${badgeId}_viewed`, 'true');
+      achievement.isNew = false;
+      saveAchievements(achievements);
+      renderBadges();
     }
+  } else {
+    // Mystery text for locked badges
+    document.getElementById('modalBadgeDescription').textContent = 'Keep playing to discover how to unlock this badge!';
+    document.getElementById('modalBadgeRequirement').textContent = '???';
+    document.getElementById('modalBadgeDate').textContent = 'Not yet earned';
+  }
+  
+  document.getElementById('badgeModal').style.display = 'flex';
+}
     
     // Close badge modal
     function closeBadgeModal() {
