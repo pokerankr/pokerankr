@@ -206,23 +206,68 @@ html, body {
   margin: 20px 0 25px 0;  /* Added proper spacing */
 }
     
-    @media (max-width: 768px) {
-      .badges-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .badges-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-      }
-      
-      .badge-case {
-        padding: 20px;
-      }
-    }
+/* Mobile badge layout fix */
+@media (max-width: 480px) {
+  .badges-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px 10px;  /* vertical and horizontal gap */
+    padding: 0;
+    margin-bottom: 20px;
+  }
+  
+  .badge-slot {
+    position: relative;
+    width: 100%;
+    padding-bottom: 30px;  /* Space for the name below */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .badge-image {
+    width: 100px;
+    height: 100px;
+    max-width: 100%;
+  }
+  
+  .badge-name {
+    position: static;  /* Not absolute anymore */
+    margin-top: 8px;
+    font-size: 0.75rem;
+    width: 100%;
+    text-align: center;
+    padding: 0 5px;
+  }
+  
+  .badge-case {
+    padding: 20px 15px 40px 15px;  /* Bottom padding for content */
+  }
+  
+  .badge-case-container {
+    padding: 20px 10px 20px 10px;
+    overflow: visible;  /* Allow badge names to show */
+  }
+  
+  /* Stats smaller on mobile */
+  .badge-stats {
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .stat-value {
+    font-size: 1.3rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
+  }
+  
+  /* Ensure button has space */
+  .button-row {
+    margin-top: 30px !important;
+    padding: 0 10px;
+  }
+}
   </style>
 </head>
 <body>
