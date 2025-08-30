@@ -472,13 +472,12 @@ html, body {
   const hasStarters = categories.has('starters');
   const hasLegendaries = subcategories.has('legendaries-base') || 
                          subcategories.has('legendaries-all');
-  const hasTypes = TYPE_SLUGS.every(t => subcategoriesLc.has(`type-${t}`));
-
-  // Also update the if-condition to still reference hasTypes (now meaning “all 18 types”)
-if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth) {
-  achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
-  newUnlocks.push('earth');
-}
+  const hasTypes = categories.has('type');
+  
+  if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth) {
+    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    newUnlocks.push('earth');
+  }
   
   if (newUnlocks.length > 0) {
     saveAchievements(achievements);
