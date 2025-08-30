@@ -514,37 +514,68 @@ button.compact .button_top,
 @media (max-width: 480px) {
   .badges-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-    margin-bottom: 40px;  /* Add space before button */
-  }
-  
-  .badge-case {
-    padding: 20px 15px 30px 15px;  /* More bottom padding */
-    margin-bottom: 20px;
+    gap: 10px;
+    padding: 0 10px;  /* Add horizontal padding */
+    margin-bottom: 60px;  /* More space before button */
   }
   
   .badge-slot {
-    margin-bottom: 35px;  /* Space for the name below */
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    padding: 10px;  /* Add internal padding */
+    margin-bottom: 25px;  /* Space for text below */
+  }
+  
+  .badge-image {
+    width: 80%;  /* Make badges smaller on mobile */
+    height: 80%;
+    max-width: 80px;
+    max-height: 80px;
   }
   
   .badge-name {
-    bottom: -30px;  /* Move text lower on mobile */
-    font-size: 0.75rem;  /* Smaller text */
+    position: absolute;
+    bottom: -20px;  /* Position below badge */
+    left: 0;
+    right: 0;
+    font-size: 0.7rem;  /* Smaller text */
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 2px;
   }
   
-  /* Ensure Back to Menu button has space */
-  .button-row {
-    margin-top: 40px !important;
-    padding: 0 15px;
+  .badge-case {
+    padding: 20px 10px 30px 10px;
+    margin-bottom: 30px;
   }
   
-  /* Modal adjustments for mobile */
-  .badge-modal-content {
-    padding: 20px;
+  .badge-case-container {
+    padding: 20px 10px 80px 10px;  /* Less horizontal, more bottom padding */
   }
   
-  .badge-modal-date {
-    margin: 15px 0 20px 0;
+  /* Stats cards smaller on mobile */
+  .badge-stats {
+    gap: 10px;
+    margin: 15px 0;
+    padding: 15px 10px;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
   }
 }
 /* Achievement notification bubble */

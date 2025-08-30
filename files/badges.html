@@ -7,6 +7,18 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
   <style>
+/* Prevent horizontal scroll on mobile */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.badge-case-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+
     /* Badge Case Specific Styles */
   .badge-case-container {
   max-width: 800px;
@@ -47,12 +59,14 @@
     }
     
     .badge-image {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      transition: all 0.3s ease;
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-    }
+  width: 100%;
+  height: 100%;
+  max-width: 100px;  /* Add max width constraint */
+  max-height: 100px; /* Add max height constraint */
+  object-fit: contain;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
     
     .badge-image.locked {
       filter: brightness(0.3) contrast(1.2);
