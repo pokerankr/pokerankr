@@ -1530,6 +1530,9 @@ function normalizeFormHyphen(name){
 // ✅ Maushold Annoyance Name
 .replace(/^Maushold-family-of-four$/i, 'Maushold')
 
+// ✅ Maushold Annoyance Name
+.replace(/^Castform-Sunny$/i, 'Castform (Sunny)')
+
 // Primals
 .replace(/^Groudon-Primal$/i, 'Groudon (Primal)')
 .replace(/^Kyogre-Primal$/i, 'Kyogre (Primal)');
@@ -2137,6 +2140,7 @@ function postSaveLastSnapshot() {
     thirdWinsByMon:{ ...(post.thirdWinsByMon || {}) },
     runnerUp:     post.runnerUp ? { ...post.runnerUp } : null,
     third:        post.third ? { ...post.third } : null,
+    h2h:          JSON.parse(JSON.stringify(H2H)),  // Save H2H state
   };
   updateUndoButton?.();
 }
@@ -2157,6 +2161,12 @@ function postRestoreLastSnapshot() {
   post.thirdWinsByMon = s.thirdWinsByMon || {};
   post.runnerUp     = s.runnerUp;
   post.third        = s.third;
+
+  // Restore H2H state
+  if (s.h2h) {
+    for (const k in H2H) delete H2H[k];
+    Object.assign(H2H, s.h2h);
+  }
 
   post.lastSnap = null;        // single-step: consume it
   updateUndoButton?.();
@@ -2263,6 +2273,13 @@ function undoLast() {
   next       = state.next       || null;
   roundNum   = state.roundNum   || 0;
   gameOver   = !!state.gameOver;
+
+  // Restore H2H state
+  if (window.lastH2HSnapshot) {
+    for (const k in H2H) delete H2H[k];
+    Object.assign(H2H, window.lastH2HSnapshot);
+    window.lastH2HSnapshot = null;
+  }
 
   // containers: clear then copy
   if (state.lostTo) {
@@ -2907,12 +2924,17 @@ function pick(side) {
 
   const inPost = (post.phase === 'RU' || post.phase === 'THIRD');
 
+  // Save H2H state before making the pick
+  const h2hSnapshot = JSON.parse(JSON.stringify(H2H));
+
   if (inPost) {
     // RU/THIRD: snapshot so Undo enables immediately
     postSaveLastSnapshot();
   } else {
     // KOTH: arm one-step undo
     kothLastSnap = true;
+    // Store H2H snapshot for KOTH undo
+    window.lastH2HSnapshot = h2hSnapshot;
   }
     updateUndoButton();
 

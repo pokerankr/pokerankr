@@ -683,6 +683,60 @@ const roundIndex = Object.create(null);  // monKey(loser) -> round number lost
 
 // Post-bracket state (interactive)
 let postMode = null; // null | 'RU' | 'THIRD'
+// --- Head-to-Head (per run; shows rematch context) ---
+const H2H = Object.create(null); // "ak|bk" -> { aKey, bKey, aWins, bWins, total, last }
+
+function pairKey(a, b) {
+  const ak = monKey(a), bk = monKey(b);
+  return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
+}
+
+function h2hRecord(winner, loser) {
+  if (!winner || !loser) return;
+  const k = pairKey(winner, loser);
+  const [aKey, bKey] = k.split('|');
+  if (!H2H[k]) H2H[k] = { aKey, bKey, aWins: 0, bWins: 0, total: 0, last: null };
+  const rec = H2H[k];
+  const wKey = monKey(winner);
+  if (wKey === rec.aKey) rec.aWins++; else rec.bWins++;
+  rec.total++; 
+  rec.last = wKey;
+}
+
+function h2hFor(leftMon, rightMon) {
+  const k = pairKey(leftMon, rightMon);
+  const rec = H2H[k];
+  if (!rec) return null;
+  const leftKey  = monKey(leftMon);
+  const rightKey = monKey(rightMon);
+  const winsFor = (k) => (k === rec.aKey ? rec.aWins : rec.bWins);
+  return {
+    leftWins:  winsFor(leftKey),
+    rightWins: winsFor(rightKey),
+    total:     rec.total,
+    lastWinnerKey: rec.last
+  };
+}
+
+function h2hBadgeText(myWins, theirWins) {
+  const mw = myWins|0, tw = theirWins|0;
+  if (mw + tw === 0) return '';
+  if (mw === tw) return `Tied ${mw}–${tw}`;
+  return (mw > tw) ? `Leads ${mw}–${tw}` : `Trails ${mw}–${tw}`;
+}
+
+function refreshH2HBadges() {
+  try {
+    const L = document.querySelector('#left .h2h-badge');
+    const R = document.querySelector('#right .h2h-badge');
+    if (!L || !R) return;
+    if (!current || !next) { L.textContent = ''; R.textContent = ''; return; }
+    const rec = h2hFor(current, next);
+    if (!rec) { L.textContent = ''; R.textContent = ''; return; }
+    L.textContent = h2hBadgeText(rec.leftWins,  rec.rightWins);
+    R.textContent = h2hBadgeText(rec.rightWins, rec.leftWins);
+  } catch {}
+}
 const post = {
   phase: null,
   currentRound: [],
@@ -934,6 +988,13 @@ function undoLast() {
   roundNum   = state.roundNum   || 0;
   gameOver   = !!state.gameOver;
 
+  // Restore H2H state
+  if (window.lastH2HSnapshot) {
+    for (const k in H2H) delete H2H[k];
+    Object.assign(H2H, window.lastH2HSnapshot);
+    window.lastH2HSnapshot = null;
+  }
+
   // const-like containers: clear then copy
   if (state.lostTo) {
     for (const k in lostTo) delete lostTo[k];
@@ -991,9 +1052,11 @@ function undoLast() {
 }
 
 // ----- Rendering (no-flash labels, hidden placeholder text when name missing)
-function labelHTML(p){
+function labelHTML(p, side){
   const text = p.name ? (p.shiny ? `⭐ ${p.name}` : p.name) : "";
-  return `<p>${text || "&nbsp;"}</p>`;
+  return `<p data-role="label" class="pkr-label">${text || "&nbsp;"}</p>
+          <div class="h2h-badge" data-side="${side || ''}"
+               style="text-align:center; font-size:.8rem; color:#6b7280; min-height:1em; margin-top:2px;"></div>`;
 }
 
 // Track what’s currently shown on each side so we don’t re-render unnecessarily
@@ -1087,7 +1150,7 @@ temp.innerHTML = `
   <div class="matchup-img-wrap">
     ${getImageTag(mon, mon.shiny, mon.name)}
   </div>
-  <p data-role="label" class="pkr-label">${mon.shiny ? '⭐ ' : ''}${mon.name || ''}</p>
+  ${labelHTML(mon, 'right')}
 `;
 document.body.appendChild(temp);
 _pendingRightTemp = temp;
@@ -1116,8 +1179,11 @@ _pendingRightTemp = temp;
     try { document.body.removeChild(temp); } catch {}
     _pendingRightTemp = null;
 
-    // Track last rendered key (you already do this for both sides)
+ // Track last rendered key (you already do this for both sides)
     _prevRightKey = _monKeyForSide(mon);
+    
+    // Refresh H2H badges after the right side is rendered
+    refreshH2HBadges();
   }).finally(() => {
     // Unlock height on next frame
     requestAnimationFrame(() => {
@@ -1157,11 +1223,11 @@ if (curH > 0) {
   temp.style.position = 'absolute';
   temp.style.left = '-9999px';
   temp.style.top  = '0';
-  temp.innerHTML = `
+ temp.innerHTML = `
     <div class="matchup-img-wrap">
       ${getImageTag(mon, mon.shiny, mon.name)}
     </div>
-    <p data-role="label" class="pkr-label">${mon.shiny ? '⭐ ' : ''}${mon.name || ''}</p>
+    ${labelHTML(mon, isLeft ? 'left' : 'right')}
   `;
   document.body.appendChild(temp);
 
@@ -1206,13 +1272,15 @@ function displayMatchup() {
     return;
   }
 
-  buildOrUpdateSide('left', current); // unchanged
-  renderOpponentSmooth(next);         // flicker-free swap on the right
+ buildOrUpdateSide('left', current); // unchanged
+renderOpponentSmooth(next);         // flicker-free swap on the right
 
   // Warm up just one sprite ahead (no effect on slow/data-saver)
   maybePreloadNextSprite();
+  
+  // Refresh H2H badges after rendering
+  refreshH2HBadges();
 }
-
 
 function updateProgress() {
   // If we're in a post bracket, never use KOTH math — delegate.
@@ -1240,25 +1308,38 @@ function pick(side) {
 
   const inPost = isInPost();
 
+  // Save H2H state before making the pick
+  const h2hSnapshot = JSON.parse(JSON.stringify(H2H));
+
+  // Capture the pair BEFORE calling the engine
+  const beforeLeft  = current;
+  const beforeRight = next;
+
   if (inPost) {
     // RU/THIRD: create our local one-step snapshot so the Undo button enables immediately
     postSaveLastSnapshot();
   } else {
     // KOTH: arm single-step undo for exactly one revert
     kothLastSnap = true;
+    // Store H2H snapshot for KOTH undo
+    window.lastH2HSnapshot = h2hSnapshot;
   }
   updateUndoButton();
 
-  const state = prEngine.choose(side === 'left' ? 'left' : 'right');
+const state = prEngine.choose(side === 'left' ? 'left' : 'right');
   if (!state) return;
 
+  // Record the head-to-head result for this exact pair
+  const winnerMon = (side === 'left') ? beforeLeft : beforeRight;
+  const loserMon  = (side === 'left') ? beforeRight : beforeLeft;
+  if (winnerMon && loserMon) h2hRecord(winnerMon, loserMon);
   // ---- Mirror engine → local (let bindings can reassign) ----
   remaining  = state.remaining  || [];
   eliminated = state.eliminated || [];
   current    = state.current    || null;
   next       = state.next       || null;
   roundNum   = state.roundNum   || 0;
-  gameOver   = !!state.gameOver;
+gameOver   = !!state.gameOver;
 
   // const-like containers: mutate in place
   if (state.lostTo) {
@@ -1321,6 +1402,7 @@ function pick(side) {
 }
 
 // --- Single-step undo for post-phase (RU/THIRD) ---
+// --- Single-step undo for post-phase (RU/THIRD) ---
 function postSaveLastSnapshot() {
   post.lastSnap = {
     phase: post.phase,
@@ -1335,6 +1417,7 @@ function postSaveLastSnapshot() {
     thirdWinsByMon:{ ...(post.thirdWinsByMon || {}) },
     runnerUp:     post.runnerUp ? { ...post.runnerUp } : null,
     third:        post.third ? { ...post.third } : null,
+    h2h:          JSON.parse(JSON.stringify(H2H)),  // Save H2H state
   };
   updateUndoButton?.();
 }
@@ -1355,6 +1438,12 @@ function postRestoreLastSnapshot() {
   post.thirdWinsByMon = s.thirdWinsByMon || {};
   post.runnerUp     = s.runnerUp;
   post.third        = s.third;
+
+  // Restore H2H state
+  if (s.h2h) {
+    for (const k in H2H) delete H2H[k];
+    Object.assign(H2H, s.h2h);
+  }
 
   post.lastSnap = null;        // single-step: consume it
   updateUndoButton?.();
