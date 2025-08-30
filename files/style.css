@@ -563,6 +563,16 @@ button.compact .button_top,
     padding: 20px 10px 80px 10px;  /* Less horizontal, more bottom padding */
   }
   
+/* Button spacing fix - ADD THIS */
+.button-row {
+  margin-top: 40px;
+  margin-bottom: 20px;
+  padding: 0 20px;
+  clear: both;
+  position: relative;
+  z-index: 1;
+}
+
   /* Stats cards smaller on mobile */
   .badge-stats {
     gap: 10px;
