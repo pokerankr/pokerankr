@@ -464,20 +464,56 @@ html, body {
     newUnlocks.push('volcano');
   }
   
-  // Earth Badge - Complete comprehensive set
-  const subcategories = new Set(completions.map(c => c.subcategory));
-  const hasAllGens = ['1','2','3','4','5','6','7','8','9','all'].every(g => 
-    subcategories.has(`generation-${g}`)
-  );
-  const hasStarters = categories.has('starters');
-  const hasLegendaries = subcategories.has('legendaries-base') || 
-                         subcategories.has('legendaries-all');
-  const hasTypes = categories.has('type');
-  
-  if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth) {
-    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    newUnlocks.push('earth');
-  }
+// Earth Badge - Complete comprehensive set
+const subcategories = new Set(completions.map(c => c.subcategory));
+
+// Lowercased view of subcategories for robust matching
+const subcategoriesLc = new Set(
+  [...subcategories].filter(Boolean).map(s => String(s).toLowerCase())
+);
+
+// Full list of the 18 types we require
+const TYPE_SLUGS = [
+  'normal','fire','water','grass','electric','ice','fighting','poison','ground','flying',
+  'psychic','bug','rock','ghost','dragon','dark','steel','fairy'
+];
+
+// Gens
+const hasAllGens = ['1','2','3','4','5','6','7','8','9','all'].every(g =>
+  subcategoriesLc.has(`generation-${g}`)
+);
+
+
+// Uses the categories Set you already created above for Rainbow
+const hasStarters = categories.has('starters');
+
+// Legendaries: either one "all-in-one" run OR separate runs for each group
+const hasLegendaries = (() => {
+  // Accept any of these as an "all-in-one" completion
+  const ALL_IN_ONE = ['legendaries-all', 'legendaries-complete', 'legendaries-all-in-one'];
+
+  // Accept these as the three separate buckets
+  const LEGENDARY_ONLY = ['legendaries-base', 'legendaries-only', 'legendaries'];
+  const MYTHICALS     = ['legendaries-mythicals', 'mythicals', 'legendaries-mythical'];
+  const ULTRA_BEASTS  = ['legendaries-ultra-beasts', 'legendaries-ultrabeasts', 'ultra-beasts', 'ultrabeasts'];
+
+  const anyOf = arr => arr.some(s => subcategoriesLc.has(s));
+
+  // If an all-in-one run exists, we’re done
+  if (anyOf(ALL_IN_ONE)) return true;
+
+  // Otherwise require all three separate completions
+  return anyOf(LEGENDARY_ONLY) && anyOf(MYTHICALS) && anyOf(ULTRA_BEASTS);
+})();
+
+// Require ALL 18 types (type-fire, type-water, …)
+const hasTypes = TYPE_SLUGS.every(t => subcategoriesLc.has(`type-${t}`));
+
+if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth) {
+  achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
+  newUnlocks.push('earth');
+}
+
   
   if (newUnlocks.length > 0) {
     saveAchievements(achievements);
