@@ -323,6 +323,7 @@ function updateAuthUI() {
 }
 
 // Check for existing session on page load
+// Update the existing checkAuthState function
 async function checkAuthState() {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -331,17 +332,166 @@ async function checkAuthState() {
     if (session) {
       currentUser = session.user;
       updateAuthUI();
+      
+      // NEW: Load cloud data and sync local data
+      await loadDataFromCloud();
+      await syncDataToCloud();
     }
   } catch (error) {
     console.error('Auth check error:', error);
   }
 }
+/* =========================
+   Cloud Data Sync Functions
+   ========================= */
+
+// Sync local data to cloud
+async function syncDataToCloud() {
+  if (!currentUser) return;
+
+  try {
+    // Get all local data
+    const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
+    const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+    const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
+    const saveSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
+
+    // Upload to Supabase (upsert = insert or update)
+    const promises = [];
+
+    if (Object.keys(achievements).length > 0) {
+      promises.push(
+        supabase.from('user_achievements').upsert({
+          user_id: currentUser.id,
+          achievement_data: achievements,
+          updated_at: new Date().toISOString()
+        })
+      );
+    }
+
+    if (completions.length > 0) {
+      promises.push(
+        supabase.from('user_completions').upsert({
+          user_id: currentUser.id,
+          completions_data: completions,
+          updated_at: new Date().toISOString()
+        })
+      );
+    }
+
+    if (savedRankings.length > 0) {
+      promises.push(
+        supabase.from('user_saved_rankings').upsert({
+          user_id: currentUser.id,
+          rankings_data: savedRankings,
+          updated_at: new Date().toISOString()
+        })
+      );
+    }
+
+    if (saveSlots.some(Boolean)) {
+      promises.push(
+        supabase.from('user_save_slots').upsert({
+          user_id: currentUser.id,
+          slots_data: saveSlots,
+          updated_at: new Date().toISOString()
+        })
+      );
+    }
+
+    await Promise.all(promises);
+    console.log('Data synced to cloud successfully');
+
+  } catch (error) {
+    console.error('Error syncing to cloud:', error);
+  }
+}
+
+// Load data from cloud
+async function loadDataFromCloud() {
+  if (!currentUser) return;
+
+  try {
+    // Fetch all user data from cloud
+    const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
+      supabase.from('user_achievements').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('user_completions').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('user_saved_rankings').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('user_save_slots').select('*').eq('user_id', currentUser.id).single()
+    ]);
+
+    let hasCloudData = false;
+
+    // Merge cloud data with local (cloud wins on conflicts)
+    if (achievementsRes.data && !achievementsRes.error) {
+      localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(achievementsRes.data.achievement_data));
+      hasCloudData = true;
+    }
+
+    if (completionsRes.data && !completionsRes.error) {
+      localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completionsRes.data.completions_data));
+      hasCloudData = true;
+    }
+
+    if (rankingsRes.data && !rankingsRes.error) {
+      localStorage.setItem('savedRankings', JSON.stringify(rankingsRes.data.rankings_data));
+      hasCloudData = true;
+    }
+
+    if (slotsRes.data && !slotsRes.error) {
+      localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsRes.data.slots_data));
+      hasCloudData = true;
+    }
+
+    if (hasCloudData) {
+      console.log('Data loaded from cloud successfully');
+      // Update UI to reflect new data
+      checkForNewBadges();
+      updateBadgeNotification();
+    }
+
+  } catch (error) {
+    console.error('Error loading from cloud:', error);
+  }
+}
+
+// Auto-sync data when user makes changes
+async function autoSyncToCloud() {
+  if (!currentUser) return;
+  
+  // Debounce to avoid too many API calls
+  if (autoSyncToCloud.timeout) {
+    clearTimeout(autoSyncToCloud.timeout);
+  }
+  
+  autoSyncToCloud.timeout = setTimeout(() => {
+    syncDataToCloud();
+  }, 2000); // Sync 2 seconds after last change
+}
+
+// Override localStorage.setItem to trigger auto-sync
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value) {
+  originalSetItem.call(this, key, value);
+  
+  // Only auto-sync for PokeRankr data
+  const syncKeys = ['PR_ACHIEVEMENTS', 'PR_COMPLETIONS', 'savedRankings', 'PR_SAVE_SLOTS_V1'];
+  if (syncKeys.includes(key)) {
+    autoSyncToCloud();
+  }
+};
 
 // Listen for auth state changes
-supabase.auth.onAuthStateChange((event, session) => {
+// Update the existing auth state change listener
+supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session) {
     currentUser = session.user;
     updateAuthUI();
+    
+    // NEW: Sync data on sign in
+    await loadDataFromCloud();
+    await syncDataToCloud();
+    
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     updateAuthUI();
