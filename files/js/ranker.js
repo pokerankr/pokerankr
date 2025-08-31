@@ -3168,8 +3168,10 @@ function scheduleNextPostMatch(){
 // ----- Results + save
 function showWinner(finalWinner){
   // Track completion for achievements (NEW!)
-  const category = window.rankConfig?.category || 'unknown';
-  trackRankingCompletion(category, pool.length);
+  if (!gameOver) {  // Only track if we haven't already finished
+    const category = window.rankConfig?.category || 'unknown';
+    trackRankingCompletion(category, pool.length);
+  }
   gameOver = true;
   document.removeEventListener("keydown", onKeydown);
   history = [];

@@ -86,10 +86,15 @@ const EEVEE_LINE  = [
 
 
 // ----- Preferences
+// ----- Preferences
 const includeShinies       = localStorage.getItem("includeShinies") === "true";
 const shinyOnly            = localStorage.getItem("shinyOnly") === "true";
 const addPikaEevee         = localStorage.getItem("addPikaEevee") === "true";          // NEW
 const includeStarterLines  = localStorage.getItem("includeStarterLines") === "true";    // NEW
+
+// Make shiny settings available globally for tracking
+window.includeShinies = includeShinies;
+window.shinyOnly = shinyOnly;
 
 
 // ----- Build pool (now honors Pikachu/Eevee + Full Starter Line)
@@ -403,11 +408,17 @@ function trackRankingCompletion(category, pokemonCount) {
     category: category,
     subcategory: subcategory,
     pokemonCount: pokemonCount || 0,
-    includeShinies: window.includeShinies || false,
-    shinyOnly: window.shinyOnly || false,
+    includeShinies: window.includeShinies,
+    shinyOnly: window.shinyOnly,
     championId: champion?.id || null,
     championShiny: champion?.shiny || false
   });
+
+  console.log('Tracking completion:', {
+  includeShinies: window.includeShinies,
+  shinyOnly: window.shinyOnly,
+  championShiny: champion?.shiny || false
+});
   
   if (completions.length > 100) {
     completions = completions.slice(-100);
@@ -1479,11 +1490,12 @@ function findByKey(key){
   return e || null;
 }
 
-// ----- Results (page UI)
 function showWinner(finalWinner){
   // Track completion for achievements (NEW!)
-  const category = window.rankConfig?.category || 'unknown';
-  trackRankingCompletion(category, pool.length);
+  if (!gameOver) {  // Only track if we haven't already finished
+    const category = 'starters';  // Starters page always tracks as 'starters'
+    trackRankingCompletion(category, pool.length);
+  }
   gameOver = true;
   document.removeEventListener("keydown", onKeydown);
 
