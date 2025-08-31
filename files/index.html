@@ -358,46 +358,44 @@ async function syncDataToCloud() {
 
     // Upload to Supabase (upsert = insert or update) - FIXED TABLE NAMES
     const promises = [];
+// syncDataToCloud()
+if (Object.keys(achievements).length > 0) {
+  promises.push(
+    supabase.from('user_achievements').upsert({
+      user_id: currentUser.id,
+      achievement_data: achievements,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+  );
+}
+if (completions.length > 0) {
+  promises.push(
+    supabase.from('user_completions').upsert({
+      user_id: currentUser.id,
+      completions_data: completions,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+  );
+}
+if (savedRankings.length > 0) {
+  promises.push(
+    supabase.from('user_saved_rankings').upsert({
+      user_id: currentUser.id,
+      rankings_data: savedRankings,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+  );
+}
+if (saveSlots.some(Boolean)) {
+  promises.push(
+    supabase.from('user_save_slots').upsert({
+      user_id: currentUser.id,
+      slots_data: saveSlots,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+  );
+}
 
-    if (Object.keys(achievements).length > 0) {
-      promises.push(
-        supabase.from('achievements').upsert({
-          user_id: currentUser.id,
-          achievement_data: achievements,
-          updated_at: new Date().toISOString()
-        })
-      );
-    }
-
-    if (completions.length > 0) {
-      promises.push(
-        supabase.from('completions').upsert({
-          user_id: currentUser.id,
-          completions_data: completions,
-          updated_at: new Date().toISOString()
-        })
-      );
-    }
-
-    if (savedRankings.length > 0) {
-      promises.push(
-        supabase.from('saved rankings').upsert({
-          user_id: currentUser.id,
-          rankings_data: savedRankings,
-          updated_at: new Date().toISOString()
-        })
-      );
-    }
-
-    if (saveSlots.some(Boolean)) {
-      promises.push(
-        supabase.from('save slots').upsert({
-          user_id: currentUser.id,
-          slots_data: saveSlots,
-          updated_at: new Date().toISOString()
-        })
-      );
-    }
 
     await Promise.all(promises);
     console.log('Data synced to cloud successfully');
@@ -413,12 +411,13 @@ async function loadDataFromCloud() {
 
   try {
     // Fetch all user data from cloud
-    const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
-      supabase.from('achievements').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('completions').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('saved rankings').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('save slots').select('*').eq('user_id', currentUser.id).single()
-    ]);
+    // loadDataFromCloud()
+const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
+  supabase.from('user_achievements').select('*').eq('user_id', currentUser.id).single(),
+  supabase.from('user_completions').select('*').eq('user_id', currentUser.id).single(),
+  supabase.from('user_saved_rankings').select('*').eq('user_id', currentUser.id).single(),
+  supabase.from('user_save_slots').select('*').eq('user_id', currentUser.id).single()
+]);
 
     let hasCloudData = false;
 
