@@ -342,7 +342,7 @@ async function checkAuthState() {
   }
 }
 /* =========================
-   Cloud Data Sync Functions
+   Cloud Data Sync Functions (CORRECTED)
    ========================= */
 
 // Sync local data to cloud
@@ -356,12 +356,12 @@ async function syncDataToCloud() {
     const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
     const saveSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
 
-    // Upload to Supabase (upsert = insert or update)
+    // Upload to Supabase (upsert = insert or update) - FIXED TABLE NAMES
     const promises = [];
 
     if (Object.keys(achievements).length > 0) {
       promises.push(
-        supabase.from('user_achievements').upsert({
+        supabase.from('achievements').upsert({
           user_id: currentUser.id,
           achievement_data: achievements,
           updated_at: new Date().toISOString()
@@ -371,7 +371,7 @@ async function syncDataToCloud() {
 
     if (completions.length > 0) {
       promises.push(
-        supabase.from('user_completions').upsert({
+        supabase.from('completions').upsert({
           user_id: currentUser.id,
           completions_data: completions,
           updated_at: new Date().toISOString()
@@ -381,7 +381,7 @@ async function syncDataToCloud() {
 
     if (savedRankings.length > 0) {
       promises.push(
-        supabase.from('user_saved_rankings').upsert({
+        supabase.from('saved rankings').upsert({
           user_id: currentUser.id,
           rankings_data: savedRankings,
           updated_at: new Date().toISOString()
@@ -391,7 +391,7 @@ async function syncDataToCloud() {
 
     if (saveSlots.some(Boolean)) {
       promises.push(
-        supabase.from('user_save_slots').upsert({
+        supabase.from('save slots').upsert({
           user_id: currentUser.id,
           slots_data: saveSlots,
           updated_at: new Date().toISOString()
@@ -407,17 +407,17 @@ async function syncDataToCloud() {
   }
 }
 
-// Load data from cloud
+// Load data from cloud - FIXED TABLE NAMES
 async function loadDataFromCloud() {
   if (!currentUser) return;
 
   try {
     // Fetch all user data from cloud
     const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
-      supabase.from('user_achievements').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('user_completions').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('user_saved_rankings').select('*').eq('user_id', currentUser.id).single(),
-      supabase.from('user_save_slots').select('*').eq('user_id', currentUser.id).single()
+      supabase.from('achievements').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('completions').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('saved rankings').select('*').eq('user_id', currentUser.id).single(),
+      supabase.from('save slots').select('*').eq('user_id', currentUser.id).single()
     ]);
 
     let hasCloudData = false;
@@ -480,7 +480,6 @@ localStorage.setItem = function(key, value) {
     autoSyncToCloud();
   }
 };
-
 // Listen for auth state changes
 // Update the existing auth state change listener
 supabase.auth.onAuthStateChange(async (event, session) => {
