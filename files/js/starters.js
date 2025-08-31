@@ -988,12 +988,21 @@ function undoLast() {
   roundNum   = state.roundNum   || 0;
   gameOver   = !!state.gameOver;
 
-  // Restore H2H state
-  if (window.lastH2HSnapshot) {
-    for (const k in H2H) delete H2H[k];
-    Object.assign(H2H, window.lastH2HSnapshot);
-    window.lastH2HSnapshot = null;
-  }
+  // Restore H2H state (KOTH or post-phase)
+const inPostUndo = (state.phase === 'RU' || state.phase === 'THIRD');
+
+if (inPostUndo && post?.lastSnap?.h2h) {
+  // Use the post-phase snapshot we saved right before the pick
+  for (const k in H2H) delete H2H[k];
+  Object.assign(H2H, post.lastSnap.h2h);
+  // post.lastSnap itself gets cleared later in this function; don't clear it here
+} else if (window.lastH2HSnapshot) {
+  // KOTH single-step snapshot path
+  for (const k in H2H) delete H2H[k];
+  Object.assign(H2H, window.lastH2HSnapshot);
+  window.lastH2HSnapshot = null;
+}
+
 
   // const-like containers: clear then copy
   if (state.lostTo) {

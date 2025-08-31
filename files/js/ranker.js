@@ -2274,12 +2274,18 @@ function undoLast() {
   roundNum   = state.roundNum   || 0;
   gameOver   = !!state.gameOver;
 
-  // Restore H2H state
-  if (window.lastH2HSnapshot) {
-    for (const k in H2H) delete H2H[k];
-    Object.assign(H2H, window.lastH2HSnapshot);
-    window.lastH2HSnapshot = null;
-  }
+// Restore H2H state (KOTH or post-phase)
+const inPostUndo = (state.phase === 'RU' || state.phase === 'THIRD');
+
+if (inPostUndo && post?.lastSnap?.h2h) {
+  for (const k in H2H) delete H2H[k];
+  Object.assign(H2H, post.lastSnap.h2h);
+} else if (window.lastH2HSnapshot) {
+  for (const k in H2H) delete H2H[k];
+  Object.assign(H2H, window.lastH2HSnapshot);
+  window.lastH2HSnapshot = null;
+}
+
 
   // containers: clear then copy
   if (state.lostTo) {
