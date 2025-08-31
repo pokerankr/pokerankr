@@ -465,12 +465,15 @@ function validateExistingBadges() {
     newUnlocks.push('rainbow');
   }
   
-  // Soul Badge - Win with Gen 1 Pokemon
-  const hasGen1Winner = completions.some(c => c.championId && c.championId <= 151);
-  if (hasGen1Winner && !achievements.soul) {
-    achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    newUnlocks.push('soul');
-  }
+// Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1-only category)
+const hasGen1Winner = completions.some(c => 
+  c.championId && c.championId <= 151 && 
+  !(c.category === 'generation' && c.subcategory === 'generation-1')
+);
+if (hasGen1Winner && !achievements.soul) {
+  achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+  newUnlocks.push('soul');
+}
   
   // Marsh Badge - Rank 1025 total Pokemon
   const totalPokemonRanked = completions.reduce((sum, c) => sum + (c.pokemonCount || 0), 0);

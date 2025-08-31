@@ -1073,15 +1073,15 @@ function checkForNewBadges() {
     hasNewBadge = true;
   }
   
-  // Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1 category)
-  const hasGen1Winner = completions.some(c => 
-    c.championId && c.championId <= 151 && 
-    !(c.category === 'generation' && c.subcategory === 'generation-1')
-  );
-  if (hasGen1Winner && !achievements.soul?.unlocked) {
-    achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    hasNewBadge = true;
-  }
+  // Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1-only category)
+const hasGen1Winner = completions.some(c => 
+  c.championId && c.championId <= 151 && 
+  !(c.category === 'generation' && c.subcategory === 'generation-1')
+);
+if (hasGen1Winner && !achievements.soul) {
+  achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+  newUnlocks.push('soul');
+}
   
   // Volcano Badge - Shiny winner (not in shiny-only mode) - FIXED VERSION
   const shinyWinnerInMixed = completions.some(c => {
@@ -1108,8 +1108,9 @@ document.addEventListener('DOMContentLoaded', () => {
   updateBadgeNotification();
 });
 
-// Also update when returning from other pages
+// Also update when returning from other pages  
 window.addEventListener('pageshow', () => {
+  checkForNewBadges();  // Add this line!
   updateBadgeNotification();
 });
 </script>
