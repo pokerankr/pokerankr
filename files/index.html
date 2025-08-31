@@ -1038,51 +1038,60 @@ function updateBadgeNotification() {
   }
 }
 
-// Check for new badges whenever a ranking is completed
+// Check for new badges - using the correct logic from badges.html
 function checkForNewBadges() {
-  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
   const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
-  
-  const stats = {
-    totalRankings: completions.length,
-    uniqueCategories: new Set(completions.map(c => c.category)).size,
-    totalPokemonRanked: completions.reduce((sum, c) => sum + (c.pokemonCount || 0), 0),
-    shinyRankings: completions.filter(c => c.includeShinies || c.shinyOnly).length
-  };
-  
+  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
   let hasNewBadge = false;
   
-  // Check each badge condition (same as before but using completions)
-  if (stats.totalRankings >= 1 && !achievements.boulder?.unlocked) {
+  // Use the SAME logic as badges.html
+  const totalRankings = completions.length;
+  
+  // Boulder Badge - First ranking
+  if (totalRankings >= 1 && !achievements.boulder?.unlocked) {
     achievements.boulder = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
-  if (stats.totalRankings >= 5 && !achievements.cascade?.unlocked) {
+  
+  // Cascade Badge - 5 rankings  
+  if (totalRankings >= 5 && !achievements.cascade?.unlocked) {
     achievements.cascade = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
-  if (stats.totalRankings >= 10 && !achievements.thunder?.unlocked) {
+  
+  // Thunder Badge - 10 rankings
+  if (totalRankings >= 10 && !achievements.thunder?.unlocked) {
     achievements.thunder = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
-  if (stats.uniqueCategories >= 3 && !achievements.rainbow?.unlocked) {
+  
+  // Rainbow Badge - One ranking in each main category
+  const categories = new Set(completions.map(c => c.category));
+  if (categories.has('generation') && categories.has('starters') && 
+      categories.has('legendaries') && categories.has('type') && !achievements.rainbow?.unlocked) {
     achievements.rainbow = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
-  if (stats.totalRankings >= 25 && !achievements.soul?.unlocked) {
+  
+  // Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1 category)
+  const hasGen1Winner = completions.some(c => 
+    c.championId && c.championId <= 151 && 
+    !(c.category === 'generation' && c.subcategory === 'generation-1')
+  );
+  if (hasGen1Winner && !achievements.soul?.unlocked) {
     achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
-  if (stats.totalPokemonRanked >= 500 && !achievements.marsh?.unlocked) {
-    achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    hasNewBadge = true;
-  }
-  if (stats.shinyRankings >= 1 && !achievements.volcano?.unlocked) {
+  
+  // Volcano Badge - Shiny winner (not in shiny-only mode) - FIXED VERSION
+  const shinyWinnerInMixed = completions.some(c => {
+    if (!c.championShiny) return false;
+    if (!c.includeShinies) return false;
+    if (c.shinyOnly === true) return false;
+    return true;
+  });
+  if (shinyWinnerInMixed && !achievements.volcano?.unlocked) {
     achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    hasNewBadge = true;
-  }
-  if (stats.totalRankings >= 50 && !achievements.earth?.unlocked) {
-    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
   

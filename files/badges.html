@@ -405,6 +405,30 @@ html, body {
     function saveAchievements(data) {
       localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(data));
     }
+
+    // Validate and fix incorrectly awarded badges
+function validateExistingBadges() {
+  const achievements = loadAchievements();
+  const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+  let correctionsMade = false;
+  
+  // Validate Volcano Badge - remove if incorrectly awarded
+  if (achievements.volcano?.unlocked) {
+    const hasValidShinyWin = completions.some(c => {
+      return c.championShiny && c.includeShinies && c.shinyOnly !== true;
+    });
+    
+    if (!hasValidShinyWin) {
+      delete achievements.volcano;
+      correctionsMade = true;
+      console.log("Removed incorrectly awarded Volcano Badge");
+    }
+  }
+  
+  if (correctionsMade) {
+    saveAchievements(achievements);
+  }
+}
     
     // Check and unlock achievements
     function checkAchievements() {
@@ -455,14 +479,41 @@ html, body {
     newUnlocks.push('marsh');
   }
   
-  // Volcano Badge - Shiny winner (not in shiny-only mode)
-  const shinyWinnerInMixed = completions.some(c => 
-    c.championShiny && c.includeShinies && !c.shinyOnly
-  );
-  if (shinyWinnerInMixed && !achievements.volcano) {
-    achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    newUnlocks.push('volcano');
-  }
+// Volcano Badge - Shiny winner (not in shiny-only mode)
+// Find completions with shiny champions
+const shinyCompletions = completions.filter(c => c.championShiny);
+console.log("Completions with shiny champions:", shinyCompletions);
+
+// Look at the exact structure of shiny completions
+shinyCompletions.forEach((completion, index) => {
+  console.log(`Shiny completion ${index}:`, {
+    championShiny: completion.championShiny,
+    includeShinies: completion.includeShinies,
+    shinyOnly: completion.shinyOnly,
+    category: completion.category,
+    subcategory: completion.subcategory
+  });
+});
+
+const shinyWinnerInMixed = completions.some(c => {
+  // Must have a shiny champion
+  if (!c.championShiny) return false;
+  
+  // Must include shinies
+  if (!c.includeShinies) return false;
+  
+  // Must NOT be shiny-only mode (this is the key part!)
+  if (c.shinyOnly === true) return false;
+  
+  return true;
+});
+
+console.log("Should unlock volcano badge:", shinyWinnerInMixed);
+
+if (shinyWinnerInMixed && !achievements.volcano) {
+  achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
+  newUnlocks.push('volcano');
+}
   
 // Earth Badge - Complete comprehensive set
 const subcategories = new Set(completions.map(c => c.subcategory));
@@ -633,9 +684,10 @@ if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.ear
     
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
-      checkAchievements();
-      renderBadges();
-    });
+  validateExistingBadges(); // Fix any incorrectly awarded badges
+  checkAchievements();
+  renderBadges();
+});
     
     // Close modal on outside click
     document.getElementById('badgeModal').addEventListener('click', (e) => {
