@@ -14,13 +14,31 @@
   <link rel="stylesheet" href="style.css" />
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
   <!-- ====== LOADING PAGE ====== -->
   <div id="loading-page" class="page active">
-    <div class="logo">
-  <img src="assets/logo.png" alt="PokéRankr Logo">
+<!-- Auth Container - Fixed to top right corner -->
+<div id="auth-container" style="position: fixed; top: 15px; right: 15px; z-index: 100;">
+  <button id="loginButton" onclick="openAuthModal()" class="menu-button" style="min-width: 140px;">
+    <span class="button_top">Login / Sign Up</span>
+  </button>
+  
+  <!-- Trainer Card (hidden initially) -->
+  <div id="trainerCard" style="display: none; align-items: center; gap: 10px; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 12px; border: 2px solid #d2deff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 140px;">
+    <img id="trainerSprite" src="" width="32" height="32" alt="Trainer">
+    <span id="trainerName" style="font-weight: 600; color: #333;"></span>
+    <button id="logoutButton" onclick="logout()" class="menu-button" style="font-size: 12px; padding: 4px 8px; margin-left: auto;">
+      <span class="button_top">Logout</span>
+    </button>
+  </div>
+</div>
+
+<!-- Logo - Centered independently -->
+<div class="logo">
+  <img src="assets/logo.png" alt="PokeRankr Logo">
 </div>
     <div class="menu-buttons">
   <div class="menu-primary">
@@ -148,9 +166,7 @@
       <button id="btnBackToMenu" class="alt"><span class="button_top">Back</span></button>
     </div>
   </div>
-  <script>
-
-    
+<script>
   /* =========================
      App/version constants
      ========================= */
@@ -158,6 +174,193 @@
   const APP_VERSION = '1.0.0';
   const SCHEMA_VERSION = 1;
 
+  /* =========================
+     Supabase Client Setup
+     ========================= */
+  // Replace with your actual Supabase URL and anon key
+  const supabaseUrl = 'https://nfelacjsvcilwfrqiftm.supabase.co'
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mZWxhY2pzdmNpbHdmcnFpZnRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NDUxMzgsImV4cCI6MjA3MjIyMTEzOH0.sB-DDRwLGWxKksO9TCKf_7Tv3suDWxloYE0uEXpZ61w'
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+  
+  // Make available globally
+  window.supabase = supabase;
+  /* =========================
+   Authentication Functions
+   ========================= */
+
+// Global auth state
+let currentUser = null;
+
+// Modal functions
+function openAuthModal() {
+  const modal = document.getElementById('authModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+}
+
+function closeAuthModal() {
+  const modal = document.getElementById('authModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+}
+
+// Discord OAuth
+async function signInWithDiscord() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        redirectTo: window.location.origin + '/index.html'
+      }
+    });
+    
+    if (error) throw error;
+    // OAuth will redirect, so no need to handle response here
+  } catch (error) {
+    console.error('Discord login error:', error);
+    alert('Discord login failed: ' + error.message);
+  }
+}
+
+// Email signup
+async function signUpWithEmail() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  
+  if (!email || !password) {
+    alert('Please enter both email and password');
+    return;
+  }
+  
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin + '/index.html'
+      }
+    });
+    
+    if (error) throw error;
+    
+    if (data.user && !data.user.email_confirmed_at) {
+      alert('Check your email for verification link!');
+    }
+    
+    closeAuthModal();
+  } catch (error) {
+    console.error('Signup error:', error);
+    alert('Signup failed: ' + error.message);
+  }
+}
+
+// Email login
+async function signInWithEmail() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  
+  if (!email || !password) {
+    alert('Please enter both email and password');
+    return;
+  }
+  
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    
+    if (error) throw error;
+    
+    closeAuthModal();
+  } catch (error) {
+    console.error('Login error:', error);
+    alert('Login failed: ' + error.message);
+  }
+}
+
+// Logout
+async function logout() {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    currentUser = null;
+    updateAuthUI();
+  } catch (error) {
+    console.error('Logout error:', error);
+    alert('Logout failed: ' + error.message);
+  }
+}
+
+// Update UI based on auth state
+function updateAuthUI() {
+  const loginButton = document.getElementById('loginButton');
+  const trainerCard = document.getElementById('trainerCard');
+  const trainerName = document.getElementById('trainerName');
+  const trainerSprite = document.getElementById('trainerSprite');
+  
+  if (currentUser) {
+    // Show trainer card
+    loginButton.style.display = 'none';
+    trainerCard.style.display = 'flex';
+    
+    // Set trainer name (prefer username, fallback to email)
+    const displayName = currentUser.user_metadata?.username || 
+                       currentUser.email?.split('@')[0] || 
+                       'Trainer';
+    trainerName.textContent = displayName;
+    
+    // Set sprite (default to Pikachu for now)
+    const pokemonId = currentUser.user_metadata?.favorite_pokemon_id || 25;
+    trainerSprite.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemonId}.png`;
+    
+  } else {
+    // Show login button
+    loginButton.style.display = 'block';
+    trainerCard.style.display = 'none';
+  }
+}
+
+// Check for existing session on page load
+async function checkAuthState() {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    if (session) {
+      currentUser = session.user;
+      updateAuthUI();
+    }
+  } catch (error) {
+    console.error('Auth check error:', error);
+  }
+}
+
+// Listen for auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    currentUser = session.user;
+    updateAuthUI();
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    updateAuthUI();
+  }
+});
+
+// Initialize auth check on page load
+document.addEventListener('DOMContentLoaded', () => {
+  // Wire up auth modal buttons
+  document.getElementById('discordLoginBtn')?.addEventListener('click', signInWithDiscord);
+  document.getElementById('emailSignUpBtn')?.addEventListener('click', signUpWithEmail);
+  document.getElementById('emailLoginBtn')?.addEventListener('click', signInWithEmail);
+  
+  // Close modal on outside click
+  document.getElementById('authModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'authModal') closeAuthModal();
+  });
+  checkAuthState();
+});
   const pageLoading = document.getElementById('loading-page');
   const pageConfig = document.getElementById('config-page');
   const categorySelect = document.getElementById('category');
@@ -1175,5 +1378,34 @@ window.addEventListener('pageshow', () => {
   updateBadgeNotification();
 });
 </script>
+<!-- Auth Modal -->
+<div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:20px; padding:30px; max-width:400px; width:90%; text-align:center;">
+    <h2>Join PokeRankr</h2>
+    
+    <!-- OAuth Buttons -->
+    <button id="discordLoginBtn" style="width:100%; margin:10px 0; background:#5865F2;" class="menu-button">
+      <span class="button_top">Continue with Discord</span>
+    </button>
+    
+    <div style="margin: 20px 0; color: #666;">or</div>
+    
+    <!-- Email Form -->
+    <div id="emailForm">
+      <input type="email" id="emailInput" placeholder="Email" style="width:100%; padding:12px; margin:8px 0; border:2px solid #d2deff; border-radius:8px; box-sizing:border-box;">
+      <input type="password" id="passwordInput" placeholder="Password" style="width:100%; padding:12px; margin:8px 0; border:2px solid #d2deff; border-radius:8px; box-sizing:border-box;">
+      <button id="emailSignUpBtn" style="width:100%; margin:10px 0;" class="menu-button">
+        <span class="button_top">Sign Up with Email</span>
+      </button>
+      <button id="emailLoginBtn" style="width:100%; margin:10px 0;" class="menu-button alt">
+        <span class="button_top">Login with Email</span>
+      </button>
+    </div>
+    
+    <button onclick="closeAuthModal()" style="margin-top:20px;" class="menu-button alt">
+      <span class="button_top">Cancel</span>
+    </button>
+  </div>
+</div>
 </body>
 </html>
