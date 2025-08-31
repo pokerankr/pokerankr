@@ -151,6 +151,18 @@ function trackRankingCompletion(category, pokemonCount) {
   // Get the champion from your results
   const { champion } = computeResults();
   
+  // NEW: Extract unique Pokemon IDs from the pool
+  const pokemonIds = [];
+  if (Array.isArray(window.pool)) {
+    const seenIds = new Set();
+    window.pool.forEach(p => {
+      if (p && p.id && !seenIds.has(p.id)) {
+        seenIds.add(p.id);
+        pokemonIds.push(p.id);
+      }
+    });
+  }
+  
   let completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
   
   // Build detailed subcategory info
@@ -175,6 +187,7 @@ function trackRankingCompletion(category, pokemonCount) {
     category: category,
     subcategory: subcategory,
     pokemonCount: pokemonCount || 0,
+    pokemonIds: pokemonIds, // NEW: Store the actual Pokemon IDs
     includeShinies: window.includeShinies || false,
     shinyOnly: window.shinyOnly || false,
     championId: champion?.id || null,

@@ -475,12 +475,35 @@ if (hasGen1Winner && !achievements.soul) {
   newUnlocks.push('soul');
 }
   
-  // Marsh Badge - Rank 1025 total Pokemon
-  const totalPokemonRanked = completions.reduce((sum, c) => sum + (c.pokemonCount || 0), 0);
-  if (totalPokemonRanked >= 1025 && !achievements.marsh) {
-    achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
-    newUnlocks.push('marsh');
+// Marsh Badge - Each Pokemon (#1-1025) must appear in at least one ranking
+const allSeenPokemonIds = new Set();
+completions.forEach(completion => {
+  if (Array.isArray(completion.pokemonIds)) {
+    // New format: use the pokemonIds array
+    completion.pokemonIds.forEach(id => allSeenPokemonIds.add(id));
   }
+  // Note: We intentionally don't try to reconstruct from old data
+  // Users will need new completions to unlock the Marsh Badge
+});
+
+// Check if we have all Pokemon #1-1025
+const hasAllPokemon = allSeenPokemonIds.size >= 1025;
+let foundAllDexNumbers = false;
+if (hasAllPokemon) {
+  // Double-check: make sure we actually have 1, 2, 3, ..., 1025
+  foundAllDexNumbers = true;
+  for (let i = 1; i <= 1025; i++) {
+    if (!allSeenPokemonIds.has(i)) {
+      foundAllDexNumbers = false;
+      break;
+    }
+  }
+}
+
+if (foundAllDexNumbers && !achievements.marsh) {
+  achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
+  newUnlocks.push('marsh');
+}
   
 // Volcano Badge - Shiny winner (not in shiny-only mode)
 // Find completions with shiny champions

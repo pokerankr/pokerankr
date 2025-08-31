@@ -1073,15 +1073,40 @@ function checkForNewBadges() {
     hasNewBadge = true;
   }
   
-  // Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1-only category)
-const hasGen1Winner = completions.some(c => 
-  c.championId && c.championId <= 151 && 
-  !(c.category === 'generation' && c.subcategory === 'generation-1')
-);
-if (hasGen1Winner && !achievements.soul) {
-  achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
-  newUnlocks.push('soul');
-}
+  // Soul Badge - Gen 1 Pokemon wins (but NOT in Gen 1-only category) - FIXED
+  const hasGen1Winner = completions.some(c => 
+    c.championId && c.championId <= 151 && 
+    !(c.category === 'generation' && c.subcategory === 'generation-1')
+  );
+  if (hasGen1Winner && !achievements.soul?.unlocked) {
+    achievements.soul = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  
+  // Marsh Badge - Each Pokemon (#1-1025) must appear in at least one ranking
+  const allSeenPokemonIds = new Set();
+  completions.forEach(completion => {
+    if (Array.isArray(completion.pokemonIds)) {
+      completion.pokemonIds.forEach(id => allSeenPokemonIds.add(id));
+    }
+  });
+
+  const hasAllPokemon = allSeenPokemonIds.size >= 1025;
+  let foundAllDexNumbers = false;
+  if (hasAllPokemon) {
+    foundAllDexNumbers = true;
+    for (let i = 1; i <= 1025; i++) {
+      if (!allSeenPokemonIds.has(i)) {
+        foundAllDexNumbers = false;
+        break;
+      }
+    }
+  }
+
+  if (foundAllDexNumbers && !achievements.marsh?.unlocked) {
+    achievements.marsh = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
   
   // Volcano Badge - Shiny winner (not in shiny-only mode) - FIXED VERSION
   const shinyWinnerInMixed = completions.some(c => {
@@ -1092,6 +1117,42 @@ if (hasGen1Winner && !achievements.soul) {
   });
   if (shinyWinnerInMixed && !achievements.volcano?.unlocked) {
     achievements.volcano = { unlocked: true, date: new Date().toISOString(), isNew: true };
+    hasNewBadge = true;
+  }
+  
+  // Earth Badge - Complete comprehensive set
+  const subcategories = new Set(completions.map(c => c.subcategory));
+  const subcategoriesLc = new Set(
+    [...subcategories].filter(Boolean).map(s => String(s).toLowerCase())
+  );
+
+  const TYPE_SLUGS = [
+    'normal','fire','water','grass','electric','ice','fighting','poison','ground','flying',
+    'psychic','bug','rock','ghost','dragon','dark','steel','fairy'
+  ];
+
+  const hasAllGens = ['1','2','3','4','5','6','7','8','9','all'].every(g =>
+    subcategoriesLc.has(`generation-${g}`)
+  );
+
+  const hasStarters = categories.has('starters');
+
+  const hasLegendaries = (() => {
+    const ALL_IN_ONE = ['legendaries-all', 'legendaries-complete', 'legendaries-all-in-one'];
+    const LEGENDARY_ONLY = ['legendaries-base', 'legendaries-only', 'legendaries'];
+    const MYTHICALS     = ['legendaries-mythicals', 'mythicals', 'legendaries-mythical'];
+    const ULTRA_BEASTS  = ['legendaries-ultra-beasts', 'legendaries-ultrabeasts', 'ultra-beasts', 'ultrabeasts'];
+
+    const anyOf = arr => arr.some(s => subcategoriesLc.has(s));
+
+    if (anyOf(ALL_IN_ONE)) return true;
+    return anyOf(LEGENDARY_ONLY) && anyOf(MYTHICALS) && anyOf(ULTRA_BEASTS);
+  })();
+
+  const hasTypes = TYPE_SLUGS.every(t => subcategoriesLc.has(`type-${t}`));
+
+  if (hasAllGens && hasStarters && hasLegendaries && hasTypes && !achievements.earth?.unlocked) {
+    achievements.earth = { unlocked: true, date: new Date().toISOString(), isNew: true };
     hasNewBadge = true;
   }
   
