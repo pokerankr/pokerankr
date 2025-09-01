@@ -1770,26 +1770,81 @@ function checkForNewBadges() {
   return hasNewBadge;
 }
 
-// Update notification + auth on page load
-document.addEventListener('DOMContentLoaded', () => {
-  // Ensure we restore session & UI the moment the DOM is ready
-  checkAuthState().catch(console.error);
-  checkForNewBadges();
-  updateBadgeNotification();
+/** 
+ * Robust auth bootstrap for mobile restores:
+ * - Subscribe once to Supabase auth changes (rehydrates UI when session becomes available)
+ * - Retry getSession briefly to avoid flipping UI to "logged out" during rehydrate
+ */
+
+// 1) Subscribe once (guard against double-subscribe on bfcache restores)
+if (!window._sbAuthSubscribed) {
+  window._sbAuthSubscribed = true;
+  try {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // session is null when signed out; object when signed in
+      currentUser = session?.user || null;
+      updateAuthUI();
+      // when we become signed in, refresh any UI that depends on cloud data
+      if (currentUser) {
+        loadDataFromCloud().catch(console.error).finally(() => {
+          checkForNewBadges?.();
+          updateBadgeNotification?.();
+          // reveal Manage Saves if any slots exist
+          try {
+            const slots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
+            if (Array.isArray(slots) && slots.some(Boolean)) {
+              const btn = document.getElementById('btnManageSaves');
+              if (btn) btn.style.display = '';
+            }
+          } catch {}
+        });
+      }
+    });
+    // Optionally store to clean up on full reloads:
+    window._sbAuthSubscription = subscription;
+  } catch (e) {
+    console.warn('onAuthStateChange subscribe failed:', e);
+  }
+}
+
+// 2) A tiny retry helper so we don’t mis-read a momentary null session
+async function checkAuthStateWithRetry(maxTries = 5, delayMs = 200) {
+  for (let i = 1; i <= maxTries; i++) {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('Session error:', error);
+      break;
+    }
+    if (session) {
+      currentUser = session.user;
+      updateAuthUI();
+      return true;
+    }
+    // brief pause then try again
+    await new Promise(r => setTimeout(r, delayMs));
+  }
+  // No session after retries → don’t force logout UI here; leave listener to update later
+  return false;
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkAuthStateWithRetry().catch(console.error);
+  checkForNewBadges?.();
+  updateBadgeNotification?.();
 });
 
-// Also update when returning from other pages (bfcache)  
-window.addEventListener('pageshow', () => {
-  // Re-verify Supabase session and flip the UI if needed
-  checkAuthState().catch(console.error);
-  checkForNewBadges();
-  updateBadgeNotification();
+// Restore from bfcache
+window.addEventListener('pageshow', async () => {
+  await checkAuthStateWithRetry().catch(console.error);
+  checkForNewBadges?.();
+  updateBadgeNotification?.();
 });
 
-// Bonus: handle tab-switches where the page stays alive but hidden
-document.addEventListener('visibilitychange', () => {
+// Tab/app switch back
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible') {
-    checkAuthState().catch(console.error);
+    await checkAuthStateWithRetry().catch(console.error);
   }
 });
 </script>
