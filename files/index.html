@@ -21,20 +21,21 @@
   <!-- ====== LOADING PAGE ====== -->
   <div id="loading-page" class="page active">
 <!-- Auth Container - Fixed to top right corner -->
-<div id="auth-container" style="position: fixed; top: 15px; right: 15px; z-index: 100;">
+<div id="auth-container" style="position: fixed; top: 15px; right: 15px; z-index: 100; visibility:hidden;">
   <button id="loginButton" onclick="openAuthModal()" class="menu-button" style="min-width: 140px;">
     <span class="button_top">Login / Sign Up</span>
   </button>
-  
+
   <!-- Trainer Card (hidden initially) -->
   <div id="trainerCard" style="display: none; align-items: center; gap: 10px; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 12px; border: 2px solid #d2deff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 140px;">
     <img id="trainerSprite" src="" width="32" height="32" alt="Trainer">
     <span id="trainerName" style="font-weight: 600; color: #333;"></span>
     <button id="logoutButton" onclick="logout()" class="menu-button" style="margin-left:auto;">
-  <span class="button_top">Logout</span>
-</button>
+      <span class="button_top">Logout</span>
+    </button>
   </div>
 </div>
+
 
 <!-- Logo - Centered independently -->
 <div class="logo">
@@ -1827,11 +1828,17 @@ async function checkAuthStateWithRetry(maxTries = 5, delayMs = 200) {
   return false;
 }
 
+function revealAuthUI() {
+  const ac = document.getElementById('auth-container');
+  if (ac) ac.style.visibility = 'visible';
+}
+
 // Initial load
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAuthStateWithRetry().catch(console.error);
   checkForNewBadges?.();
   updateBadgeNotification?.();
+  revealAuthUI();
 });
 
 // Restore from bfcache
@@ -1839,12 +1846,14 @@ window.addEventListener('pageshow', async () => {
   await checkAuthStateWithRetry().catch(console.error);
   checkForNewBadges?.();
   updateBadgeNotification?.();
+  revealAuthUI();
 });
 
 // Tab/app switch back
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible') {
     await checkAuthStateWithRetry().catch(console.error);
+    revealAuthUI();
   }
 });
 </script>
