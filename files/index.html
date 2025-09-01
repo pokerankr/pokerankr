@@ -302,56 +302,45 @@ async function signInWithEmail() {
 }
 
 // Logout — bulletproof, with logs + fallback
-window.logout = async function () {
+// Logout — no-await version: nuke tokens, flip UI, reload
+window.logout = function () {
   const pathOnly = window.location.pathname;
-  console.log('Logout: start');
+  console.log('Logout: kick');
 
-  // 0) Disable button to prevent double-clicks
+  // prevent double-click
   try { document.getElementById('logoutButton').disabled = true; } catch {}
 
-  // 1) LOCAL signout (no network) so UI flips immediately
-  try {
-    console.log('Logout: calling signOut({scope:"local"})');
-    await supabase.auth.signOut({ scope: 'local' });
-    console.log('Logout: local signOut done');
-  } catch (e) {
-    console.warn('Logout: local signOut error (continuing):', e?.message || e);
-  }
+  // fire-and-forget (don’t await)
+  try { supabase.auth.signOut({ scope: 'global' }); } catch {}
 
-  // 2) Belt & suspenders — remove ANY auth tokens this tab might have
+  // remove any local auth tokens (ours + Supabase defaults)
   try {
-    console.log('Logout: removing localStorage auth keys');
-    localStorage.removeItem('pokerankr-auth'); // our custom key
+    localStorage.removeItem('pokerankr-auth');
     Object.keys(localStorage)
-      .filter(k => (k.startsWith('sb-') && k.includes('-auth-token')))
+      .filter(k => k.startsWith('sb-') && k.includes('-auth-token'))
       .forEach(k => localStorage.removeItem(k));
-  } catch (e) { console.warn('Logout: ls cleanup issue:', e); }
+  } catch {}
 
-  // 3) Clear session-scoped flags
+  // clear session-scoped flags
   try { sessionStorage.clear(); } catch {}
 
-  // 4) Flip UI NOW so you don’t see your name lingering
+  // flip UI immediately
   currentUser = null;
   updateAuthUI();
-  console.log('Logout: UI flipped to logged-out');
 
-  // 5) Background global revoke (don’t wait on it)
-  supabase.auth.signOut({ scope: 'global' })
-    .then(() => console.log('Logout: global revoke ok'))
-    .catch(() => console.log('Logout: global revoke skipped/failed (ok)'));
-
-  // 6) Hard reload path-only after a tiny tick (removes any hash/query)
+  // reload cleanly (no hash/query)
   setTimeout(() => {
-    console.log('Logout: reloading…');
+    console.log('Logout: reload');
     window.location.replace(pathOnly);
   }, 50);
 
-  // 7) FINAL failsafe: if somehow still here after 2s, force reload
+  // final failsafe after 2s
   setTimeout(() => {
     console.warn('Logout: failsafe reload');
     window.location.replace(pathOnly);
   }, 2000);
 };
+
 
 
 
