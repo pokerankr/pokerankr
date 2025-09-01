@@ -134,5 +134,98 @@
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 </script>
+<!-- Supabase Cloud Sync -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Initialize Supabase client
+const supabaseUrl = 'https://nfelacjsvcilwfrqiftm.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mZWxhY2pzdmNpbHdmcnFpZnRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NDUxMzgsImV4cCI6MjA3MjIyMTEzOH0.sB-DDRwLGWxKksO9TCKf_7Tv3suDWxloYE0uEXpZ61w';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+// Simple sync function
+async function syncToCloudNow() {
+  try {
+    // Check if user is logged in
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log('No user logged in, skipping sync');
+      return;
+    }
+    
+    const userId = session.user.id;
+    console.log('Syncing data for user:', userId);
+    
+    // Get all local data
+    const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
+    const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
+    const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
+    const saveSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
+    
+    // Sync all data to cloud
+    const promises = [];
+    
+    promises.push(
+      supabase.from('user_achievements').upsert({
+        user_id: userId,
+        achievement_data: achievements,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+    
+    promises.push(
+      supabase.from('user_completions').upsert({
+        user_id: userId,
+        completions_data: completions,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+    
+    promises.push(
+      supabase.from('user_saved_rankings').upsert({
+        user_id: userId,
+        rankings_data: savedRankings,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+    
+    promises.push(
+      supabase.from('user_save_slots').upsert({
+        user_id: userId,
+        slots_data: saveSlots,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+    
+    await Promise.all(promises);
+    console.log('Cloud sync complete from', window.location.pathname);
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+  }
+}
+
+// Auto-sync when localStorage changes
+const originalSetItem = localStorage.setItem;
+localStorage.setItem = function(key, value) {
+  originalSetItem.call(this, key, value);
+  
+  // Sync for PokeRankr data keys
+  const syncKeys = ['PR_ACHIEVEMENTS', 'PR_COMPLETIONS', 'savedRankings', 'PR_SAVE_SLOTS_V1'];
+  if (syncKeys.includes(key)) {
+    console.log(`Data changed: ${key}, triggering cloud sync...`);
+    // Debounce sync to avoid too many calls
+    if (window.syncTimeout) clearTimeout(window.syncTimeout);
+    window.syncTimeout = setTimeout(() => {
+      syncToCloudNow();
+    }, 2000);
+  }
+};
+
+// Also sync when leaving the page
+window.addEventListener('beforeunload', () => {
+  // Try one final sync before leaving (note: may not always complete)
+  syncToCloudNow();
+});
+</script>
 </body>
 </html>

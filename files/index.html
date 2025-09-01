@@ -279,16 +279,31 @@ async function signInWithEmail() {
   }
 }
 
-// Logout
-async function logout() {
+// Logout - Made globally accessible with better error handling
+window.logout = async function() {
+  console.log('Logout initiated...');
   try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    
+    // Clear local state first
     currentUser = null;
-    updateAuthUI();
+    
+    // Attempt signout
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error('Supabase signout error:', error);
+      // Even if there's an error, update the UI
+      updateAuthUI();
+      alert('Logout error: ' + error.message);
+    } else {
+      console.log('Logout successful');
+      updateAuthUI();
+      // Optionally refresh page to clear all state
+      window.location.reload();
+    }
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('Logout error caught:', error);
+    // Force UI update even on error
+    updateAuthUI();
     alert('Logout failed: ' + error.message);
   }
 }
@@ -322,8 +337,7 @@ function updateAuthUI() {
   }
 }
 
-// Check for existing session on page load
-// Update the existing checkAuthState function
+// Updated auth state check
 async function checkAuthState() {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -333,22 +347,115 @@ async function checkAuthState() {
       currentUser = session.user;
       updateAuthUI();
       
-      // NEW: Load cloud data and sync local data
+      // Load cloud data first, then sync any local changes
       await loadDataFromCloud();
-      await syncDataToCloud();
+      
+      console.log('Auth state checked - user logged in:', currentUser.email);
+    } else {
+      console.log('No active session');
     }
   } catch (error) {
     console.error('Auth check error:', error);
   }
 }
+
+// Debug helper - add this to check RLS policies
+window.debugSupabase = async function() {
+  if (!currentUser) {
+    console.log('Not logged in');
+    return;
+  }
+  
+  console.log('Current user ID:', currentUser.id);
+  console.log('Checking database access...');
+  
+  // Test each table
+  const tables = ['user_achievements', 'user_completions', 'user_saved_rankings', 'user_save_slots'];
+  
+  for (const table of tables) {
+    try {
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', currentUser.id);
+      
+      if (error) {
+        console.error(`❌ ${table}: ${error.message}`);
+      } else {
+        console.log(`✅ ${table}: Can read (${data ? data.length : 0} rows)`);
+      }
+      
+      // Test insert/update
+      const testData = {
+        user_id: currentUser.id,
+        [`${table.includes('achievement') ? 'achievement' : table.includes('completion') ? 'completions' : table.includes('ranking') ? 'rankings' : 'slots'}_data`]: {},
+        updated_at: new Date().toISOString()
+      };
+      
+      const { error: upsertError } = await supabase
+        .from(table)
+        .upsert(testData, { onConflict: 'user_id' });
+      
+      if (upsertError) {
+        console.error(`❌ ${table}: Cannot upsert - ${upsertError.message}`);
+      } else {
+        console.log(`✅ ${table}: Can upsert`);
+      }
+    } catch (err) {
+      console.error(`Error testing ${table}:`, err);
+    }
+  }
+}
+
+// Simpler debug function that actually completes
+window.testSupabase = async function() {
+  if (!currentUser) {
+    console.log('Not logged in');
+    return;
+  }
+  
+  console.log('Testing Supabase connection...');
+  console.log('User ID:', currentUser.id);
+  
+  try {
+    // Test read
+    const { data, error } = await supabase
+      .from('user_saved_rankings')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Read error:', error);
+    } else {
+      console.log('Read successful. Data:', data);
+      if (data) {
+        console.log('Rankings in cloud:', data.rankings_data?.length || 0);
+      }
+    }
+    
+    // Force sync
+    console.log('Forcing sync...');
+    await syncDataToCloud();
+    console.log('Sync complete');
+    
+  } catch (err) {
+    console.error('Test error:', err);
+  }
+}
 /* =========================
-   Cloud Data Sync Functions (CORRECTED)
+   Cloud Data Sync Functions (FIXED)
    ========================= */
 
-// Sync local data to cloud
+// Sync local data to cloud - FIXED to ensure correct data format
 async function syncDataToCloud() {
-  if (!currentUser) return;
+  if (!currentUser) {
+    console.log('No user logged in, skipping sync');
+    return;
+  }
 
+  console.log('Starting sync to cloud...');
+  
   try {
     // Get all local data
     const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
@@ -356,97 +463,165 @@ async function syncDataToCloud() {
     const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
     const saveSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
 
-    // Upload to Supabase (upsert = insert or update) - FIXED TABLE NAMES
+    console.log('Data to sync:', {
+      achievements: Object.keys(achievements).length,
+      completions: completions.length,
+      savedRankings: savedRankings.length,
+      saveSlots: saveSlots.filter(Boolean).length
+    });
+
     const promises = [];
-// syncDataToCloud()
-if (Object.keys(achievements).length > 0) {
-  promises.push(
-    supabase.from('user_achievements').upsert({
-      user_id: currentUser.id,
-      achievement_data: achievements,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
-  );
-}
-if (completions.length > 0) {
-  promises.push(
-    supabase.from('user_completions').upsert({
-      user_id: currentUser.id,
-      completions_data: completions,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
-  );
-}
-if (savedRankings.length > 0) {
-  promises.push(
-    supabase.from('user_saved_rankings').upsert({
-      user_id: currentUser.id,
-      rankings_data: savedRankings,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
-  );
-}
-if (saveSlots.some(Boolean)) {
-  promises.push(
-    supabase.from('user_save_slots').upsert({
-      user_id: currentUser.id,
-      slots_data: saveSlots,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
-  );
-}
 
+    // Always sync ALL data, even if empty (to overwrite bad data)
+    promises.push(
+      supabase.from('user_achievements').upsert({
+        user_id: currentUser.id,
+        achievement_data: achievements,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
 
-    await Promise.all(promises);
-    console.log('Data synced to cloud successfully');
+    promises.push(
+      supabase.from('user_completions').upsert({
+        user_id: currentUser.id,
+        completions_data: completions,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+
+    promises.push(
+      supabase.from('user_saved_rankings').upsert({
+        user_id: currentUser.id,
+        rankings_data: savedRankings,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+
+    promises.push(
+      supabase.from('user_save_slots').upsert({
+        user_id: currentUser.id,
+        slots_data: saveSlots,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+    );
+
+    const results = await Promise.allSettled(promises);
+    
+    // Log each result
+    const tableNames = ['achievements', 'completions', 'saved_rankings', 'save_slots'];
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`❌ Error syncing ${tableNames[index]}:`, result.reason);
+      } else if (result.value?.error) {
+        console.error(`❌ Error syncing ${tableNames[index]}:`, result.value.error);
+      } else {
+        console.log(`✅ Successfully synced ${tableNames[index]}`);
+      }
+    });
+    
+    console.log('Data sync to cloud completed');
 
   } catch (error) {
-    console.error('Error syncing to cloud:', error);
+    console.error('Error in syncDataToCloud:', error);
   }
 }
 
-// Load data from cloud - FIXED TABLE NAMES
+// FIXED: Load data from cloud - handle missing data gracefully
 async function loadDataFromCloud() {
   if (!currentUser) return;
 
   try {
-    // Fetch all user data from cloud
-    // loadDataFromCloud()
-const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
-  supabase.from('user_achievements').select('*').eq('user_id', currentUser.id).single(),
-  supabase.from('user_completions').select('*').eq('user_id', currentUser.id).single(),
-  supabase.from('user_saved_rankings').select('*').eq('user_id', currentUser.id).single(),
-  supabase.from('user_save_slots').select('*').eq('user_id', currentUser.id).single()
-]);
+    // Fetch all user data from cloud - use maybeSingle() instead of single()
+    const [achievementsRes, completionsRes, rankingsRes, slotsRes] = await Promise.all([
+      supabase.from('user_achievements')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .maybeSingle(), // Use maybeSingle() to handle no data case
+      
+      supabase.from('user_completions')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .maybeSingle(),
+      
+      supabase.from('user_saved_rankings')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .maybeSingle(),
+      
+      supabase.from('user_save_slots')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .maybeSingle()
+    ]);
 
     let hasCloudData = false;
 
-    // Merge cloud data with local (cloud wins on conflicts)
-    if (achievementsRes.data && !achievementsRes.error) {
-      localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(achievementsRes.data.achievement_data));
-      hasCloudData = true;
-    }
+    // Check each response and only update if data exists
+    if (achievementsRes.data && achievementsRes.data.achievement_data) {
+  const achievements = achievementsRes.data.achievement_data;
+  // Ensure it's an object
+  if (typeof achievements === 'object' && !Array.isArray(achievements)) {
+    localStorage.setItem('PR_ACHIEVEMENTS', JSON.stringify(achievements));
+    hasCloudData = true;
+    console.log('Loaded achievements from cloud');
+  }
+}
 
-    if (completionsRes.data && !completionsRes.error) {
-      localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completionsRes.data.completions_data));
-      hasCloudData = true;
-    }
+if (completionsRes.data && completionsRes.data.completions_data) {
+  const completions = completionsRes.data.completions_data;
+  // Ensure it's an array
+  if (Array.isArray(completions)) {
+    localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completions));
+    hasCloudData = true;
+    console.log('Loaded completions from cloud');
+  } else if (typeof completions === 'object') {
+    // If it's an object, try to convert to array
+    const completionsArray = Object.values(completions);
+    localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completionsArray));
+    hasCloudData = true;
+    console.log('Loaded completions from cloud (converted from object)');
+  }
+}
 
-    if (rankingsRes.data && !rankingsRes.error) {
-      localStorage.setItem('savedRankings', JSON.stringify(rankingsRes.data.rankings_data));
-      hasCloudData = true;
-    }
+if (rankingsRes.data && rankingsRes.data.rankings_data) {
+  const rankings = rankingsRes.data.rankings_data;
+  // Ensure it's an array
+  if (Array.isArray(rankings)) {
+    localStorage.setItem('savedRankings', JSON.stringify(rankings));
+    hasCloudData = true;
+    console.log('Loaded rankings from cloud');
+  } else if (typeof rankings === 'object') {
+    // If it's an object, convert to array
+    const rankingsArray = Object.values(rankings);
+    localStorage.setItem('savedRankings', JSON.stringify(rankingsArray));
+    hasCloudData = true;
+    console.log('Loaded rankings from cloud (converted from object)');
+  }
+}
 
-    if (slotsRes.data && !slotsRes.error) {
-      localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsRes.data.slots_data));
-      hasCloudData = true;
-    }
-
+if (slotsRes.data && slotsRes.data.slots_data) {
+  const slots = slotsRes.data.slots_data;
+  // Ensure it's an array with 3 slots
+  if (Array.isArray(slots)) {
+    while (slots.length < 3) slots.push(null);
+    localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slots.slice(0, 3)));
+    hasCloudData = true;
+    console.log('Loaded save slots from cloud');
+  }
+}
     if (hasCloudData) {
       console.log('Data loaded from cloud successfully');
       // Update UI to reflect new data
-      checkForNewBadges();
-      updateBadgeNotification();
+      if (typeof checkForNewBadges !== 'undefined') {
+        checkForNewBadges();
+      }
+      if (typeof updateBadgeNotification !== 'undefined') {
+        updateBadgeNotification();
+      }
+    } else {
+      console.log('No cloud data found for user - will sync local data to cloud');
+      // If no cloud data exists, sync local data to cloud
+      await syncDataToCloud();
     }
 
   } catch (error) {
@@ -468,14 +643,15 @@ async function autoSyncToCloud() {
   }, 2000); // Sync 2 seconds after last change
 }
 
-// Override localStorage.setItem to trigger auto-sync
+// Override localStorage.setItem to trigger auto-sync - WITH LOGGING
 const originalSetItem = localStorage.setItem;
 localStorage.setItem = function(key, value) {
   originalSetItem.call(this, key, value);
   
   // Only auto-sync for PokeRankr data
   const syncKeys = ['PR_ACHIEVEMENTS', 'PR_COMPLETIONS', 'savedRankings', 'PR_SAVE_SLOTS_V1'];
-  if (syncKeys.includes(key)) {
+  if (syncKeys.includes(key) && currentUser) {
+    console.log(`LocalStorage updated: ${key}, triggering auto-sync...`);
     autoSyncToCloud();
   }
 };
