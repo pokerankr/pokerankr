@@ -301,40 +301,58 @@ async function signInWithEmail() {
   }
 }
 
-// Logout — race-free: clear local session immediately, then reload
+// Logout — bulletproof, with logs + fallback
 window.logout = async function () {
-  console.log('Logout initiated - clearing session...');
+  const pathOnly = window.location.pathname;
+  console.log('Logout: start');
 
-  // 1) Clear local session immediately (no network) so UI flips right away
+  // 0) Disable button to prevent double-clicks
+  try { document.getElementById('logoutButton').disabled = true; } catch {}
+
+  // 1) LOCAL signout (no network) so UI flips immediately
   try {
-    await supabase.auth.signOut({ scope: 'local' }); // clears local storage & fires SIGNED_OUT
+    console.log('Logout: calling signOut({scope:"local"})');
+    await supabase.auth.signOut({ scope: 'local' });
+    console.log('Logout: local signOut done');
   } catch (e) {
-    console.warn('Local signout failed (continuing):', e?.message || e);
+    console.warn('Logout: local signOut error (continuing):', e?.message || e);
   }
 
-  // 2) Belt & suspenders: remove any possible auth keys (handles pages that used default keys)
+  // 2) Belt & suspenders — remove ANY auth tokens this tab might have
   try {
-    // our custom key
-    localStorage.removeItem('pokerankr-auth');
-    // supabase default keys (e.g., older pages or tabs)
+    console.log('Logout: removing localStorage auth keys');
+    localStorage.removeItem('pokerankr-auth'); // our custom key
     Object.keys(localStorage)
-      .filter(k => k.startsWith('sb-') && k.includes('-auth-token'))
+      .filter(k => (k.startsWith('sb-') && k.includes('-auth-token')))
       .forEach(k => localStorage.removeItem(k));
-  } catch {}
+  } catch (e) { console.warn('Logout: ls cleanup issue:', e); }
 
-  // 3) Also clear per-session UI flags
+  // 3) Clear session-scoped flags
   try { sessionStorage.clear(); } catch {}
 
-  // 4) Make the UI reflect logged-out state immediately
+  // 4) Flip UI NOW so you don’t see your name lingering
   currentUser = null;
   updateAuthUI();
+  console.log('Logout: UI flipped to logged-out');
 
-  // 5) Fire-and-forget a global revoke in the background (nice-to-have; don’t block UI)
-  supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+  // 5) Background global revoke (don’t wait on it)
+  supabase.auth.signOut({ scope: 'global' })
+    .then(() => console.log('Logout: global revoke ok'))
+    .catch(() => console.log('Logout: global revoke skipped/failed (ok)'));
 
-  // 6) Reload cleanly (no hash/query) so there’s nothing to auto-detect in URL
-  window.location.replace(window.location.pathname);
+  // 6) Hard reload path-only after a tiny tick (removes any hash/query)
+  setTimeout(() => {
+    console.log('Logout: reloading…');
+    window.location.replace(pathOnly);
+  }, 50);
+
+  // 7) FINAL failsafe: if somehow still here after 2s, force reload
+  setTimeout(() => {
+    console.warn('Logout: failsafe reload');
+    window.location.replace(pathOnly);
+  }, 2000);
 };
+
 
 
 // Update UI based on auth state
