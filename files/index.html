@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-   <script>
-    (function enforceCanonicalHost(){
-      var CANON = 'pokerankr.com';              // ← use this or 'www.pokerankr.com' — pick ONE
-      if (location.hostname !== CANON) {
-        var url = location.protocol + '//' + CANON + location.pathname + location.search + location.hash;
-        location.replace(url);
-      }
-    })();
-  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta charset="UTF-8" />
   <meta name="description" content="Put Pokémon head-to-head to find out who your REAL favorite is!">
@@ -327,19 +318,6 @@ async function signInWithEmail() {
 
 // Logout – no-await version: nuke tokens, flip UI, reload
 window.logout = function () {
-  // Guard against accidental calls
-  if (!currentUser) {
-    console.log('Logout called but no user logged in');
-    return;
-  }
-  
-  // Confirm on mobile to prevent accidental logouts
-  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    if (!confirm('Are you sure you want to log out?')) {
-      return;
-    }
-  }
-  
   const pathOnly = window.location.pathname;
   console.log('Logout: kick');
 
@@ -376,7 +354,6 @@ window.logout = function () {
     window.location.replace(pathOnly);
   }, 2000);
 };
-
 
 // Update UI based on auth state
 function updateAuthUI() {
@@ -776,7 +753,7 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 });
 
 // Initialize auth check on page load
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   // Wire up auth modal buttons
   document.getElementById('discordLoginBtn')?.addEventListener('click', signInWithDiscord);
   document.getElementById('emailSignUpBtn')?.addEventListener('click', signUpWithEmail);
@@ -786,19 +763,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('authModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'authModal') closeAuthModal();
   });
-  
-  // Add delay for mobile session restoration
-  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  
-  // Force session refresh before checking auth
-  try {
-    await supabase.auth.getSession();
-  } catch (e) {
-    console.log('Session refresh error:', e);
-  }
-  
   checkAuthState();
 });
   const pageLoading = document.getElementById('loading-page');
