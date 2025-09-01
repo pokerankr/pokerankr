@@ -301,27 +301,38 @@ async function signInWithEmail() {
   }
 }
 
-// Logout — wait for signout, clear storage, then reload cleanly
+// Logout — race-free: clear local session immediately, then reload
 window.logout = async function () {
   console.log('Logout initiated - clearing session...');
 
+  // 1) Clear local session immediately (no network) so UI flips right away
   try {
-    // Ensure local session is cleared before we reload
-    const { error } = await supabase.auth.signOut(); // or: await supabase.auth.signOut({ scope: 'local' })
-    if (error) console.error('Signout error:', error);
-
-    // Belt & suspenders: remove our custom storage key and any per-session flags
-    try { localStorage.removeItem('pokerankr-auth'); } catch {}
-    try { sessionStorage.clear(); } catch {}
-
-    // Update UI immediately to avoid a “still logged-in” flash
-    currentUser = null;
-    updateAuthUI();
+    await supabase.auth.signOut({ scope: 'local' }); // clears local storage & fires SIGNED_OUT
   } catch (e) {
-    console.error('Logout failed:', e);
+    console.warn('Local signout failed (continuing):', e?.message || e);
   }
 
-  // Reload without query/hash so no OAuth fragments can rehydrate a session
+  // 2) Belt & suspenders: remove any possible auth keys (handles pages that used default keys)
+  try {
+    // our custom key
+    localStorage.removeItem('pokerankr-auth');
+    // supabase default keys (e.g., older pages or tabs)
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('sb-') && k.includes('-auth-token'))
+      .forEach(k => localStorage.removeItem(k));
+  } catch {}
+
+  // 3) Also clear per-session UI flags
+  try { sessionStorage.clear(); } catch {}
+
+  // 4) Make the UI reflect logged-out state immediately
+  currentUser = null;
+  updateAuthUI();
+
+  // 5) Fire-and-forget a global revoke in the background (nice-to-have; don’t block UI)
+  supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+
+  // 6) Reload cleanly (no hash/query) so there’s nothing to auto-detect in URL
   window.location.replace(window.location.pathname);
 };
 
