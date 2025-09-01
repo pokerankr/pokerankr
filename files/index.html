@@ -765,6 +765,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   checkAuthState();
 });
+
+// Handle Safari back-forward cache
+window.addEventListener('pageshow', async (event) => {
+  // Check if page was restored from cache
+  if (event.persisted || performance.navigation.type === 2) {
+    console.log('Page restored from cache, checking auth...');
+    await checkAuthState();
+  }
+});
   const pageLoading = document.getElementById('loading-page');
   const pageConfig = document.getElementById('config-page');
   const categorySelect = document.getElementById('category');
