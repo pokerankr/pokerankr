@@ -275,11 +275,11 @@ html, body {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // Initialize Supabase client (shared session key across all pages)
+// ⬇️ Paste the same fresh values you used in index.html
 const supabaseUrl = 'https://nfelacjsvcilwfrqiftm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mZWxhY2pzdmNpbHdmcnFpZnRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NDUxMzgsImV4cCI6MjA3MjIyMTEzOH0.sB-DDRwLGWxKksO9TCKf_7Tv3suDWxloYE0uEXpZ61w';
 
-// ✅ Do NOT overwrite window.supabase (the library).
-// Create/rehydrate a single client on window.sb and keep local alias for this file.
+// Reuse the same global client so sessions persist across pages
 window.sb = window.sb || window.supabase.createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
@@ -288,6 +288,21 @@ window.sb = window.sb || window.supabase.createClient(supabaseUrl, supabaseKey, 
     storageKey: 'pokerankr-auth'
   }
 });
+const supabase = window.sb;
+
+// 🔎 Same mismatch guard
+(function verifyKeyPair(){
+  try {
+    const refFromUrl = new URL(supabaseUrl).hostname.split('.')[0];
+    const payloadB64 = supabaseKey.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const payload = JSON.parse(atob(payloadB64));
+    if (payload?.ref && payload.ref !== refFromUrl) {
+      console.error('Supabase URL/key mismatch', { refFromUrl, keyRef: payload.ref });
+      alert('Supabase URL/key mismatch. Paste the fresh ANON key for this project.');
+    }
+  } catch(_) {/* no-op */}
+})();
+</script>
 const supabase = window.sb;
 
 // Simple sync function

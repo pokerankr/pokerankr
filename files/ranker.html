@@ -83,9 +83,32 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // Initialize Supabase client
+// Use the SAME fresh values you put in index/badges
 const supabaseUrl = 'https://nfelacjsvcilwfrqiftm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mZWxhY2pzdmNpbHdmcnFpZnRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NDUxMzgsImV4cCI6MjA3MjIyMTEzOH0.sB-DDRwLGWxKksO9TCKf_7Tv3suDWxloYE0uEXpZ61w';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+// ✅ Reuse a single client across pages; don't overwrite the library
+window.sb = window.sb || window.supabase.createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'pokerankr-auth'
+  }
+});
+const supabase = window.sb;
+
+// (Optional) tiny guard to catch URL/key mismatches
+(function verifyKeyPair(){
+  try {
+    const refFromUrl = new URL(supabaseUrl).hostname.split('.')[0];
+    const payload = JSON.parse(atob(supabaseKey.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    if (payload?.ref && payload.ref !== refFromUrl) {
+      console.error('Supabase URL/key mismatch', { refFromUrl, keyRef: payload.ref });
+      alert('Supabase URL/key mismatch. Paste the fresh ANON key for this project.');
+    }
+  } catch(_) {}
+})();
 
 // Simple sync function with detailed logging
 async function syncToCloudNow() {
