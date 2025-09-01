@@ -55,7 +55,7 @@
   <button id="btnDownload" class="menu-button"><span class="button_top">Download</span></button>
   <button id="btnUpload" class="menu-button"><span class="button_top">Upload</span></button>
   <button id="btnFeedback" class="menu-button"><span class="button_top">Feedback</span></button>
-  <button id="btnFeedback" class="menu-button"><span class="button_top">Settings</span></button>
+  <button id="btnSettings" class="menu-button"><span class="button_top">Settings</span></button>
 </div>
 </div>
 
@@ -301,23 +301,30 @@ async function signInWithEmail() {
   }
 }
 
-// Logout - Simplified force reload version
-window.logout = function() {
+// Logout — wait for signout, clear storage, then reload cleanly
+window.logout = async function () {
   console.log('Logout initiated - clearing session...');
-  
-  // Don't await, just fire and reload
-  supabase.auth.signOut().then(() => {
-    console.log('Signout complete');
-  }).catch(err => {
-    console.error('Signout error:', err);
-  });
-  
-  // Clear local state
-  currentUser = null;
-  
-  // Force immediate reload
-  window.location.href = window.location.href;
-}
+
+  try {
+    // Ensure local session is cleared before we reload
+    const { error } = await supabase.auth.signOut(); // or: await supabase.auth.signOut({ scope: 'local' })
+    if (error) console.error('Signout error:', error);
+
+    // Belt & suspenders: remove our custom storage key and any per-session flags
+    try { localStorage.removeItem('pokerankr-auth'); } catch {}
+    try { sessionStorage.clear(); } catch {}
+
+    // Update UI immediately to avoid a “still logged-in” flash
+    currentUser = null;
+    updateAuthUI();
+  } catch (e) {
+    console.error('Logout failed:', e);
+  }
+
+  // Reload without query/hash so no OAuth fragments can rehydrate a session
+  window.location.replace(window.location.pathname);
+};
+
 
 // Update UI based on auth state
 function updateAuthUI() {
