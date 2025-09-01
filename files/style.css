@@ -1266,3 +1266,22 @@ fieldset {
     min-height: 44px !important;
   }
 }
+/* ===== Trainer card (top-right) button polish ===== */
+#trainerCard .menu-button .button_top {
+  /* match your normal button but smaller */
+  padding: 6px 10px;
+  font-size: 12px;
+  border-width: 2px;             /* keeps it light */
+}
+
+/* remove the chunky native focus outline; use the same soft glow as others */
+#trainerCard .menu-button .button_top:focus,
+#trainerCard .menu-button .button_top:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(82, 109, 253, 0.25);
+}
+
+/* (optional) align radius if your main buttons use a custom radius var */
+#trainerCard .menu-button {
+  border-radius: var(--btn-radius, 12px);
+}
