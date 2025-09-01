@@ -79,62 +79,7 @@
     window.includeShinies = localStorage.getItem('includeShinies') === 'true';
     window.shinyOnly = localStorage.getItem('shinyOnly') === 'true';
   </script>
-  <script src="engine/rankingEngine.js"></script>
-  <script src="js/starters.js"></script>
-
-  <!-- Auto-resume from Index's "Continue / Manage Saves" -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const pending = localStorage.getItem('PR_PENDING_RESUME_SLOT');
-        if (pending !== null) {
-          localStorage.removeItem('PR_PENDING_RESUME_SLOT');
-          const slots = (typeof readSlots === 'function') ? readSlots() : [];
-          const idx = parseInt(pending, 10);
-          const s = Array.isArray(slots) ? slots[idx] : null;
-          if (s && s.type === 'starters' && typeof loadStarterSession === 'function') {
-            loadStarterSession(s);
-            return; // stop; loadStarterSession will render the correct screen
-          }
-        }
-      } catch (e) {
-        console.warn('Pending resume check failed:', e);
-      }
-
-      // No pending resume → render a fresh run
-      if (typeof displayMatchup === 'function') displayMatchup();
-      if (typeof updateProgress === 'function') updateProgress();
-      if (typeof updateUndoButton === 'function') updateUndoButton();
-    });
-  </script>
-  <script>
-  // Wrap any <button> missing .button_top with a span, preserving text/HTML.
-  function upgradeButtons(root = document){
-    root.querySelectorAll('button:not(:has(.button_top))').forEach(btn => {
-      const span = document.createElement('span');
-      span.className = 'button_top';
-      // Move existing nodes into the span
-      while (btn.firstChild) span.appendChild(btn.firstChild);
-      btn.appendChild(span);
-    });
-  }
-
-  // Initial pass
-  document.addEventListener('DOMContentLoaded', () => upgradeButtons());
-
-  // Watch for dynamically inserted buttons (e.g., modals, grids)
-  const mo = new MutationObserver(muts => {
-    for (const m of muts){
-      m.addedNodes.forEach(node => {
-        if (node.nodeType !== 1) return;
-        if (node.tagName === 'BUTTON') upgradeButtons(node.parentNode);
-        else upgradeButtons(node);
-      });
-    }
-  });
-  mo.observe(document.documentElement, { childList: true, subtree: true });
-</script>
-<!-- Supabase Cloud Sync -->
+  <!-- Supabase Cloud Sync -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // Initialize Supabase client
@@ -226,6 +171,61 @@ window.addEventListener('beforeunload', () => {
   // Try one final sync before leaving (note: may not always complete)
   syncToCloudNow();
 });
+</script>
+  <script src="engine/rankingEngine.js"></script>
+  <script src="js/starters.js"></script>
+
+  <!-- Auto-resume from Index's "Continue / Manage Saves" -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const pending = localStorage.getItem('PR_PENDING_RESUME_SLOT');
+        if (pending !== null) {
+          localStorage.removeItem('PR_PENDING_RESUME_SLOT');
+          const slots = (typeof readSlots === 'function') ? readSlots() : [];
+          const idx = parseInt(pending, 10);
+          const s = Array.isArray(slots) ? slots[idx] : null;
+          if (s && s.type === 'starters' && typeof loadStarterSession === 'function') {
+            loadStarterSession(s);
+            return; // stop; loadStarterSession will render the correct screen
+          }
+        }
+      } catch (e) {
+        console.warn('Pending resume check failed:', e);
+      }
+
+      // No pending resume → render a fresh run
+      if (typeof displayMatchup === 'function') displayMatchup();
+      if (typeof updateProgress === 'function') updateProgress();
+      if (typeof updateUndoButton === 'function') updateUndoButton();
+    });
+  </script>
+  <script>
+  // Wrap any <button> missing .button_top with a span, preserving text/HTML.
+  function upgradeButtons(root = document){
+    root.querySelectorAll('button:not(:has(.button_top))').forEach(btn => {
+      const span = document.createElement('span');
+      span.className = 'button_top';
+      // Move existing nodes into the span
+      while (btn.firstChild) span.appendChild(btn.firstChild);
+      btn.appendChild(span);
+    });
+  }
+
+  // Initial pass
+  document.addEventListener('DOMContentLoaded', () => upgradeButtons());
+
+  // Watch for dynamically inserted buttons (e.g., modals, grids)
+  const mo = new MutationObserver(muts => {
+    for (const m of muts){
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        if (node.tagName === 'BUTTON') upgradeButtons(node.parentNode);
+        else upgradeButtons(node);
+      });
+    }
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
 </script>
 </body>
 </html>
