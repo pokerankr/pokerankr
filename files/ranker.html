@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
-<!-- Supabase Cloud Sync -->
+<!-- Supabase Cloud Sync with Better Diagnostics -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // Initialize Supabase client
@@ -102,65 +102,122 @@ const supabaseUrl = 'https://nfelacjsvcilwfrqiftm.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mZWxhY2pzdmNpbHdmcnFpZnRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NDUxMzgsImV4cCI6MjA3MjIyMTEzOH0.sB-DDRwLGWxKksO9TCKf_7Tv3suDWxloYE0uEXpZ61w';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-// Simple sync function
+// Simple sync function with detailed logging
 async function syncToCloudNow() {
+  console.log('=== Starting Cloud Sync ===');
+  
   try {
     // Check if user is logged in
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('1. Checking session...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Session error:', sessionError);
+      return;
+    }
+    
     if (!session) {
       console.log('No user logged in, skipping sync');
       return;
     }
     
     const userId = session.user.id;
-    console.log('Syncing data for user:', userId);
+    console.log('2. User ID:', userId);
     
     // Get all local data
+    console.log('3. Reading local data...');
     const achievements = JSON.parse(localStorage.getItem('PR_ACHIEVEMENTS') || '{}');
     const completions = JSON.parse(localStorage.getItem('PR_COMPLETIONS') || '[]');
     const savedRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
     const saveSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
     
-    // Sync all data to cloud
-    const promises = [];
+    console.log('Local data sizes:', {
+      achievements: Object.keys(achievements).length,
+      completions: completions.length,
+      savedRankings: savedRankings.length,
+      saveSlots: saveSlots.filter(Boolean).length
+    });
     
-    promises.push(
-      supabase.from('user_achievements').upsert({
+    // Sync each table individually with error handling
+    console.log('4. Starting individual syncs...');
+    
+    // Sync achievements
+    try {
+      console.log('Syncing achievements...');
+      const { data, error } = await supabase.from('user_achievements').upsert({
         user_id: userId,
         achievement_data: achievements,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' })
-    );
+      }, { onConflict: 'user_id' });
+      
+      if (error) {
+        console.error('❌ Achievements sync error:', error);
+      } else {
+        console.log('✅ Achievements synced');
+      }
+    } catch (e) {
+      console.error('Achievements exception:', e);
+    }
     
-    promises.push(
-      supabase.from('user_completions').upsert({
+    // Sync completions
+    try {
+      console.log('Syncing completions...');
+      const { data, error } = await supabase.from('user_completions').upsert({
         user_id: userId,
         completions_data: completions,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' })
-    );
+      }, { onConflict: 'user_id' });
+      
+      if (error) {
+        console.error('❌ Completions sync error:', error);
+      } else {
+        console.log('✅ Completions synced');
+      }
+    } catch (e) {
+      console.error('Completions exception:', e);
+    }
     
-    promises.push(
-      supabase.from('user_saved_rankings').upsert({
+    // Sync saved rankings
+    try {
+      console.log('Syncing saved rankings...');
+      const { data, error } = await supabase.from('user_saved_rankings').upsert({
         user_id: userId,
         rankings_data: savedRankings,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' })
-    );
+      }, { onConflict: 'user_id' });
+      
+      if (error) {
+        console.error('❌ Rankings sync error:', error);
+      } else {
+        console.log('✅ Rankings synced');
+      }
+    } catch (e) {
+      console.error('Rankings exception:', e);
+    }
     
-    promises.push(
-      supabase.from('user_save_slots').upsert({
+    // Sync save slots
+    try {
+      console.log('Syncing save slots...');
+      const { data, error } = await supabase.from('user_save_slots').upsert({
         user_id: userId,
         slots_data: saveSlots,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' })
-    );
+      }, { onConflict: 'user_id' });
+      
+      if (error) {
+        console.error('❌ Save slots sync error:', error);
+      } else {
+        console.log('✅ Save slots synced');
+      }
+    } catch (e) {
+      console.error('Save slots exception:', e);
+    }
     
-    await Promise.all(promises);
-    console.log('Cloud sync complete from', window.location.pathname);
+    console.log('=== Cloud Sync Complete ===');
     
   } catch (error) {
-    console.error('Sync error:', error);
+    console.error('=== Sync Failed ===');
+    console.error('Error details:', error);
   }
 }
 
@@ -172,20 +229,22 @@ localStorage.setItem = function(key, value) {
   // Sync for PokeRankr data keys
   const syncKeys = ['PR_ACHIEVEMENTS', 'PR_COMPLETIONS', 'savedRankings', 'PR_SAVE_SLOTS_V1'];
   if (syncKeys.includes(key)) {
-    console.log(`Data changed: ${key}, triggering cloud sync...`);
+    console.log(`📝 LocalStorage updated: ${key}`);
     // Debounce sync to avoid too many calls
     if (window.syncTimeout) clearTimeout(window.syncTimeout);
     window.syncTimeout = setTimeout(() => {
+      console.log('⏰ Triggering sync after 2 second delay...');
       syncToCloudNow();
     }, 2000);
   }
 };
 
-// Also sync when leaving the page
-window.addEventListener('beforeunload', () => {
-  // Try one final sync before leaving (note: may not always complete)
-  syncToCloudNow();
-});
+// Test function you can run manually
+window.testSync = async function() {
+  console.log('Manual sync test started...');
+  await syncToCloudNow();
+  console.log('Manual sync test complete');
+}
 </script>
 </body>
 </html>

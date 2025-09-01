@@ -279,33 +279,22 @@ async function signInWithEmail() {
   }
 }
 
-// Logout - Made globally accessible with better error handling
-window.logout = async function() {
-  console.log('Logout initiated...');
-  try {
-    // Clear local state first
-    currentUser = null;
-    
-    // Attempt signout
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      console.error('Supabase signout error:', error);
-      // Even if there's an error, update the UI
-      updateAuthUI();
-      alert('Logout error: ' + error.message);
-    } else {
-      console.log('Logout successful');
-      updateAuthUI();
-      // Optionally refresh page to clear all state
-      window.location.reload();
-    }
-  } catch (error) {
-    console.error('Logout error caught:', error);
-    // Force UI update even on error
-    updateAuthUI();
-    alert('Logout failed: ' + error.message);
-  }
+// Logout - Simplified force reload version
+window.logout = function() {
+  console.log('Logout initiated - clearing session...');
+  
+  // Don't await, just fire and reload
+  supabase.auth.signOut().then(() => {
+    console.log('Signout complete');
+  }).catch(err => {
+    console.error('Signout error:', err);
+  });
+  
+  // Clear local state
+  currentUser = null;
+  
+  // Force immediate reload
+  window.location.href = window.location.href;
 }
 
 // Update UI based on auth state
@@ -337,20 +326,38 @@ function updateAuthUI() {
   }
 }
 
-// Updated auth state check
+// Updated auth state check with better cloud loading
 async function checkAuthState() {
   try {
+    console.log('Checking auth state...');
     const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) throw error;
+    
+    if (error) {
+      console.error('Session error:', error);
+      return;
+    }
     
     if (session) {
+      console.log('Session found for:', session.user.email);
       currentUser = session.user;
       updateAuthUI();
       
-      // Load cloud data first, then sync any local changes
+      // IMPORTANT: Load cloud data and wait for it to complete
+      console.log('Loading cloud data...');
       await loadDataFromCloud();
+      console.log('Cloud data loaded');
       
-      console.log('Auth state checked - user logged in:', currentUser.email);
+      // Update UI elements that depend on the data
+      checkForNewBadges();
+      updateBadgeNotification();
+      
+      // Check if manage saves button should be visible
+      const slots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
+      if (slots.some(Boolean)) {
+        const btn = document.getElementById('btnManageSaves');
+        if (btn) btn.style.display = '';
+      }
+      
     } else {
       console.log('No active session');
     }
@@ -655,20 +662,35 @@ localStorage.setItem = function(key, value) {
     autoSyncToCloud();
   }
 };
+
 // Listen for auth state changes
-// Update the existing auth state change listener
 supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log('Auth state changed:', event);
+  
   if (event === 'SIGNED_IN' && session) {
     currentUser = session.user;
     updateAuthUI();
     
-    // NEW: Sync data on sign in
+    // Load cloud data when signing in
+    console.log('User signed in, loading cloud data...');
     await loadDataFromCloud();
-    await syncDataToCloud();
+    console.log('Cloud data loaded after sign in');
+    
+    // Update UI
+    checkForNewBadges();
+    updateBadgeNotification();
     
   } else if (event === 'SIGNED_OUT') {
     currentUser = null;
     updateAuthUI();
+  } else if (event === 'INITIAL_SESSION' && session) {
+    // Handle page refresh with existing session
+    currentUser = session.user;
+    updateAuthUI();
+    
+    console.log('Initial session detected, loading cloud data...');
+    await loadDataFromCloud();
+    console.log('Cloud data loaded from initial session');
   }
 });
 
