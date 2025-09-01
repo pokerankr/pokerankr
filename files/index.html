@@ -1770,16 +1770,27 @@ function checkForNewBadges() {
   return hasNewBadge;
 }
 
-// Update notification on page load
+// Update notification + auth on page load
 document.addEventListener('DOMContentLoaded', () => {
+  // Ensure we restore session & UI the moment the DOM is ready
+  checkAuthState().catch(console.error);
   checkForNewBadges();
   updateBadgeNotification();
 });
 
-// Also update when returning from other pages  
+// Also update when returning from other pages (bfcache)  
 window.addEventListener('pageshow', () => {
-  checkForNewBadges();  // Add this line!
+  // Re-verify Supabase session and flip the UI if needed
+  checkAuthState().catch(console.error);
+  checkForNewBadges();
   updateBadgeNotification();
+});
+
+// Bonus: handle tab-switches where the page stays alive but hidden
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    checkAuthState().catch(console.error);
+  }
 });
 </script>
 <!-- Auth Modal -->
