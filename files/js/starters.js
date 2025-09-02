@@ -259,8 +259,14 @@ function readSlots() {
     return [null, null, null];
   }
 }
-function writeSlots(slots) {
+function slotsWrite(slots){
   localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  // Auto-sync if logged in
+  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+    setTimeout(() => {
+      window.PokeRankrSync.syncLocalToCloud();
+    }, 500);
+  }
 }
 
 function pluralize(n, singular, plural) {
@@ -438,6 +444,12 @@ function trackRankingCompletion(category, pokemonCount) {
   }
   
   localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completions));
+// Auto-sync if logged in
+if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+  setTimeout(() => {
+    window.PokeRankrSync.syncLocalToCloud();
+  }, 500);
+}
 }
 
 // NEW: write a dynamic title into #modeTitle for Starters mode
@@ -1637,10 +1649,16 @@ function saveResults() {
 
   try {
     localStorage.setItem("savedRankings", JSON.stringify(saved));
-    alert(`Saved! Your ${category} ranking (${shinyOnly ? "shiny only" : includeShinies ? "+ shinies" : "no shinies"}) has been updated.`);
-  } catch (e) {
+    // Auto-sync if logged in
+    if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+      setTimeout(() => {
+        window.PokeRankrSync.syncLocalToCloud();
+      }, 500);
+    }
+    alert(`Saved! Your ${category} ranking has been updated.`);
+  } catch(e){
     console.error(e);
-    alert("Could not save rankings (storage might be full or blocked).");
+    alert("Could not save rankings.");
   }
 }
 

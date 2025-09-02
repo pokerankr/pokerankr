@@ -232,36 +232,50 @@ function showSyncPrompt() {
   document.body.appendChild(modal);
   
   // Add event listeners AFTER the modal is in the DOM
-  document.getElementById('syncYesBtn').addEventListener('click', async () => {
-    console.log('Sync Yes clicked');
-    localStorage.setItem('PR_SYNC_COMPLETED', 'true');
-    document.body.removeChild(modal);
-    await syncLocalToCloud();
-    alert('Your data has been synced to the cloud!');
-    window.location.reload();
-  });
-  
-  document.getElementById('syncNoBtn').addEventListener('click', () => {
-    console.log('Sync No clicked');
-    localStorage.setItem('PR_SYNC_DECLINED', 'true');
-    document.body.removeChild(modal);
-  });
+document.getElementById('syncYesBtn').addEventListener('click', async () => {
+  console.log('Sync Yes clicked');
+  const user = auth.getCurrentUser();
+  if (user) {
+    localStorage.setItem(`PR_USER_SYNCED_${user.id}`, 'true');
+  }
+  document.body.removeChild(modal);
+  await syncLocalToCloud();
+  alert('Your data has been synced to the cloud!');
+  window.location.reload();
+});
 }
   
   // Auto-sync on auth change
-  auth.onAuthChange(async (user) => {
-    if (user) {
-      // Check if this is first login with local data
-      const syncDeclined = localStorage.getItem('PR_SYNC_DECLINED');
-      const syncCompleted = localStorage.getItem('PR_SYNC_COMPLETED');
+auth.onAuthChange(async (user) => {
+  if (user) {
+    // Check if this user has ever synced before
+    const userSyncKey = `PR_USER_SYNCED_${user.id}`;
+    const hasUserSynced = localStorage.getItem(userSyncKey);
+    
+    if (!hasUserSynced) {
+      // First time this user is logging in on this device
+      const hasLocalData = 
+        localStorage.getItem('PR_COMPLETIONS') ||
+        localStorage.getItem('PR_ACHIEVEMENTS') ||
+        localStorage.getItem('savedRankings') ||
+        localStorage.getItem('PR_SAVE_SLOTS_V1');
       
-      if (!syncDeclined && !syncCompleted) {
+      if (hasLocalData) {
+        // Show sync prompt for this user
         setTimeout(() => {
           showSyncPrompt();
         }, 1000);
+      } else {
+        // No local data, just load cloud data
+        await syncCloudToLocal();
+        localStorage.setItem(userSyncKey, 'true');
       }
+    } else {
+      // User has synced before, just load latest cloud data
+      await syncCloudToLocal();
     }
-  });
+  }
+});
   
   // Public API
   return {

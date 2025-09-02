@@ -199,6 +199,12 @@ function trackRankingCompletion(category, pokemonCount) {
   }
   
   localStorage.setItem('PR_COMPLETIONS', JSON.stringify(completions));
+// Auto-sync if logged in
+if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+  setTimeout(() => {
+    window.PokeRankrSync.syncLocalToCloud();
+  }, 500);
+}
 }
 
 function _prFilterByTypes(db, mode, typeA, typeB) {
@@ -1345,6 +1351,12 @@ function slotsRead(){
 }
 function slotsWrite(slots){
   localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  // Auto-sync if logged in
+  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+    setTimeout(() => {
+      window.PokeRankrSync.syncLocalToCloud();
+    }, 500);
+  }
 }
 
 // Replace the rankerLabel() function in ranker.js with this updated version:
@@ -3436,8 +3448,14 @@ const comboKey = `${category}_${!!window.includeShinies}_${!!window.shinyOnly}`;
 });
 
 
-  try {
+ try {
     localStorage.setItem("savedRankings", JSON.stringify(saved));
+    // Auto-sync if logged in
+    if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+      setTimeout(() => {
+        window.PokeRankrSync.syncLocalToCloud();
+      }, 500);
+    }
     alert(`Saved! Your ${category} ranking has been updated.`);
   } catch(e){
     console.error(e);

@@ -49,6 +49,9 @@
   <button id="btnUpload" class="menu-button"><span class="button_top">Upload</span></button>
   <button id="btnFeedback" class="menu-button"><span class="button_top">Feedback</span></button>
   <button id="btnFeedback" class="menu-button"><span class="button_top">Settings</span></button>
+  <button id="btnLoginSignup" class="menu-button" style="display:none;">
+  <span class="button_top">Login / Sign Up</span>
+</button>
 </div>
 </div>
 
@@ -292,6 +295,33 @@
           welcomeModal.style.display = 'flex';
         }
       }
+
+      // Show login button for local players
+function updateLoginButton() {
+  const btnLoginSignup = document.getElementById('btnLoginSignup');
+  const user = window.PokeRankrAuth.getCurrentUser();
+  const playingLocally = localStorage.getItem('PR_PLAY_MODE') === 'local';
+  
+  if (btnLoginSignup) {
+    // Show button only if playing locally and not logged in
+    btnLoginSignup.style.display = (playingLocally && !user) ? '' : 'none';
+  }
+}
+
+// Wire up the login button
+document.getElementById('btnLoginSignup')?.addEventListener('click', () => {
+  authModal.style.display = 'flex';
+});
+
+// Update button visibility on auth changes
+window.PokeRankrAuth.onAuthChange(() => {
+  updateLoginButton();
+});
+
+// Initial check
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(updateLoginButton, 100);
+});
       
       // Welcome modal handlers
       document.getElementById('btnWelcomeLogin')?.addEventListener('click', () => {
