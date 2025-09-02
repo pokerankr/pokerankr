@@ -771,14 +771,47 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthState();
 });
 
-// Handle Safari back-forward cache
+if (!window.__prAuthLogger) {
+  window.__prAuthLogger = true;
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log('[AUTH]', event, session?.user?.email || null);
+  });
+}
+
+
+// Handle Safari BFCache and tab visibility/focus reliably
 window.addEventListener('pageshow', async (event) => {
-  // Check if page was restored from cache
-  if (event.persisted || performance.navigation.type === 2) {
-    console.log('Page restored from cache, checking auth...');
-    await checkAuthState();
+  // On iOS Safari, returning from another page often restores from BFCache.
+  // We re-check auth *and* do a second pass a tick later.
+  const fromCache = event.persisted || performance?.navigation?.type === 2;
+  console.log('pageshow', { fromCache });
+
+  // First pass
+  await checkAuthState();
+
+  // Second pass a moment later (covers session rehydration lag)
+  setTimeout(() => { checkAuthState(); }, 250);
+});
+
+// If the tab becomes visible again (e.g., after coming back from another page),
+// re-check auth because Safari may delay token hydration until paint.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    console.log('visibilitychange → visible, re-checking auth');
+    checkAuthState();
   }
 });
+
+// Cross-tab / cross-page storage sync: if sb-* or pokerankr-auth keys change,
+// re-check auth so the UI reflects the true state (prevents “stuck logged out”).
+window.addEventListener('storage', (e) => {
+  if (!e || !e.key) return;
+  if (e.key === 'pokerankr-auth' || e.key.startsWith('sb-')) {
+    console.log('storage change:', e.key, '→ re-checking auth');
+    checkAuthState();
+  }
+});
+
   const pageLoading = document.getElementById('loading-page');
   const pageConfig = document.getElementById('config-page');
   const categorySelect = document.getElementById('category');
