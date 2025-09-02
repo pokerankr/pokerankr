@@ -589,25 +589,52 @@ const { data, error } = await window.PokeRankrAuth.supabase
         trainerModal.style.display = 'flex';
       };
       
-      // Check on email verification callback
-      window.addEventListener('hashchange', async () => {
-        if (window.location.hash.includes('access_token')) {
-          // User just verified email
-          const user = await window.PokeRankrAuth.waitForAuth();
-          if (user) {
-            const { data } = await window.PokeRankrAuth.supabase
-              .from('user_profiles')
-              .select('username')
-              .eq('user_id', user.id)
-              .maybeSingle();
-            
-            if (!data) {
-              // New user needs trainer setup
-              window.showTrainerCustomization();
-            }
-          }
+    // Check on email verification callback
+window.addEventListener('hashchange', async () => {
+  console.log('Hash changed:', window.location.hash);
+  if (window.location.hash.includes('access_token') || window.location.hash.includes('type=signup')) {
+    // Wait for auth to process
+    setTimeout(async () => {
+      const user = await window.PokeRankrAuth.waitForAuth();
+      console.log('User after hash change:', user);
+      
+      if (user) {
+        const { data } = await window.PokeRankrAuth.supabase
+          .from('user_profiles')
+          .select('username')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        console.log('Profile data:', data);
+        
+        if (!data) {
+          // New user needs trainer setup
+          console.log('Showing trainer customization');
+          window.showTrainerCustomization();
         }
-      });
+      }
+    }, 1000);
+  }
+});
+
+// Also listen for Supabase auth state changes
+window.PokeRankrAuth.onAuthChange(async (user) => {
+  console.log('Auth state changed:', user);
+  if (user) {
+    const { data } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .select('username')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (!data && !window.trainerModalShown) {
+      window.trainerModalShown = true;
+      setTimeout(() => {
+        window.showTrainerCustomization();
+      }, 500);
+    }
+  }
+});
       
       // Also check on page load
       if (window.location.hash.includes('access_token')) {
