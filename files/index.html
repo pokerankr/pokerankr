@@ -271,6 +271,7 @@
     </div>
   </div>
   <script src="js/auth.js"></script>
+  <script src="js/sync.js"></script>
   <script>
     // Auth Modal Handlers
     (function() {
@@ -355,10 +356,13 @@
           setTimeout(() => {
             authModal.style.display = 'none';
             if (needsTrainerSetup) {
-              // We'll add trainer customizer in next steps
-              console.log('Would show trainer customizer here');
+              window.showTrainerCustomization();
+            } else {
+              // Existing user - sync their cloud data to local
+              window.PokeRankrSync.syncCloudToLocal().then(() => {
+                location.reload();
+              });
             }
-            location.reload(); // Reload to update UI
           }, 1000);
         }
       });
@@ -1165,8 +1169,14 @@ if (category === 'type') {
     catch { return []; }
   }
   function saveSavedArray(arr){
-    localStorage.setItem('savedRankings', JSON.stringify(arr));
+  localStorage.setItem('savedRankings', JSON.stringify(arr));
+  // Auto-sync if logged in
+  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+    setTimeout(() => {
+      window.PokeRankrSync.syncLocalToCloud();
+    }, 500);
   }
+}
 
   function canonicalKey(run){
     return run?.key || run?.id || `${(run?.category||'Unknown')}_${!!run?.includeShinies}_${!!run?.shinyOnly}`;
@@ -1296,8 +1306,14 @@ if (category === 'type') {
     }
   }
   function slotsWrite(slots) {
-    localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
+  // Auto-sync if logged in
+  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
+    setTimeout(() => {
+      window.PokeRankrSync.syncLocalToCloud();
+    }, 500);
   }
+}
   function anySlotUsed() {
     return slotsRead().some(Boolean);
   }
