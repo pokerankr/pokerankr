@@ -387,42 +387,47 @@ function updateAuthUI() {
 // Updated auth state check with better cloud loading
 async function checkAuthState() {
   try {
-    console.log('Checking auth state...');
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      console.error('Session error:', error);
-      return;
+    console.log('Checking auth state (Safari-safe)…');
+
+    // Retry up to ~1s to let Supabase hydrate tokens on Safari BFCache restore
+    let session = null, lastErr = null;
+    for (let i = 0; i < 5; i++) {
+      const res = await supabase.auth.getSession().catch(e => ({ error: e, data: { session: null } }));
+      if (res?.error) lastErr = res.error;
+      session = res?.data?.session || null;
+      if (session) break;
+      await new Promise(r => setTimeout(r, i === 0 ? 60 : 240)); // 60ms, then 240ms steps
     }
-    
+
+    if (!session && lastErr) console.warn('Auth session error (last):', lastErr);
+
     if (session) {
       console.log('Session found for:', session.user.email);
       currentUser = session.user;
       updateAuthUI();
-      
-      // IMPORTANT: Load cloud data and wait for it to complete
-      console.log('Loading cloud data...');
+
+      console.log('Loading cloud data…');
       await loadDataFromCloud();
       console.log('Cloud data loaded');
-      
-      // Update UI elements that depend on the data
-      checkForNewBadges();
-      updateBadgeNotification();
-      
-      // Check if manage saves button should be visible
+
+      checkForNewBadges?.();
+      updateBadgeNotification?.();
+
       const slots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[null,null,null]');
-      if (slots.some(Boolean)) {
+      if (Array.isArray(slots) && slots.some(Boolean)) {
         const btn = document.getElementById('btnManageSaves');
         if (btn) btn.style.display = '';
       }
-      
     } else {
-      console.log('No active session');
+      console.log('No active session after retry window');
+      currentUser = null;
+      updateAuthUI();
     }
   } catch (error) {
     console.error('Auth check error:', error);
   }
 }
+
 
 // Debug helper - add this to check RLS policies
 window.debugSupabase = async function() {
