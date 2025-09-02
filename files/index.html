@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="style.css" />
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <!-- Supabase Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -43,7 +45,118 @@
 
 <!-- Keep the hidden input for uploads -->
 <input type="file" id="uploadInput" accept="application/json" style="display:none" />
+<!-- Welcome Modal -->
+    <div id="welcomeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width:min(400px, 90%); text-align:center;">
+        <div class="logo" style="width:120px; height:120px; margin:0 auto 16px;">
+          <img src="assets/logo.png" alt="PokéRankr Logo" style="width:100%; height:100%; object-fit:contain;">
+        </div>
+        <h2 style="margin:0 0 20px; color:var(--text);">Welcome to PokéRankr!</h2>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <button id="btnWelcomeLogin" class="menu-button">
+            <span class="button_top">Login / Sign Up!</span>
+          </button>
+          <button id="btnWelcomeGuest" class="menu-button">
+            <span class="button_top">Play Without Signing In</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
+    <!-- Local Storage Warning Modal -->
+    <div id="localWarningModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width:min(500px, 90%);">
+        <h3 style="margin:0 0 16px; color:var(--text);">⚠️ Important Notice</h3>
+        <p style="margin:0 0 20px; color:var(--text-soft); line-height:1.5;">
+          Playing without an account means your progress is stored locally on this device. 
+          If you're in incognito mode or clear your browser data (history, cache, cookies), 
+          <strong>all your progress will be lost!</strong>
+        </p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+          <button id="btnContinueLocally" class="menu-button">
+            <span class="button_top">Continue Locally</span>
+          </button>
+          <button id="btnWarningLogin" class="menu-button">
+            <span class="button_top">Login / Sign Up</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Login/Signup Modal -->
+    <div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width:min(400px, 90%); position:relative;">
+        <span id="authClose" aria-label="Close" style="position:absolute; top:10px; right:10px; font-size:22px; line-height:1; cursor:pointer;">×</span>
+        <h3 id="authTitle" style="margin:0 0 20px; color:var(--text);">Login / Sign Up</h3>
+        
+        <form id="authForm">
+          <label for="authEmail" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Email</label>
+          <input type="email" id="authEmail" required style="width:100%; padding:10px; margin:0 0 16px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+          
+          <label for="authPassword" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Password</label>
+          <input type="password" id="authPassword" required style="width:100%; padding:10px; margin:0 0 20px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+          
+          <div id="authError" style="color:#ff3b30; margin:0 0 16px; display:none; font-size:14px;"></div>
+          <div id="authSuccess" style="color:#34c759; margin:0 0 16px; display:none; font-size:14px;"></div>
+          
+          <div style="display:flex; gap:12px;">
+            <button type="button" id="btnLogin" class="menu-button" style="flex:1;">
+              <span class="button_top">Log In</span>
+            </button>
+            <button type="button" id="btnSignup" class="menu-button" style="flex:1;">
+              <span class="button_top">Sign Up</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- Trainer Customization Modal -->
+    <div id="trainerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width:min(500px, 90%); max-height:80vh; overflow-y:auto;">
+        <h3 style="margin:0 0 8px; color:var(--text);">Welcome, Trainer!</h3>
+        <p style="margin:0 0 20px; color:var(--text-soft);">Let's set up your trainer profile!</p>
+        
+        <form id="trainerForm">
+          <!-- Username -->
+          <label for="trainerUsername" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Choose Your Trainer Name</label>
+          <input type="text" id="trainerUsername" required minlength="3" maxlength="20" 
+                 placeholder="3-20 characters" 
+                 style="width:100%; padding:10px; margin:0 0 4px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+          <div id="usernameError" style="color:#ff3b30; font-size:12px; margin:0 0 16px; min-height:16px;"></div>
+          
+          <!-- Sprite Selection -->
+          <label style="display:block; font-weight:600; margin:0 0 8px; color:var(--text);">Choose Your Pokémon Sprite</label>
+          
+          <!-- Search Box -->
+          <div style="display:flex; gap:8px; margin:0 0 12px;">
+            <input type="text" id="spriteSearch" 
+                   placeholder="Search by name or Pokédex number..." 
+                   style="flex:1; padding:10px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+            <label style="display:flex; align-items:center; gap:6px; padding:0 12px; background:var(--panel-soft); border-radius:8px; cursor:pointer;">
+              <input type="checkbox" id="spriteShiny" style="cursor:pointer;">
+              <span style="font-weight:600; color:var(--text);">✨ Shiny</span>
+            </label>
+          </div>
+          
+          <!-- Sprite Display -->
+          <div style="background:var(--panel-soft); border-radius:12px; padding:20px; text-align:center; margin:0 0 20px;">
+            <img id="selectedSprite" 
+                 src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png" 
+                 alt="Selected Pokémon"
+                 style="width:96px; height:96px; image-rendering:pixelated; margin:0 auto;">
+            <div id="spriteName" style="margin:8px 0 0; font-weight:600; color:var(--text);">Pikachu (#25)</div>
+          </div>
+          
+          <!-- Hidden fields to store selection -->
+          <input type="hidden" id="selectedSpriteId" value="25">
+          
+          <!-- Submit Button -->
+          <button type="submit" class="menu-button" style="width:100%;">
+            <span class="button_top">Save Trainer Profile</span>
+          </button>
+        </form>
+      </div>
+    </div>
     <!-- Manage Saves Modal -->
     <div id="manageSavesModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center;">
       <div style="background:#fff; padding:16px; border-radius:12px; width: min(720px, 94%);">
@@ -148,6 +261,365 @@
       <button id="btnBackToMenu" class="alt"><span class="button_top">Back</span></button>
     </div>
   </div>
+  <script src="js/auth.js"></script>
+  <script>
+    // Auth Modal Handlers
+    (function() {
+      // Modal elements
+      const welcomeModal = document.getElementById('welcomeModal');
+      const localWarningModal = document.getElementById('localWarningModal');
+      const authModal = document.getElementById('authModal');
+      
+      // Check if user has previously chosen to play locally
+      const hasChosenLocal = localStorage.getItem('PR_PLAY_MODE') === 'local';
+      
+      // Initialize auth and show appropriate modal
+      async function initializeAuth() {
+        const user = await window.PokeRankrAuth.waitForAuth();
+        
+        if (!user && !hasChosenLocal) {
+          // Show welcome modal for new/logged out users
+          welcomeModal.style.display = 'flex';
+        }
+      }
+      
+      // Welcome modal handlers
+      document.getElementById('btnWelcomeLogin')?.addEventListener('click', () => {
+        welcomeModal.style.display = 'none';
+        authModal.style.display = 'flex';
+      });
+      
+      document.getElementById('btnWelcomeGuest')?.addEventListener('click', () => {
+        welcomeModal.style.display = 'none';
+        localWarningModal.style.display = 'flex';
+      });
+      
+      // Local warning modal handlers
+      document.getElementById('btnContinueLocally')?.addEventListener('click', () => {
+        localStorage.setItem('PR_PLAY_MODE', 'local');
+        localWarningModal.style.display = 'none';
+      });
+      
+      document.getElementById('btnWarningLogin')?.addEventListener('click', () => {
+        localWarningModal.style.display = 'none';
+        authModal.style.display = 'flex';
+      });
+      
+      // Auth modal handlers
+      document.getElementById('authClose')?.addEventListener('click', () => {
+        authModal.style.display = 'none';
+        // If user closes auth without logging in, show welcome again
+        if (!window.PokeRankrAuth.isLoggedIn() && !hasChosenLocal) {
+          welcomeModal.style.display = 'flex';
+        }
+      });
+      
+      // Login button
+      document.getElementById('btnLogin')?.addEventListener('click', async () => {
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+        const errorDiv = document.getElementById('authError');
+        const successDiv = document.getElementById('authSuccess');
+        
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+        
+        if (!email || !password) {
+          errorDiv.textContent = 'Please enter email and password';
+          errorDiv.style.display = 'block';
+          return;
+        }
+        
+        const { data, error } = await window.PokeRankrAuth.signIn(email, password);
+        
+        if (error) {
+          errorDiv.textContent = error.message;
+          errorDiv.style.display = 'block';
+        } else {
+          localStorage.removeItem('PR_PLAY_MODE'); // Clear local mode
+          successDiv.textContent = 'Login successful!';
+          successDiv.style.display = 'block';
+          
+          // Check if this is first login (no trainer data)
+          const needsTrainerSetup = await checkNeedsTrainerSetup(data.user);
+          
+          setTimeout(() => {
+            authModal.style.display = 'none';
+            if (needsTrainerSetup) {
+              // We'll add trainer customizer in next steps
+              console.log('Would show trainer customizer here');
+            }
+            location.reload(); // Reload to update UI
+          }, 1000);
+        }
+      });
+      
+      // Signup button
+      document.getElementById('btnSignup')?.addEventListener('click', async () => {
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+        const errorDiv = document.getElementById('authError');
+        const successDiv = document.getElementById('authSuccess');
+        
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+        
+        if (!email || !password) {
+          errorDiv.textContent = 'Please enter email and password';
+          errorDiv.style.display = 'block';
+          return;
+        }
+        
+        if (password.length < 6) {
+          errorDiv.textContent = 'Password must be at least 6 characters';
+          errorDiv.style.display = 'block';
+          return;
+        }
+        
+        const { data, error } = await window.PokeRankrAuth.signUp(email, password);
+        
+        if (error) {
+          if (error.message.includes('already registered')) {
+            errorDiv.textContent = 'This email is already registered. Please log in instead.';
+          } else {
+            errorDiv.textContent = error.message;
+          }
+          errorDiv.style.display = 'block';
+        } else {
+          successDiv.textContent = 'Sign up successful! Please check your email to verify your account.';
+          successDiv.style.display = 'block';
+          
+          // Clear form
+          document.getElementById('authEmail').value = '';
+          document.getElementById('authPassword').value = '';
+        }
+      });
+      
+      // Helper function to check if user needs trainer setup
+      async function checkNeedsTrainerSetup(user) {
+        if (!user) return false;
+        
+        // Check if user has trainer data in Supabase
+        const { data, error } = await window.PokeRankrAuth.supabase
+          .from('user_profiles')
+          .select('username')
+          .eq('user_id', user.id)
+          .single();
+        
+        return !data || !data.username;
+      }
+      
+      // Start the auth check when page loads
+      document.addEventListener('DOMContentLoaded', () => {
+        // Small delay to ensure everything is loaded
+        setTimeout(initializeAuth, 100);
+      });
+    })();
+  </script>
+  <script>
+    // Trainer Customization Handler
+    (function() {
+      const trainerModal = document.getElementById('trainerModal');
+      const spriteSearch = document.getElementById('spriteSearch');
+      const spriteShiny = document.getElementById('spriteShiny');
+      const selectedSprite = document.getElementById('selectedSprite');
+      const spriteName = document.getElementById('spriteName');
+      const selectedSpriteId = document.getElementById('selectedSpriteId');
+      const trainerUsername = document.getElementById('trainerUsername');
+      const usernameError = document.getElementById('usernameError');
+      
+      // Pokemon data (1-1025)
+      const pokemonNames = {
+        1: "Bulbasaur", 2: "Ivysaur", 3: "Venusaur", 4: "Charmander", 5: "Charmeleon",
+        6: "Charizard", 7: "Squirtle", 8: "Wartortle", 9: "Blastoise", 10: "Caterpie",
+        25: "Pikachu", 150: "Mewtwo", 151: "Mew", // Add more as needed
+        // We'll use PokeAPI for full list
+      };
+      
+      // Fetch Pokemon names from PokeAPI
+      async function loadPokemonNames() {
+        try {
+          const cached = localStorage.getItem('PR_POKEMON_NAMES');
+          if (cached) {
+            Object.assign(pokemonNames, JSON.parse(cached));
+            return;
+          }
+          
+          // Fetch from PokeAPI (limited to first 1025)
+          const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=1025');
+          const data = await response.json();
+          
+          data.results.forEach((pokemon, index) => {
+            pokemonNames[index + 1] = pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1);
+          });
+          
+          localStorage.setItem('PR_POKEMON_NAMES', JSON.stringify(pokemonNames));
+        } catch (error) {
+          console.log('Using partial Pokemon list');
+        }
+      }
+      
+      // Update sprite display
+      function updateSprite() {
+        const id = selectedSpriteId.value || 25;
+        const shiny = spriteShiny.checked;
+        const baseUrl = shiny 
+          ? 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/'
+          : 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
+        
+        selectedSprite.src = `${baseUrl}${id}.png`;
+        const name = pokemonNames[id] || `Pokemon`;
+        spriteName.textContent = `${name} (#${id})`;
+      }
+      
+      // Search handler
+      let searchTimeout;
+      spriteSearch.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          const query = e.target.value.toLowerCase().trim();
+          
+          if (!query) {
+            selectedSpriteId.value = 25;
+            updateSprite();
+            return;
+          }
+          
+          // Check if it's a number
+          const num = parseInt(query);
+          if (!isNaN(num) && num >= 1 && num <= 1025) {
+            selectedSpriteId.value = num;
+            updateSprite();
+            return;
+          }
+          
+          // Search by name
+          for (const [id, name] of Object.entries(pokemonNames)) {
+            if (name.toLowerCase().includes(query)) {
+              selectedSpriteId.value = id;
+              updateSprite();
+              break;
+            }
+          }
+        }, 300);
+      });
+      
+      // Shiny toggle
+      spriteShiny.addEventListener('change', updateSprite);
+      
+      // Username validation
+      trainerUsername.addEventListener('input', async (e) => {
+        const username = e.target.value.trim();
+        usernameError.textContent = '';
+        
+        if (username.length < 3) {
+          usernameError.textContent = 'Username must be at least 3 characters';
+          return;
+        }
+        
+        if (username.length > 20) {
+          usernameError.textContent = 'Username must be 20 characters or less';
+          return;
+        }
+        
+        // Check if username is taken
+        if (username.length >= 3) {
+          const { data } = await window.PokeRankrAuth.supabase
+            .from('user_profiles')
+            .select('username')
+            .eq('username', username)
+            .single();
+          
+          if (data) {
+            usernameError.textContent = 'This username is already taken';
+          }
+        }
+      });
+      
+      // Form submission
+      document.getElementById('trainerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const username = trainerUsername.value.trim();
+        const spriteId = parseInt(selectedSpriteId.value);
+        const spriteShiny = document.getElementById('spriteShiny').checked;
+        
+        if (usernameError.textContent) {
+          return; // Don't submit if there's an error
+        }
+        
+        const user = window.PokeRankrAuth.getCurrentUser();
+        if (!user) {
+          alert('Please log in first');
+          return;
+        }
+        
+        // Save to Supabase
+        const { error } = await window.PokeRankrAuth.supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            username: username,
+            sprite_id: spriteId,
+            sprite_shiny: spriteShiny
+          });
+        
+        if (error) {
+          alert('Error saving profile: ' + error.message);
+          return;
+        }
+        
+        // Success!
+        trainerModal.style.display = 'none';
+        location.reload(); // Reload to show logged-in state
+      });
+      
+      // Show trainer modal when needed
+      window.showTrainerCustomization = function() {
+        loadPokemonNames();
+        trainerModal.style.display = 'flex';
+      };
+      
+      // Check on email verification callback
+      window.addEventListener('hashchange', async () => {
+        if (window.location.hash.includes('access_token')) {
+          // User just verified email
+          const user = await window.PokeRankrAuth.waitForAuth();
+          if (user) {
+            const { data } = await window.PokeRankrAuth.supabase
+              .from('user_profiles')
+              .select('username')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (!data) {
+              // New user needs trainer setup
+              window.showTrainerCustomization();
+            }
+          }
+        }
+      });
+      
+      // Also check on page load
+      if (window.location.hash.includes('access_token')) {
+        window.location.hash = ''; // Clear the hash
+        setTimeout(async () => {
+          const user = await window.PokeRankrAuth.waitForAuth();
+          if (user) {
+            const { data } = await window.PokeRankrAuth.supabase
+              .from('user_profiles')
+              .select('username')
+              .eq('user_id', user.id)
+              .single();
+            
+            if (!data) {
+              window.showTrainerCustomization();
+            }
+          }
+        }, 500);
+      }
+    })();
+  </script>
   <script>
 
     
