@@ -408,12 +408,12 @@
       async function checkNeedsTrainerSetup(user) {
         if (!user) return false;
         
-        // Check if user has trainer data in Supabase
-        const { data, error } = await window.PokeRankrAuth.supabase
-          .from('user_profiles')
-          .select('username')
-          .eq('user_id', user.id)
-          .single();
+       // Check if user has trainer data in Supabase
+const { data, error } = await window.PokeRankrAuth.supabase
+  .from('user_profiles')
+  .select('username')
+  .eq('user_id', user.id)
+  .maybeSingle();
         
         return !data || !data.username;
       }
@@ -532,17 +532,17 @@
         }
         
         // Check if username is taken
-        if (username.length >= 3) {
-          const { data } = await window.PokeRankrAuth.supabase
-            .from('user_profiles')
-            .select('username')
-            .eq('username', username)
-            .single();
-          
-          if (data) {
-            usernameError.textContent = 'This username is already taken';
+          if (username.length >= 3) {
+            const { data } = await window.PokeRankrAuth.supabase
+              .from('user_profiles')
+              .select('username')
+              .eq('username', username)
+              .maybeSingle();
+            
+            if (data) {
+              usernameError.textContent = 'This username is already taken';
+            }
           }
-        }
       });
       
       // Form submission
@@ -599,7 +599,7 @@
               .from('user_profiles')
               .select('username')
               .eq('user_id', user.id)
-              .single();
+              .maybeSingle();
             
             if (!data) {
               // New user needs trainer setup
@@ -619,7 +619,7 @@
               .from('user_profiles')
               .select('username')
               .eq('user_id', user.id)
-              .single();
+              .maybeSingle();
             
             if (!data) {
               window.showTrainerCustomization();
@@ -645,13 +645,12 @@
           userHeader.style.display = 'none';
           return;
         }
-        
         // Get user profile
-        const { data: profile } = await window.PokeRankrAuth.supabase
-          .from('user_profiles')
-          .select('username, sprite_id, sprite_shiny')
-          .eq('user_id', user.id)
-          .single();
+const { data: profile } = await window.PokeRankrAuth.supabase
+  .from('user_profiles')
+  .select('username, sprite_id, sprite_shiny')
+  .eq('user_id', user.id)
+  .maybeSingle();
         
         if (profile) {
           const spriteUrl = profile.sprite_shiny
