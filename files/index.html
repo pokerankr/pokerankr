@@ -54,8 +54,8 @@
     }
   </style>
     <div style="display:flex; align-items:center; gap:12px;">
-<div style="width:48px; height:48px; overflow:hidden; position:relative; flex-shrink:0;">
-  <img id="headerSprite" src="" alt="Trainer" style="width:80px; height:80px; min-width:80px; min-height:80px; max-width:80px; max-height:80px; image-rendering:pixelated; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+<div style="width:48px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+  <img id="headerSprite" src="" alt="Trainer" style="max-width:64px; max-height:64px; width:auto; height:auto; image-rendering:pixelated; object-fit:contain;">
 </div>
       <span id="headerUsername" style="font-weight:600; color:var(--text);"></span>
       <button id="btnLogout" class="compact" style="--button_color:#ff3b30; --button_outline_color:#ff3b30;">
@@ -130,33 +130,84 @@
       </div>
     </div>
 
-    <!-- Login/Signup Modal -->
-    <div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
-      <div style="background:#fff; padding:24px; border-radius:12px; width:min(400px, 90%); position:relative;">
-        <span id="authClose" aria-label="Close" style="position:absolute; top:10px; right:10px; font-size:22px; line-height:1; cursor:pointer;">×</span>
-        <h3 id="authTitle" style="margin:0 0 20px; color:var(--text);">Login / Sign Up</h3>
-        
-        <form id="authForm">
-          <label for="authEmail" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Email</label>
-          <input type="email" id="authEmail" required style="width:100%; padding:10px; margin:0 0 16px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
-          
-          <label for="authPassword" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Password</label>
-          <input type="password" id="authPassword" required style="width:100%; padding:10px; margin:0 0 20px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
-          
-          <div id="authError" style="color:#ff3b30; margin:0 0 16px; display:none; font-size:14px;"></div>
-          <div id="authSuccess" style="color:#34c759; margin:0 0 16px; display:none; font-size:14px;"></div>
-          
-          <div style="display:flex; gap:12px;">
-            <button type="button" id="btnLogin" class="menu-button" style="flex:1;">
-              <span class="button_top">Log In</span>
-            </button>
-            <button type="button" id="btnSignup" class="menu-button" style="flex:1;">
-              <span class="button_top">Sign Up</span>
-            </button>
-          </div>
-        </form>
-      </div>
+<!-- Login/Signup Modal -->
+<div id="authModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
+  <div style="background:#fff; padding:24px; border-radius:12px; width:min(400px, 90%); position:relative;">
+    <span id="authClose" aria-label="Close" style="position:absolute; top:10px; right:10px; font-size:22px; line-height:1; cursor:pointer;">×</span>
+    <h3 id="authTitle" style="margin:0 0 20px; color:var(--text);">Welcome Back!</h3>
+    
+    <!-- Tab buttons to switch between login and signup -->
+    <div style="display:flex; gap:8px; margin:0 0 20px; border-bottom:2px solid #e5e7eb;">
+      <button id="tabLogin" class="auth-tab active" style="flex:1; padding:12px; background:none; border:none; border-bottom:3px solid #2563eb; font-weight:600; cursor:pointer;">
+        Log In
+      </button>
+      <button id="tabSignup" class="auth-tab" style="flex:1; padding:12px; background:none; border:none; border-bottom:3px solid transparent; font-weight:600; cursor:pointer;">
+        Sign Up
+      </button>
     </div>
+    
+    <!-- Login Form -->
+<form id="loginForm" style="display:block;">
+  <label for="loginEmail" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Email</label>
+  <input type="email" id="loginEmail" required style="width:100%; padding:10px; margin:0 0 16px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+  
+  <label for="loginPassword" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Password</label>
+  <input type="password" id="loginPassword" required style="width:100%; padding:10px; margin:0 0 8px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+  
+  <div style="text-align:right; margin:0 0 16px;">
+    <a href="#" id="forgotPasswordLink" style="color:#2563eb; text-decoration:none; font-size:14px;">Forgot Password?</a>
+  </div>
+  
+  <div id="loginError" style="color:#ff3b30; margin:0 0 16px; display:none; font-size:14px;"></div>
+  
+  <button type="submit" class="menu-button" style="width:100%;">
+    <span class="button_top">Log In</span>
+  </button>
+</form>
+
+<!-- Forgot Password Form (hidden by default) -->
+<form id="forgotPasswordForm" style="display:none;">
+  <p style="margin:0 0 16px; color:#6b7280;">Enter your email and we'll send you a password reset link.</p>
+  
+  <label for="resetEmail" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Email</label>
+  <input type="email" id="resetEmail" required style="width:100%; padding:10px; margin:0 0 16px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+  
+  <div id="resetError" style="color:#ff3b30; margin:0 0 16px; display:none; font-size:14px;"></div>
+  <div id="resetSuccess" style="color:#34c759; margin:0 0 16px; display:none; font-size:14px;"></div>
+  
+  <div style="display:flex; gap:8px;">
+    <button type="button" id="backToLogin" class="menu-button" style="flex:1;">
+      <span class="button_top">Back</span>
+    </button>
+    <button type="submit" class="menu-button" style="flex:1;">
+      <span class="button_top">Send Reset Link</span>
+    </button>
+  </div>
+</form>
+    
+    <!-- Signup Form -->
+    <form id="signupForm" style="display:none;">
+      <label for="signupEmail" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Email</label>
+      <input type="email" id="signupEmail" required style="width:100%; padding:10px; margin:0 0 16px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+      
+      <label for="signupPassword" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Password</label>
+      <input type="password" id="signupPassword" required minlength="6" style="width:100%; padding:10px; margin:0 0 4px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+      <div id="passwordRequirements" style="font-size:12px; color:#6b7280; margin:0 0 16px;">
+        Password must be at least 8 characters
+      </div>
+      
+      <label for="signupPasswordConfirm" style="display:block; font-weight:600; margin:0 0 4px; color:var(--text);">Confirm Password</label>
+      <input type="password" id="signupPasswordConfirm" required style="width:100%; padding:10px; margin:0 0 20px; border:2px solid #d2deff; border-radius:8px; font-family:var(--font);">
+      
+      <div id="signupError" style="color:#ff3b30; margin:0 0 16px; display:none; font-size:14px;"></div>
+      <div id="signupSuccess" style="color:#34c759; margin:0 0 16px; display:none; font-size:14px;"></div>
+      
+      <button type="submit" class="menu-button" style="width:100%;">
+        <span class="button_top">Sign Up</span>
+      </button>
+    </form>
+  </div>
+</div>
     <!-- Trainer Customization Modal -->
     <div id="trainerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1200; align-items:center; justify-content:center;">
       <div style="background:#fff; padding:24px; border-radius:12px; width:min(500px, 90%); max-height:80vh; overflow-y:auto;">
@@ -311,188 +362,340 @@
   <script src="js/auth.js"></script>
   <script src="js/sync.js"></script>
   <script>
-    // Auth Modal Handlers
-    (function() {
-      // Modal elements
-      const welcomeModal = document.getElementById('welcomeModal');
-      const localWarningModal = document.getElementById('localWarningModal');
-      const authModal = document.getElementById('authModal');
-      
-      // Check if user has previously chosen to play locally
-      const hasChosenLocal = localStorage.getItem('PR_PLAY_MODE') === 'local';
-      
-      // Initialize auth and show appropriate modal
-      async function initializeAuth() {
-        const user = await window.PokeRankrAuth.waitForAuth();
-        
-        if (!user && !hasChosenLocal) {
-          // Show welcome modal for new/logged out users
-          welcomeModal.style.display = 'flex';
-        }
-      }
-
-      // Show login button for local players
-function updateLoginButton() {
-  const btnLoginSignup = document.getElementById('btnLoginSignup');
-  const user = window.PokeRankrAuth.getCurrentUser();
-  const playingLocally = localStorage.getItem('PR_PLAY_MODE') === 'local';
+ // Auth Modal Handlers
+(function() {
+  // Modal elements
+  const welcomeModal = document.getElementById('welcomeModal');
+  const localWarningModal = document.getElementById('localWarningModal');
+  const authModal = document.getElementById('authModal');
   
-  if (btnLoginSignup) {
-    // Show button only if playing locally and not logged in
-    btnLoginSignup.style.display = (playingLocally && !user) ? '' : 'none';
+  // Tab elements
+  const tabLogin = document.getElementById('tabLogin');
+  const tabSignup = document.getElementById('tabSignup');
+  const loginForm = document.getElementById('loginForm');
+  const signupForm = document.getElementById('signupForm');
+  const authTitle = document.getElementById('authTitle');
+  
+  // Check if user has previously chosen to play locally
+  const hasChosenLocal = localStorage.getItem('PR_PLAY_MODE') === 'local';
+  
+  // Initialize auth and show appropriate modal
+  async function initializeAuth() {
+    const user = await window.PokeRankrAuth.waitForAuth();
+    
+    if (!user && !hasChosenLocal) {
+      // Show welcome modal for new/logged out users
+      welcomeModal.style.display = 'flex';
+    }
   }
-}
 
-// Wire up the login button
-document.getElementById('btnLoginSignup')?.addEventListener('click', () => {
-  authModal.style.display = 'flex';
-});
+  // Tab switching
+  tabLogin?.addEventListener('click', () => {
+    tabLogin.classList.add('active');
+    tabLogin.style.borderBottomColor = '#2563eb';
+    tabSignup.classList.remove('active');
+    tabSignup.style.borderBottomColor = 'transparent';
+    loginForm.style.display = 'block';
+    signupForm.style.display = 'none';
+    authTitle.textContent = 'Welcome Back!';
+  });
+  
+  tabSignup?.addEventListener('click', () => {
+    tabSignup.classList.add('active');
+    tabSignup.style.borderBottomColor = '#2563eb';
+    tabLogin.classList.remove('active');
+    tabLogin.style.borderBottomColor = 'transparent';
+    signupForm.style.display = 'block';
+    loginForm.style.display = 'none';
+    authTitle.textContent = 'Create Account';
+  });
 
-// Update button visibility on auth changes
-window.PokeRankrAuth.onAuthChange(() => {
-  updateLoginButton();
-});
+  // Show login button for local players
+  function updateLoginButton() {
+    const btnLoginSignup = document.getElementById('btnLoginSignup');
+    const user = window.PokeRankrAuth.getCurrentUser();
+    const playingLocally = localStorage.getItem('PR_PLAY_MODE') === 'local';
+    
+    if (btnLoginSignup) {
+      // Show button only if playing locally and not logged in
+      btnLoginSignup.style.display = (playingLocally && !user) ? '' : 'none';
+    }
+  }
 
-// Initial check
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(updateLoginButton, 100);
-});
+  // Wire up the login button
+  document.getElementById('btnLoginSignup')?.addEventListener('click', () => {
+    authModal.style.display = 'flex';
+  });
+
+  // Update button visibility on auth changes
+  window.PokeRankrAuth.onAuthChange(() => {
+    updateLoginButton();
+  });
+
+  // Initial check
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateLoginButton, 100);
+  });
+  
+  // Welcome modal handlers
+  document.getElementById('btnWelcomeLogin')?.addEventListener('click', () => {
+    welcomeModal.style.display = 'none';
+    authModal.style.display = 'flex';
+  });
+  
+  document.getElementById('btnWelcomeGuest')?.addEventListener('click', () => {
+    welcomeModal.style.display = 'none';
+    localWarningModal.style.display = 'flex';
+  });
+  
+  // Local warning modal handlers
+  document.getElementById('btnContinueLocally')?.addEventListener('click', () => {
+    localStorage.setItem('PR_PLAY_MODE', 'local');
+    localWarningModal.style.display = 'none';
+  });
+  
+  document.getElementById('btnWarningLogin')?.addEventListener('click', () => {
+    localWarningModal.style.display = 'none';
+    authModal.style.display = 'flex';
+  });
+  
+  // Auth modal handlers
+  document.getElementById('authClose')?.addEventListener('click', () => {
+    authModal.style.display = 'none';
+    // If user closes auth without logging in, show welcome again
+    if (!window.PokeRankrAuth.isLoggedIn() && !hasChosenLocal) {
+      welcomeModal.style.display = 'flex';
+    }
+  });
+  
+  // Login form submission
+  loginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    errorDiv.style.display = 'none';
+    
+    const { data, error } = await window.PokeRankrAuth.signIn(email, password);
+    
+    if (error) {
+      errorDiv.textContent = error.message;
+      errorDiv.style.display = 'block';
+    } else {
+      localStorage.removeItem('PR_PLAY_MODE'); // Clear local mode
       
-      // Welcome modal handlers
-      document.getElementById('btnWelcomeLogin')?.addEventListener('click', () => {
-        welcomeModal.style.display = 'none';
-        authModal.style.display = 'flex';
-      });
+      // Check if this is first login (no trainer data)
+      const needsTrainerSetup = await checkNeedsTrainerSetup(data.user);
       
-      document.getElementById('btnWelcomeGuest')?.addEventListener('click', () => {
-        welcomeModal.style.display = 'none';
-        localWarningModal.style.display = 'flex';
-      });
-      
-      // Local warning modal handlers
-      document.getElementById('btnContinueLocally')?.addEventListener('click', () => {
-        localStorage.setItem('PR_PLAY_MODE', 'local');
-        localWarningModal.style.display = 'none';
-      });
-      
-      document.getElementById('btnWarningLogin')?.addEventListener('click', () => {
-        localWarningModal.style.display = 'none';
-        authModal.style.display = 'flex';
-      });
-      
-      // Auth modal handlers
-      document.getElementById('authClose')?.addEventListener('click', () => {
-        authModal.style.display = 'none';
-        // If user closes auth without logging in, show welcome again
-        if (!window.PokeRankrAuth.isLoggedIn() && !hasChosenLocal) {
-          welcomeModal.style.display = 'flex';
-        }
-      });
-      
-      // Login button
-      document.getElementById('btnLogin')?.addEventListener('click', async () => {
-        const email = document.getElementById('authEmail').value;
-        const password = document.getElementById('authPassword').value;
-        const errorDiv = document.getElementById('authError');
-        const successDiv = document.getElementById('authSuccess');
-        
-        errorDiv.style.display = 'none';
-        successDiv.style.display = 'none';
-        
-        if (!email || !password) {
-          errorDiv.textContent = 'Please enter email and password';
-          errorDiv.style.display = 'block';
-          return;
-        }
-        
-        const { data, error } = await window.PokeRankrAuth.signIn(email, password);
-        
-        if (error) {
-          errorDiv.textContent = error.message;
-          errorDiv.style.display = 'block';
-        } else {
-          localStorage.removeItem('PR_PLAY_MODE'); // Clear local mode
-          successDiv.textContent = 'Login successful!';
-          successDiv.style.display = 'block';
-          
-          // Check if this is first login (no trainer data)
-          const needsTrainerSetup = await checkNeedsTrainerSetup(data.user);
-          
-          setTimeout(() => {
-            authModal.style.display = 'none';
-            if (needsTrainerSetup) {
-              window.showTrainerCustomization();
-            } else {
-              // Existing user - sync their cloud data to local
-              window.PokeRankrSync.syncCloudToLocal().then(() => {
-                location.reload();
-              });
-            }
-          }, 1000);
-        }
-      });
-      
-      // Signup button
-      document.getElementById('btnSignup')?.addEventListener('click', async () => {
-        const email = document.getElementById('authEmail').value;
-        const password = document.getElementById('authPassword').value;
-        const errorDiv = document.getElementById('authError');
-        const successDiv = document.getElementById('authSuccess');
-        
-        errorDiv.style.display = 'none';
-        successDiv.style.display = 'none';
-        
-        if (!email || !password) {
-          errorDiv.textContent = 'Please enter email and password';
-          errorDiv.style.display = 'block';
-          return;
-        }
-        
-        if (password.length < 6) {
-          errorDiv.textContent = 'Password must be at least 6 characters';
-          errorDiv.style.display = 'block';
-          return;
-        }
-        
-        const { data, error } = await window.PokeRankrAuth.signUp(email, password);
-        
-        if (error) {
-          if (error.message.includes('already registered')) {
-            errorDiv.textContent = 'This email is already registered. Please log in instead.';
-          } else {
-            errorDiv.textContent = error.message;
-          }
-          errorDiv.style.display = 'block';
-        } else {
-          successDiv.textContent = 'Sign up successful! Please check your email to verify your account (CHECK SPAM!)';
-          successDiv.style.display = 'block';
-          
-          // Clear form
-          document.getElementById('authEmail').value = '';
-          document.getElementById('authPassword').value = '';
-        }
-      });
-      
-      // Helper function to check if user needs trainer setup
-      async function checkNeedsTrainerSetup(user) {
-        if (!user) return false;
-        
-       // Check if user has trainer data in Supabase
-const { data, error } = await window.PokeRankrAuth.supabase
-  .from('user_profiles')
-  .select('username')
-  .eq('user_id', user.id)
-  .maybeSingle();
-        
-        return !data || !data.username;
+      authModal.style.display = 'none';
+      if (needsTrainerSetup) {
+        window.showTrainerCustomization();
+      } else {
+        // Existing user - sync their cloud data to local
+        window.PokeRankrSync.syncCloudToLocal().then(() => {
+          location.reload();
+        });
       }
+    }
+  });
+  
+  // Signup form submission
+  signupForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const confirmPassword = document.getElementById('signupPasswordConfirm').value;
+    const errorDiv = document.getElementById('signupError');
+    const successDiv = document.getElementById('signupSuccess');
+    
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+    
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      errorDiv.textContent = 'Passwords do not match';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
+    // Validate password complexity
+    if (!validatePassword(password)) {
+      errorDiv.textContent = 'Password must contain at least one lowercase letter, one uppercase letter, and one number';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
+    const { data, error } = await window.PokeRankrAuth.signUp(email, password);
+    
+    if (error) {
+      // Clean up Supabase's verbose error messages
+      if (error.message.includes('already registered')) {
+        errorDiv.textContent = 'This email is already registered. Please log in instead.';
+      } else if (error.message.includes('Password should contain')) {
+        errorDiv.textContent = 'Password must contain at least one lowercase letter, one uppercase letter, and one number';
+      } else {
+        errorDiv.textContent = error.message;
+      }
+      errorDiv.style.display = 'block';
+    } else {
+      successDiv.textContent = 'Sign up successful! Please check your email to verify your account (CHECK SPAM!)';
+      successDiv.style.display = 'block';
       
-      // Start the auth check when page loads
-      document.addEventListener('DOMContentLoaded', () => {
-        // Small delay to ensure everything is loaded
-        setTimeout(initializeAuth, 100);
-      });
-    })();
+      // Clear form
+      signupForm.reset();
+    }
+  });
+
+  
+  
+  // Password validation helper
+  function validatePassword(password) {
+    if (password.length < 6) return false;
+    
+    const hasLowercase = /[a-z]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    
+    return hasLowercase && hasUppercase && hasNumber;
+  }
+  
+  // Live password validation feedback
+  document.getElementById('signupPassword')?.addEventListener('input', (e) => {
+    const password = e.target.value;
+    const requirementsDiv = document.getElementById('passwordRequirements');
+    
+    if (password.length === 0) {
+      requirementsDiv.textContent = 'Password must be at least 8 characters';
+      requirementsDiv.style.color = '#6b7280';
+      return;
+    }
+    
+    const requirements = [];
+    if (password.length < 8) requirements.push('at least 8 characters');
+    if (!/[a-z]/.test(password)) requirements.push('one lowercase letter');
+    if (!/[A-Z]/.test(password)) requirements.push('one uppercase letter');
+    if (!/\d/.test(password)) requirements.push('one number');
+    
+    if (requirements.length === 0) {
+      requirementsDiv.textContent = '✓ Password meets all requirements';
+      requirementsDiv.style.color = '#34c759';
+    } else {
+      requirementsDiv.textContent = `Password needs: ${requirements.join(', ')}`;
+      requirementsDiv.style.color = '#ff9500';
+    }
+  });
+
+  
+  
+  // Helper function to check if user needs trainer setup
+  async function checkNeedsTrainerSetup(user) {
+    if (!user) return false;
+    
+    // Check if user has trainer data in Supabase
+    const { data, error } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .select('username')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    return !data || !data.username;
+  }
+
+  // Forgot password link handler
+document.getElementById('forgotPasswordLink')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  
+  // Hide login form and tabs
+  loginForm.style.display = 'none';
+  const tabContainer = document.querySelector('#authModal .auth-tab')?.parentElement;
+  if (tabContainer) {
+    tabContainer.style.display = 'none';
+  }
+  
+  // Show forgot password form
+  const forgotForm = document.getElementById('forgotPasswordForm');
+  if (forgotForm) {
+    forgotForm.style.display = 'block';
+  }
+  authTitle.textContent = 'Reset Password';
+  
+  // Pre-fill email if user already entered it
+  const loginEmail = document.getElementById('loginEmail').value;
+  if (loginEmail) {
+    document.getElementById('resetEmail').value = loginEmail;
+  }
+});
+
+// Back to login button
+document.getElementById('backToLogin')?.addEventListener('click', () => {
+  // Show login form and tabs
+  loginForm.style.display = 'block';
+  const tabContainer = document.querySelector('#authModal .auth-tab')?.parentElement;
+  if (tabContainer) {
+    tabContainer.style.display = 'flex';
+  }
+  
+  // Hide forgot password form
+  const forgotForm = document.getElementById('forgotPasswordForm');
+  if (forgotForm) {
+    forgotForm.style.display = 'none';
+  }
+  authTitle.textContent = 'Welcome Back!';
+  
+  // Clear any messages
+  const resetError = document.getElementById('resetError');
+  const resetSuccess = document.getElementById('resetSuccess');
+  if (resetError) resetError.style.display = 'none';
+  if (resetSuccess) resetSuccess.style.display = 'none';
+});
+
+// Forgot password form submission
+document.getElementById('forgotPasswordForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const email = document.getElementById('resetEmail').value;
+  const errorDiv = document.getElementById('resetError');
+  const successDiv = document.getElementById('resetSuccess');
+  
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+  
+  const { data, error } = await window.PokeRankrAuth.supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  
+  if (error) {
+    if (errorDiv) {
+      errorDiv.textContent = error.message;
+      errorDiv.style.display = 'block';
+    }
+  } else {
+    if (successDiv) {
+      successDiv.textContent = 'Password reset link sent! Check your email (and spam folder).';
+      successDiv.style.display = 'block';
+    }
+    
+    // Clear the form
+    const resetEmailInput = document.getElementById('resetEmail');
+    if (resetEmailInput) resetEmailInput.value = '';
+    
+    // Optionally, go back to login after a delay
+    setTimeout(() => {
+      document.getElementById('backToLogin')?.click();
+    }, 5000);
+  }
+});
+  
+
+  // Start the auth check when page loads
+  document.addEventListener('DOMContentLoaded', () => {
+    // Small delay to ensure everything is loaded
+    setTimeout(initializeAuth, 100);
+  });
+})();
   </script>
   <script>
     // Trainer Customization Handler
@@ -785,58 +988,86 @@ window.PokeRankrAuth.onAuthChange(async (user) => {
     })();
   </script>
   <script>
-    // User Header Handler
-    (function() {
-      const userHeader = document.getElementById('userHeader');
-      const headerSprite = document.getElementById('headerSprite');
-      const headerUsername = document.getElementById('headerUsername');
-      const btnLogout = document.getElementById('btnLogout');
+// User Header Handler
+(function() {
+  const userHeader = document.getElementById('userHeader');
+  const headerSprite = document.getElementById('headerSprite');
+  const headerUsername = document.getElementById('headerUsername');
+  const btnLogout = document.getElementById('btnLogout');
+  
+  // Update header display
+  async function updateUserHeader() {
+    const user = window.PokeRankrAuth.getCurrentUser();
+    
+    if (!user) {
+      userHeader.style.display = 'none';
+      // Remove padding when logged out
+      if (window.innerWidth <= 768) {
+        document.querySelector('.loading-page')?.style.removeProperty('padding-bottom');
+      }
+      return;
+    }
+    
+    // Get user profile
+    const { data: profile } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .select('username, sprite_id, sprite_shiny')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (profile) {
+      const spriteUrl = profile.sprite_shiny
+        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${profile.sprite_id}.png`
+        : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${profile.sprite_id}.png`;
       
-      // Update header display
-      async function updateUserHeader() {
-        const user = window.PokeRankrAuth.getCurrentUser();
-        
-        if (!user) {
-          userHeader.style.display = 'none';
-          return;
-        }
-        // Get user profile
-const { data: profile } = await window.PokeRankrAuth.supabase
-  .from('user_profiles')
-  .select('username, sprite_id, sprite_shiny')
-  .eq('user_id', user.id)
-  .maybeSingle();
-        
-        if (profile) {
-          const spriteUrl = profile.sprite_shiny
-            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${profile.sprite_id}.png`
-            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${profile.sprite_id}.png`;
-          
-          headerSprite.src = spriteUrl;
-          headerUsername.textContent = profile.username;
-          userHeader.style.display = 'block';
+      headerSprite.src = spriteUrl;
+      headerUsername.textContent = profile.username;
+      userHeader.style.display = 'block';
+      
+      // Add padding to loading page on mobile when header is shown
+      if (window.innerWidth <= 768) {
+        const loadingPage = document.querySelector('.page.active');
+        if (loadingPage && loadingPage.id === 'loading-page') {
+          loadingPage.style.paddingBottom = '120px';
         }
       }
-      
-// Logout handler
-      btnLogout?.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to log out?')) {
-          await window.PokeRankrAuth.signOut();
-          localStorage.removeItem('PR_PLAY_MODE');
-          location.reload();
-        }
-      });
+    }
+  }
+  
+  // Handle window resize
+  function handleResize() {
+    const user = window.PokeRankrAuth.getCurrentUser();
+    const loadingPage = document.querySelector('.page.active');
+    
+    if (user && window.innerWidth <= 768 && loadingPage?.id === 'loading-page') {
+      loadingPage.style.paddingBottom = '120px';
+    } else {
+      loadingPage?.style.removeProperty('padding-bottom');
+    }
+  }
+  
+  // Logout handler
+  btnLogout?.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to log out?')) {
+      await window.PokeRankrAuth.signOut();
+      localStorage.removeItem('PR_PLAY_MODE');
+      location.reload();
+    }
+  });
 
-      // Listen for auth changes
-      window.PokeRankrAuth.onAuthChange((user) => {
-        updateUserHeader();
-      });
+  // Listen for auth changes
+  window.PokeRankrAuth.onAuthChange((user) => {
+    updateUserHeader();
+  });
+  
+  // Listen for window resize
+  window.addEventListener('resize', handleResize);
 
-      // Initial check
-      document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(updateUserHeader, 200);
-      });
-    })();
+  // Initial check
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateUserHeader, 200);
+  });
+})();
   </script>
   <script>
 
