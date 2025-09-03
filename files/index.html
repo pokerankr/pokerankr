@@ -724,7 +724,7 @@ const { data: profile } = await window.PokeRankrAuth.supabase
         }
       }
       
-      // Logout handler
+// Logout handler
       btnLogout?.addEventListener('click', async () => {
         if (confirm('Are you sure you want to log out?')) {
           await window.PokeRankrAuth.signOut();
@@ -732,12 +732,12 @@ const { data: profile } = await window.PokeRankrAuth.supabase
           location.reload();
         }
       });
-      
+
       // Listen for auth changes
       window.PokeRankrAuth.onAuthChange((user) => {
         updateUserHeader();
       });
-      
+
       // Initial check
       document.addEventListener('DOMContentLoaded', () => {
         setTimeout(updateUserHeader, 200);

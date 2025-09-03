@@ -85,10 +85,32 @@ window.PokeRankrAuth = (function() {
     },
 
     async signOut() {
-      const { error } = await supabase.auth.signOut();
-      return { error };
-    },
-
+  const { error } = await supabase.auth.signOut();
+  
+  if (!error) {
+    // Clear all game data on successful logout
+    const gameDataKeys = [
+      'PR_ACHIEVEMENTS',
+      'PR_COMPLETIONS',
+      'savedRankings',
+      'PR_SAVE_SLOTS_V1',
+      'pokeRankr.rankings',
+      'rankConfig',
+      'includeShinies',
+      'shinyOnly',
+      'category',
+      'addPikaEevee',
+      'includeStarterLines',
+      'PR_PENDING_RESUME_SLOT'
+    ];
+    
+    gameDataKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+  }
+  
+  return { error };
+},
     isLoggedIn() {
       return !!currentUser;
     }
