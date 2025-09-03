@@ -223,8 +223,18 @@
       catch { return []; }
     }
     function persistSaves(arr) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-    }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  // If logged in, push the new state to the cloud so deletions/additions stick
+  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn && window.PokeRankrAuth.isLoggedIn()) {
+    // Give the UI a tick to finish, then sync
+    setTimeout(() => {
+      if (window.PokeRankrSync && window.PokeRankrSync.syncLocalToCloud) {
+        window.PokeRankrSync.syncLocalToCloud();
+      }
+    }, 300);
+  }
+}
+
 
     function deleteEntry(key) {
       let saved = loadSaves();
