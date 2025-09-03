@@ -75,32 +75,26 @@ window.PokeRankrSync = (function() {
         }
       }
       
-      // 3. Sync Save Slots
-      const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
-      const validSlots = localSlots.filter(Boolean).length > 0;
-      if (validSlots) {
+     // 3. Sync Save Slots  
+        const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
+        // Always sync save slots (including when all are null/deleted)
         const { data: existingSlots } = await auth.supabase
           .from('user_save_slots')
           .select('slots')
           .eq('user_id', userId)
           .maybeSingle();
-        
+
         if (existingSlots) {
-          // Merge slots - local takes priority for non-null slots
-          const merged = existingSlots.slots.map((cloudSlot, i) => 
-            localSlots[i] || cloudSlot
-          );
-          
+          // Just replace cloud with local entirely - local is always the source of truth for save slots
           await auth.supabase
             .from('user_save_slots')
-            .update({ slots: merged, updated_at: new Date().toISOString() })
+            .update({ slots: localSlots, updated_at: new Date().toISOString() })
             .eq('user_id', userId);
         } else {
           await auth.supabase
             .from('user_save_slots')
             .insert({ user_id: userId, slots: localSlots });
         }
-      }
       
       // 4. Sync Saved Rankings
       const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
@@ -176,8 +170,15 @@ window.PokeRankrSync = (function() {
       }
       
       if (slotsResult.data?.slots) {
-        localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
-      }
+  // For save slots, don't overwrite if we have local data
+  // This prevents cloud from overwriting recent local changes
+  const existingLocal = localStorage.getItem('PR_SAVE_SLOTS_V1');
+  if (!existingLocal || existingLocal === '[]' || existingLocal === '[null,null,null]') {
+    // Only update from cloud if local is empty
+    localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
+  }
+  // If we have local data, keep it (it will sync to cloud on next write)
+}
       
       if (rankResult.data?.rankings) {
         localStorage.setItem('savedRankings', JSON.stringify(rankResult.data.rankings));
