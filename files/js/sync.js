@@ -75,7 +75,7 @@ window.PokeRankrSync = (function() {
         }
       }
       
-     // 3. Sync Save Slots - Special handling for merge conflicts
+// 3. Sync Save Slots - Smart merge that uses all available slots
 const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
 const { data: existingSlots } = await auth.supabase
   .from('user_save_slots')
@@ -83,61 +83,53 @@ const { data: existingSlots } = await auth.supabase
   .eq('user_id', userId)
   .maybeSingle();
 
-if (existingSlots) {
-  // Merge strategy: combine non-null slots, prioritizing newer saves
-  const cloudSlots = existingSlots.slots || [null, null, null];
-  const mergedSlots = [null, null, null];
-  
-  // First pass: fill with cloud slots
-  cloudSlots.forEach((slot, i) => {
-    if (slot && i < 3) mergedSlots[i] = slot;
-  });
-  
-  // Second pass: add local slots (may override if newer)
-  localSlots.forEach((localSlot, i) => {
-    if (localSlot && i < 3) {
-      const cloudSlot = mergedSlots[i];
-      if (!cloudSlot) {
-        mergedSlots[i] = localSlot;
-      } else {
-        // Compare timestamps - keep newer
-        const localTime = new Date(localSlot.meta?.savedAt || 0).getTime();
-        const cloudTime = new Date(cloudSlot.meta?.savedAt || 0).getTime();
-        if (localTime > cloudTime) {
-          mergedSlots[i] = localSlot;
-        }
-      }
-    }
-  });
-  
-  // If we have more than 3 non-null slots total, we need to handle overflow
-  const allSlots = [];
-  [...cloudSlots, ...localSlots].forEach(slot => {
+// Collect all non-null slots from both sources
+const allSlots = [];
+
+// Add cloud slots
+if (existingSlots?.slots) {
+  existingSlots.slots.forEach(slot => {
     if (slot) allSlots.push(slot);
   });
-  
-  if (allSlots.length > 3) {
-    // Sort by timestamp, keep 3 newest
-    allSlots.sort((a, b) => {
-      const aTime = new Date(a.meta?.savedAt || 0).getTime();
-      const bTime = new Date(b.meta?.savedAt || 0).getTime();
-      return bTime - aTime; // newest first
-    });
-    
-    // Fill merged slots with 3 newest
-    for (let i = 0; i < 3; i++) {
-      mergedSlots[i] = allSlots[i] || null;
-    }
-  }
-  
+}
+
+// Add local slots
+localSlots.forEach(slot => {
+  if (slot) allSlots.push(slot);
+});
+
+// Remove duplicates (same matchup at same time)
+const uniqueSlots = allSlots.filter((slot, index, self) => {
+  return index === self.findIndex(s => 
+    s.meta?.savedAt === slot.meta?.savedAt &&
+    s.currentMatchup?.a?.id === slot.currentMatchup?.a?.id &&
+    s.currentMatchup?.b?.id === slot.currentMatchup?.b?.id
+  );
+});
+
+// Sort by newest first
+uniqueSlots.sort((a, b) => {
+  const aTime = new Date(a.meta?.savedAt || 0).getTime();
+  const bTime = new Date(b.meta?.savedAt || 0).getTime();
+  return bTime - aTime;
+});
+
+// Take the 3 newest and arrange them in slots
+const finalSlots = [null, null, null];
+for (let i = 0; i < Math.min(3, uniqueSlots.length); i++) {
+  finalSlots[i] = uniqueSlots[i];
+}
+
+// Save to cloud
+if (existingSlots) {
   await auth.supabase
     .from('user_save_slots')
-    .update({ slots: mergedSlots, updated_at: new Date().toISOString() })
+    .update({ slots: finalSlots, updated_at: new Date().toISOString() })
     .eq('user_id', userId);
 } else {
   await auth.supabase
     .from('user_save_slots')
-    .insert({ user_id: userId, slots: localSlots });
+    .insert({ user_id: userId, slots: finalSlots });
 }
       
       // 4. Sync Saved Rankings
