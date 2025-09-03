@@ -676,7 +676,7 @@ function renderSaveSlots() {
       const slots = readSlots();
       if (slots[idx] && !confirm('Delete this save slot?')) return;
       slots[idx] = null;
-      writeSlots(slots);
+      slotsWrite(slots);
       renderSaveSlots();
       return;
     }
@@ -694,7 +694,7 @@ function saveToSlot(idx) {
     if (!ok) return;
   }
   slots[idx] = payload;
-  writeSlots(slots);
+  slotsWrite(slots);
   window.location.href = 'index.html';
 }
 
