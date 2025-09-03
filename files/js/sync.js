@@ -75,26 +75,70 @@ window.PokeRankrSync = (function() {
         }
       }
       
-     // 3. Sync Save Slots  
-        const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
-        // Always sync save slots (including when all are null/deleted)
-        const { data: existingSlots } = await auth.supabase
-          .from('user_save_slots')
-          .select('slots')
-          .eq('user_id', userId)
-          .maybeSingle();
+     // 3. Sync Save Slots - Special handling for merge conflicts
+const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
+const { data: existingSlots } = await auth.supabase
+  .from('user_save_slots')
+  .select('slots')
+  .eq('user_id', userId)
+  .maybeSingle();
 
-        if (existingSlots) {
-          // Just replace cloud with local entirely - local is always the source of truth for save slots
-          await auth.supabase
-            .from('user_save_slots')
-            .update({ slots: localSlots, updated_at: new Date().toISOString() })
-            .eq('user_id', userId);
-        } else {
-          await auth.supabase
-            .from('user_save_slots')
-            .insert({ user_id: userId, slots: localSlots });
+if (existingSlots) {
+  // Merge strategy: combine non-null slots, prioritizing newer saves
+  const cloudSlots = existingSlots.slots || [null, null, null];
+  const mergedSlots = [null, null, null];
+  
+  // First pass: fill with cloud slots
+  cloudSlots.forEach((slot, i) => {
+    if (slot && i < 3) mergedSlots[i] = slot;
+  });
+  
+  // Second pass: add local slots (may override if newer)
+  localSlots.forEach((localSlot, i) => {
+    if (localSlot && i < 3) {
+      const cloudSlot = mergedSlots[i];
+      if (!cloudSlot) {
+        mergedSlots[i] = localSlot;
+      } else {
+        // Compare timestamps - keep newer
+        const localTime = new Date(localSlot.meta?.savedAt || 0).getTime();
+        const cloudTime = new Date(cloudSlot.meta?.savedAt || 0).getTime();
+        if (localTime > cloudTime) {
+          mergedSlots[i] = localSlot;
         }
+      }
+    }
+  });
+  
+  // If we have more than 3 non-null slots total, we need to handle overflow
+  const allSlots = [];
+  [...cloudSlots, ...localSlots].forEach(slot => {
+    if (slot) allSlots.push(slot);
+  });
+  
+  if (allSlots.length > 3) {
+    // Sort by timestamp, keep 3 newest
+    allSlots.sort((a, b) => {
+      const aTime = new Date(a.meta?.savedAt || 0).getTime();
+      const bTime = new Date(b.meta?.savedAt || 0).getTime();
+      return bTime - aTime; // newest first
+    });
+    
+    // Fill merged slots with 3 newest
+    for (let i = 0; i < 3; i++) {
+      mergedSlots[i] = allSlots[i] || null;
+    }
+  }
+  
+  await auth.supabase
+    .from('user_save_slots')
+    .update({ slots: mergedSlots, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+} else {
+  await auth.supabase
+    .from('user_save_slots')
+    .insert({ user_id: userId, slots: localSlots });
+}
       
       // 4. Sync Saved Rankings
       const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
@@ -181,8 +225,47 @@ window.PokeRankrSync = (function() {
 }
       
       if (rankResult.data?.rankings) {
-        localStorage.setItem('savedRankings', JSON.stringify(rankResult.data.rankings));
+  const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
+  
+  // If we have local rankings and this is NOT right after a sync choice,
+  // merge them properly using the same logic as syncLocalToCloud
+  if (localRankings.length > 0) {
+    const rankingMap = {};
+    
+    // Use the same merge logic as index.html
+    const canonicalKey = (run) =>
+      run?.key || run?.id || `${(run?.category || 'Unknown')}_${!!run?.includeShinies}_${!!run?.shinyOnly}`;
+    
+    const parseWhen = (run) => {
+      const s = run?.lastModified || run?.date || new Date().toISOString();
+      return new Date(s).getTime();
+    };
+    
+    // Add cloud rankings first
+    rankResult.data.rankings.forEach(r => {
+      if (r) {
+        const key = canonicalKey(r);
+        rankingMap[key] = r;
       }
+    });
+    
+    // Then add/update with local rankings if newer
+    localRankings.forEach(r => {
+      if (r) {
+        const key = canonicalKey(r);
+        const existing = rankingMap[key];
+        if (!existing || parseWhen(r) > parseWhen(existing)) {
+          rankingMap[key] = r;
+        }
+      }
+    });
+    
+    localStorage.setItem('savedRankings', JSON.stringify(Object.values(rankingMap)));
+  } else {
+    // No local rankings, just use cloud
+    localStorage.setItem('savedRankings', JSON.stringify(rankResult.data.rankings));
+  }
+}
       
       console.log('Cloud data loaded!');
       
@@ -214,17 +297,20 @@ function showSyncPrompt() {
   
   modal.innerHTML = `
     <div style="background:#fff; padding:24px; border-radius:12px; width:min(450px, 90%); text-align:center;">
-      <h3 style="margin:0 0 16px; color:var(--text);">Sync Local Data?</h3>
+      <h3 style="margin:0 0 16px; color:var(--text);">Local Data Found</h3>
       <p style="margin:0 0 20px; color:var(--text-soft); line-height:1.5;">
-        We found existing PokeRankr data on this device. Would you like to sync it with your account?
-        This will merge your local progress with any existing cloud data.
+        You have existing PokeRankr data on this device. Would you like to:
       </p>
+      <div style="text-align:left; margin:0 0 20px; padding:0 20px;">
+        <p style="margin:0 0 12px;"><strong>Merge with cloud:</strong> Combine your local progress with your account data (keeping the newest version of each ranking)</p>
+        <p style="margin:0;"><strong>Use cloud data only:</strong> Replace all local data with your account data</p>
+      </div>
       <div style="display:flex; gap:12px; justify-content:center;">
         <button id="syncYesBtn" class="menu-button">
-          <span class="button_top">Yes, Sync Data</span>
+          <span class="button_top">Merge with Cloud</span>
         </button>
         <button id="syncNoBtn" class="menu-button">
-          <span class="button_top">No, Keep Separate</span>
+          <span class="button_top">Use Cloud Data Only</span>
         </button>
       </div>
     </div>
@@ -232,23 +318,151 @@ function showSyncPrompt() {
   
   document.body.appendChild(modal);
   
-  // Add event listeners AFTER the modal is in the DOM
-document.getElementById('syncYesBtn').addEventListener('click', async () => {
-  console.log('Sync Yes clicked');
-  const user = auth.getCurrentUser();
-  if (user) {
-    localStorage.setItem(`PR_USER_SYNCED_${user.id}`, 'true');
+  // Add event listeners
+  document.getElementById('syncYesBtn').addEventListener('click', async () => {
+    document.body.removeChild(modal);
+    await handleSyncYes();
+  });
+  
+  document.getElementById('syncNoBtn').addEventListener('click', async () => {
+    document.body.removeChild(modal);
+    await handleSyncNo();
+  });
+}
+
+// Handler for "Merge with Cloud" option
+async function handleSyncYes() {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+  
+  console.log('User chose to merge local and cloud data...');
+  
+  try {
+    // First sync local to cloud (merge) - WAIT for it to complete!
+    await syncLocalToCloud();
+    
+    // Small delay to ensure the sync fully completes
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Get ALL auth-related keys (Supabase stores several)
+    const keysToKeep = Object.keys(localStorage).filter(key => 
+      key.includes('supabase') || 
+      key.includes('PR_USER_SYNCED_') ||
+      key === 'PR_PLAY_MODE'
+    );
+    
+    // Also keep some cache keys that don't need to be cleared
+    const cacheKeys = ['PR_POKEMON_NAMES', 'namesMap', 'artIdCache'];
+    cacheKeys.forEach(key => {
+      if (localStorage.getItem(key)) keysToKeep.push(key);
+    });
+    
+    const valuesToKeep = {};
+    keysToKeep.forEach(key => {
+      valuesToKeep[key] = localStorage.getItem(key);
+    });
+    
+    // Clear only PokeRankr game data
+    const gameDataKeys = [
+      'PR_ACHIEVEMENTS',
+      'PR_COMPLETIONS',
+      'savedRankings',
+      'PR_SAVE_SLOTS_V1',
+      'pokeRankr.rankings',
+      'rankConfig',
+      'includeShinies',
+      'shinyOnly',
+      'category'
+    ];
+    
+    gameDataKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Mark this user as synced
+    localStorage.setItem(`PR_USER_SYNCED_${userId}`, 'true');
+    
+    // Now reload cloud data to populate local storage
+    await syncCloudToLocal();
+    
+    alert('Your data has been merged with the cloud!');
+    window.location.reload();
+    
+  } catch (error) {
+    console.error('Error during sync:', error);
+    alert('There was an error syncing your data. Please try again.');
   }
-  document.body.removeChild(modal);
-  await syncLocalToCloud();
-  alert('Your data has been synced to the cloud!');
-  window.location.reload();
-});
+}
+
+// Handler for "Use Cloud Data Only" option
+async function handleSyncNo() {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+  
+  console.log('User chose to use cloud data only...');
+  
+  try {
+    // Get ALL auth-related keys
+    const keysToKeep = Object.keys(localStorage).filter(key => 
+      key.includes('supabase') || 
+      key.includes('PR_USER_SYNCED_') ||
+      key === 'PR_PLAY_MODE'
+    );
+    
+    // Also keep cache keys
+    const cacheKeys = ['PR_POKEMON_NAMES', 'namesMap', 'artIdCache'];
+    cacheKeys.forEach(key => {
+      if (localStorage.getItem(key)) keysToKeep.push(key);
+    });
+    
+    const valuesToKeep = {};
+    keysToKeep.forEach(key => {
+      valuesToKeep[key] = localStorage.getItem(key);
+    });
+    
+    // Clear only game data
+    const gameDataKeys = [
+      'PR_ACHIEVEMENTS',
+      'PR_COMPLETIONS',
+      'savedRankings',
+      'PR_SAVE_SLOTS_V1',
+      'pokeRankr.rankings',
+      'rankConfig',
+      'includeShinies',
+      'shinyOnly',
+      'category'
+    ];
+    
+    gameDataKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Now load cloud data
+    await syncCloudToLocal();
+    
+    // Mark this user as synced
+    localStorage.setItem(`PR_USER_SYNCED_${userId}`, 'true');
+    
+    alert('Your local data has been replaced with your cloud data.');
+    window.location.reload();
+    
+  } catch (error) {
+    console.error('Error loading cloud data:', error);
+    alert('There was an error loading your cloud data. Please try again.');
+  }
 }
   
-  // Auto-sync on auth change
+// Auto-sync on auth change
+let authChangeHandled = false;
 auth.onAuthChange(async (user) => {
   if (user) {
+    // Prevent multiple executions during the same session
+    if (authChangeHandled) return;
+    authChangeHandled = true;
+    
+    // Reset flag after a delay (for future logins in same session)
+    setTimeout(() => { authChangeHandled = false; }, 5000);
+    
     // Check if this user has ever synced before
     const userSyncKey = `PR_USER_SYNCED_${user.id}`;
     const hasUserSynced = localStorage.getItem(userSyncKey);
@@ -263,6 +477,7 @@ auth.onAuthChange(async (user) => {
       
       if (hasLocalData) {
         // Show sync prompt for this user
+        // DO NOT load cloud data yet - wait for user choice!
         setTimeout(() => {
           showSyncPrompt();
         }, 1000);
@@ -272,7 +487,8 @@ auth.onAuthChange(async (user) => {
         localStorage.setItem(userSyncKey, 'true');
       }
     } else {
-      // User has synced before, just load latest cloud data
+      // User has synced before, load cloud data BUT don't overwrite save slots
+      // since they might have just made changes
       await syncCloudToLocal();
     }
   }
