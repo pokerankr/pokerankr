@@ -21,7 +21,9 @@
 <!-- User Header (shows when logged in) -->
   <div id="userHeader" style="display:none; position:fixed; top:10px; right:10px; z-index:1000; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border-radius:12px; padding:8px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); border:2px solid #d2deff;">
     <div style="display:flex; align-items:center; gap:12px;">
-      <img id="headerSprite" src="" alt="Trainer" style="width:32px; height:32px; image-rendering:pixelated;">
+<div style="width:48px; height:48px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+  <img id="headerSprite" src="" alt="Trainer" style="width:80px; height:80px; image-rendering:pixelated;">
+</div>
       <span id="headerUsername" style="font-weight:600; color:var(--text);"></span>
       <button id="btnLogout" class="compact" style="--button_color:#ff3b30; --button_outline_color:#ff3b30;">
         <span class="button_top" style="color:white; padding:0.3em 0.8em; font-size:12px;">Log Out</span>
@@ -48,7 +50,7 @@
   <button id="btnDownload" class="menu-button"><span class="button_top">Download</span></button>
   <button id="btnUpload" class="menu-button"><span class="button_top">Upload</span></button>
   <button id="btnFeedback" class="menu-button"><span class="button_top">Feedback</span></button>
-  <button id="btnFeedback" class="menu-button"><span class="button_top">Settings</span></button>
+  <button id="btnSettings" class="menu-button"><span class="button_top">Settings</span></button>
   <button id="btnLoginSignup" class="menu-button" style="display:none;">
   <span class="button_top">Login / Sign Up</span>
 </button>
@@ -580,48 +582,107 @@ const { data, error } = await window.PokeRankrAuth.supabase
       });
       
       // Form submission
-      document.getElementById('trainerForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const username = trainerUsername.value.trim();
-        const spriteId = parseInt(selectedSpriteId.value);
-        const spriteShiny = document.getElementById('spriteShiny').checked;
-        
-        if (usernameError.textContent) {
-          return; // Don't submit if there's an error
-        }
-        
-        const user = window.PokeRankrAuth.getCurrentUser();
-        if (!user) {
-          alert('Please log in first');
-          return;
-        }
-        
-        // Save to Supabase
-        const { error } = await window.PokeRankrAuth.supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            username: username,
-            sprite_id: spriteId,
-            sprite_shiny: spriteShiny
-          });
-        
-        if (error) {
-          alert('Error saving profile: ' + error.message);
-          return;
-        }
-        
-        // Success!
-        trainerModal.style.display = 'none';
-        location.reload(); // Reload to show logged-in state
+document.getElementById('trainerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const isEditMode = trainerModal.dataset.mode === 'edit';
+  const username = trainerUsername.value.trim();
+  const spriteId = parseInt(selectedSpriteId.value);
+  const spriteShinyValue = document.getElementById('spriteShiny').checked;
+  
+  // Only validate username in create mode
+  if (!isEditMode && usernameError.textContent) {
+    return;
+  }
+  
+  const user = window.PokeRankrAuth.getCurrentUser();
+  if (!user) {
+    alert('Please log in first');
+    return;
+  }
+  
+  if (isEditMode) {
+    // Update existing profile
+    const { error } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .update({
+        sprite_id: spriteId,
+        sprite_shiny: spriteShinyValue,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id);
+    
+    if (error) {
+      alert('Error updating profile: ' + error.message);
+    } else {
+      alert('Trainer card updated!');
+      trainerModal.style.display = 'none';
+      location.reload(); // Reload to show new sprite
+    }
+  } else {
+    // Create new profile
+    const { error } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .insert({
+        user_id: user.id,
+        username: username,
+        sprite_id: spriteId,
+        sprite_shiny: spriteShinyValue
       });
+    
+    if (error) {
+      alert('Error saving profile: ' + error.message);
+    } else {
+      trainerModal.style.display = 'none';
+      location.reload();
+    }
+  }
+});
       
       // Show trainer modal when needed
-      window.showTrainerCustomization = function() {
-        loadPokemonNames();
-        trainerModal.style.display = 'flex';
-      };
+window.showTrainerCustomization = async function(editMode = false) {
+  loadPokemonNames();
+  
+  if (editMode) {
+    // Settings mode - load current profile
+    const user = window.PokeRankrAuth.getCurrentUser();
+    if (!user) {
+      alert('Please log in to edit settings');
+      return;
+    }
+    
+    // Get current profile
+    const { data: profile } = await window.PokeRankrAuth.supabase
+      .from('user_profiles')
+      .select('username, sprite_id, sprite_shiny')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (profile) {
+      // Pre-fill form with current values
+      trainerUsername.value = profile.username;
+      trainerUsername.disabled = true; // Disable username editing
+      trainerUsername.style.backgroundColor = '#f3f4f6'; // Visual indicator
+      selectedSpriteId.value = profile.sprite_id;
+      spriteShiny.checked = profile.sprite_shiny;
+      updateSprite();
+      
+      // Update title for settings mode
+      document.querySelector('#trainerModal h3').textContent = 'Update Your Trainer Card';
+      document.querySelector('#trainerModal p').textContent = 'Change your Pokémon sprite:';
+    }
+  } else {
+    // Initial setup mode
+    trainerUsername.disabled = false;
+    trainerUsername.style.backgroundColor = '';
+    document.querySelector('#trainerModal h3').textContent = 'Welcome, Trainer!';
+    document.querySelector('#trainerModal p').textContent = "Let's set up your trainer profile!";
+  }
+  
+  // Store mode for form submission
+  trainerModal.dataset.mode = editMode ? 'edit' : 'create';
+  trainerModal.style.display = 'flex';
+};
       
     // Check on email verification callback
 window.addEventListener('hashchange', async () => {
@@ -1781,6 +1842,19 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('pageshow', () => {
   checkForNewBadges();  // Add this line!
   updateBadgeNotification();
+});
+
+// Settings button handler
+document.getElementById('btnSettings')?.addEventListener('click', async () => {
+  const user = window.PokeRankrAuth.getCurrentUser();
+  
+  if (!user) {
+    alert('Please log in to access settings');
+    return;
+  }
+  
+  // Show trainer customization in edit mode
+  window.showTrainerCustomization(true);
 });
 </script>
 </body>
