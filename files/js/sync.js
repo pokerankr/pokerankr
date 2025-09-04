@@ -12,6 +12,27 @@ window.PokeRankrSync = (function() {
     return user?.id || null;
   }
 
+  // Helper to ensure auth is ready
+async function waitForAuth(maxWait = 5000) {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWait) {
+    const user = auth.getCurrentUser();
+    if (user?.id) {
+      // Also check if we can make a test query
+      try {
+        await auth.supabase.from('user_save_slots').select('count').limit(0);
+        return user;
+      } catch {
+        // Auth might not be ready yet
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  throw new Error('Authentication timeout');
+}
+
   // --- helpers for saved rankings ---
 function buildRankingKey(r) {
   return r?.key || `${r?.category || 'Unknown'}_${!!r?.includeShinies}_${!!r?.shinyOnly}`;
@@ -131,12 +152,15 @@ async function overwriteSavedRankings(newList) {
   // --- end helpers ---
 
   // Sync local data to Supabase when user logs in
-  async function syncLocalToCloud() {
-    const userId = await getCurrentUserId();
+ async function syncLocalToCloud() {
+  try {
+    const user = await waitForAuth();
+    const userId = user?.id;
     if (!userId || syncInProgress) return;
-    
-    syncInProgress = true;
-    console.log('Starting sync to cloud...');
+  } catch (error) {
+    console.log('Auth not ready for sync:', error);
+    return;
+  }
     
     try {
       // 1. Sync Achievements
@@ -193,58 +217,83 @@ async function overwriteSavedRankings(newList) {
         }
       }
       
-// 3. Sync Save Slots — robust upsert + visible errors
+// 3. Sync Save Slots - robust upsert + visible errors + retry
 const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
-const existingResp = await auth.supabase
-  .from('user_save_slots')
-  .select('slots')
-  .eq('user_id', userId)
-  .maybeSingle();
 
-if (existingResp.error) {
-  console.error('Save Slots fetch failed:', existingResp.error);
-  alert(`Save Slots fetch failed: ${existingResp.error.message}`);
-  throw existingResp.error;
-}
+let retryCount = 0;
+const maxRetries = 3;
+let lastError = null;
 
-const cloudSlots = existingResp.data?.slots || [];
+while (retryCount < maxRetries) {
+  try {
+    const existingResp = await auth.supabase
+      .from('user_save_slots')
+      .select('slots')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-// Collect all non-null slots from both sources
-const allSlots = [];
-[...cloudSlots, ...localSlots].forEach(slot => { if (slot) allSlots.push(slot); });
+    if (existingResp.error) {
+      throw existingResp.error;
+    }
 
-// Remove duplicates (same matchup at same time)
-const uniqueSlots = allSlots.filter((slot, index, self) =>
-  index === self.findIndex(s =>
-    s?.meta?.savedAt === slot?.meta?.savedAt &&
-    s?.currentMatchup?.a?.id === slot?.currentMatchup?.a?.id &&
-    s?.currentMatchup?.b?.id === slot?.currentMatchup?.b?.id
-  )
-);
+    const cloudSlots = existingResp.data?.slots || [];
 
-// Sort newest first
-uniqueSlots.sort((a, b) =>
-  new Date(b?.meta?.savedAt || 0).getTime() - new Date(a?.meta?.savedAt || 0).getTime()
-);
+    // Collect all non-null slots from both sources
+    const allSlots = [];
+    [...cloudSlots, ...localSlots].forEach(slot => { if (slot) allSlots.push(slot); });
 
-// Take the 3 newest and arrange them in slots
-const finalSlots = [null, null, null];
-for (let i = 0; i < Math.min(3, uniqueSlots.length); i++) {
-  finalSlots[i] = uniqueSlots[i];
-}
+    // Remove duplicates (same matchup at same time)
+    const uniqueSlots = allSlots.filter((slot, index, self) =>
+      index === self.findIndex(s =>
+        s?.meta?.savedAt === slot?.meta?.savedAt &&
+        s?.currentMatchup?.a?.id === slot?.currentMatchup?.a?.id &&
+        s?.currentMatchup?.b?.id === slot?.currentMatchup?.b?.id
+      )
+    );
 
-// UPSERT by user_id (requires UNIQUE(user_id), which you added)
-const { error: slotsUpsertErr } = await auth.supabase
-  .from('user_save_slots')
-  .upsert(
-    { user_id: userId, slots: finalSlots, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id' }
-  );
+    // Sort newest first
+    uniqueSlots.sort((a, b) =>
+      new Date(b?.meta?.savedAt || 0).getTime() - new Date(a?.meta?.savedAt || 0).getTime()
+    );
 
-if (slotsUpsertErr) {
-  console.error('Save Slots upsert failed:', slotsUpsertErr);
-  alert(`Save Slots sync failed: ${slotsUpsertErr.message}`);
-  throw slotsUpsertErr;
+    // Take the 3 newest and arrange them in slots
+    const finalSlots = [null, null, null];
+    for (let i = 0; i < Math.min(3, uniqueSlots.length); i++) {
+      finalSlots[i] = uniqueSlots[i];
+    }
+
+    // UPSERT by user_id
+    const { error: slotsUpsertErr } = await auth.supabase
+      .from('user_save_slots')
+      .upsert(
+        { user_id: userId, slots: finalSlots, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+
+    if (slotsUpsertErr) {
+      throw slotsUpsertErr;
+    }
+
+    // Success - break out of retry loop
+    console.log('Save slots synced successfully');
+    break;
+
+  } catch (error) {
+    lastError = error;
+    retryCount++;
+    
+    if (retryCount < maxRetries) {
+      console.log(`Save Slots sync failed (attempt ${retryCount}), retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+    } else {
+      console.error('Save Slots sync failed after retries:', error);
+      // Don't show alert on initial sync failures
+      if (!window.location.pathname.includes('index.html')) {
+        alert(`Save Slots sync failed: ${error.message}`);
+      }
+      throw error;
+    }
+  }
 }
 
 
@@ -587,6 +636,9 @@ auth.onAuthChange(async (user) => {
     
     // Reset flag after a delay (for future logins in same session)
     setTimeout(() => { authChangeHandled = false; }, 5000);
+    
+    // Add a small delay to ensure auth is fully established
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Check if this user has ever synced before
     const userSyncKey = `PR_USER_SYNCED_${user.id}`;
