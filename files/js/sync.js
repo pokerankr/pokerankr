@@ -11,6 +11,53 @@ window.PokeRankrSync = (function() {
     const user = auth.getCurrentUser();
     return user?.id || null;
   }
+
+  // --- helpers for saved rankings ---
+function buildRankingKey(r) {
+  return r?.key || `${r?.category || 'Unknown'}_${!!r?.includeShinies}_${!!r?.shinyOnly}`;
+}
+function normalizeSavedRankings(list) {
+  return (list || []).map(r => ({
+    ...r,
+    key: buildRankingKey(r),
+    date: r?.date || r?.lastModified || new Date().toISOString()
+  }));
+}
+
+/**
+ * Overwrite the cloud copy of saved rankings for this user and keep local in sync.
+ * This makes deletes "stick" across sessions/devices.
+ */
+async function overwriteSavedRankings(newList) {
+  const userId = await getCurrentUserId();
+
+  // Normalize + persist locally first
+  const rankings = normalizeSavedRankings(newList);
+  localStorage.setItem('savedRankings', JSON.stringify(rankings));
+
+  // If not logged in, we’re done (local-only mode)
+  if (!userId) {
+    console.log('Saved rankings updated locally (not logged in).');
+    return;
+  }
+
+  const payload = {
+    user_id: userId,
+    rankings,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await auth.supabase
+    .from('user_saved_rankings')
+    .upsert(payload, { onConflict: 'user_id' });
+
+  if (error) {
+    console.error('Cloud overwrite for saved rankings failed:', error);
+    throw error;
+  }
+  console.log(`Cloud overwrite OK: ${rankings.length} ranking(s).`);
+}
+
   
   // Sync local data to Supabase when user logs in
   async function syncLocalToCloud() {
@@ -132,35 +179,57 @@ if (existingSlots) {
     .insert({ user_id: userId, slots: finalSlots });
 }
       
-      // 4. Sync Saved Rankings
-      const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
-      if (localRankings.length > 0) {
-        const { data: existingRankings } = await auth.supabase
-          .from('user_saved_rankings')
-          .select('rankings')
-          .eq('user_id', userId)
-          .maybeSingle();
-        
-        if (existingRankings) {
-          // Merge, using newest version of each ranking
-          const rankingMap = {};
-          [...existingRankings.rankings, ...localRankings].forEach(r => {
-            const key = r.key || `${r.category}_${r.includeShinies}_${r.shinyOnly}`;
-            if (!rankingMap[key] || new Date(r.date) > new Date(rankingMap[key].date)) {
-              rankingMap[key] = r;
-            }
-          });
-          
-          await auth.supabase
-            .from('user_saved_rankings')
-            .update({ rankings: Object.values(rankingMap), updated_at: new Date().toISOString() })
-            .eq('user_id', userId);
-        } else {
-          await auth.supabase
-            .from('user_saved_rankings')
-            .insert({ user_id: userId, rankings: localRankings });
-        }
-      }
+      // 4. Sync Saved Rankings (robust upsert + visible errors)
+const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
+
+// Normalize: make sure every ranking has a stable key and timestamp
+const normed = localRankings.map(r => ({
+  ...r,
+  key: r?.key || `${r?.category || 'Unknown'}_${!!r?.includeShinies}_${!!r?.shinyOnly}`,
+  date: r?.date || r?.lastModified || new Date().toISOString()
+}));
+
+// Pull existing cloud copy (ok if it doesn't exist yet)
+const { data: existing, error: fetchErr } = await auth.supabase
+  .from('user_saved_rankings')
+  .select('rankings')
+  .eq('user_id', userId)
+  .maybeSingle();
+
+if (fetchErr) throw fetchErr;
+
+// Merge newest-per-key across cloud + local
+const byKey = {};
+(existing?.rankings || []).forEach(r => {
+  const k = r?.key || `${r?.category || 'Unknown'}_${!!r?.includeShinies}_${!!r?.shinyOnly}`;
+  byKey[k] = r;
+});
+normed.forEach(r => {
+  const k = r.key;
+  if (!byKey[k] || new Date(r.date) > new Date(byKey[k].date)) {
+    byKey[k] = r;
+  }
+});
+
+// Upsert on user_id so we don't need to branch update/insert
+const payload = {
+  user_id: userId,
+  rankings: Object.values(byKey),
+  updated_at: new Date().toISOString()
+};
+
+const { error: upsertErr } = await auth.supabase
+  .from('user_saved_rankings')
+  .upsert(payload, { onConflict: 'user_id' });
+
+if (upsertErr) {
+  console.error('Saved Rankings sync failed:', upsertErr);
+  alert(`Saved Rankings sync failed: ${upsertErr.message}`);
+  throw upsertErr; // let outer catch log too
+}
+
+console.log(`Synced ${payload.rankings.length} ranking(s) to cloud`);
+
       
       console.log('Sync to cloud complete!');
       lastSyncTime = new Date();
@@ -487,9 +556,11 @@ auth.onAuthChange(async (user) => {
 });
   
   // Public API
-  return {
-    syncLocalToCloud,
-    syncCloudToLocal,
-    showSyncPrompt
-  };
+ return {
+  syncLocalToCloud,
+  syncCloudToLocal,
+  showSyncPrompt,
+  overwriteSavedRankings // NEW
+};
+
 })();

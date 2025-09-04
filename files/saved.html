@@ -271,21 +271,41 @@
 }
 
 
-    function deleteEntry(key) {
-      let saved = loadSaves();
-      saved = saved.filter(run => {
-        const runKey = run.key || run.id || `${(run.category||"")}_${!!run.includeShinies}_${!!run.shinyOnly}`;
-        return runKey !== key;
-      });
-      persistSaves(saved);
-      render();
-    }
+    async function deleteEntry(key) {
+  const current = loadSaves();
+  const next = current.filter(run => {
+    const runKey = run.key || run.id || `${(run.category||"")}_${!!run.includeShinies}_${!!run.shinyOnly}`;
+    return runKey !== key;
+  });
 
-    function clearAll() {
-      if (!confirm("Delete ALL saved rankings? This can’t be undone.")) return;
-      persistSaves([]);
-      render();
-    }
+  try {
+    // Overwrite cloud (and local) so the deletion “sticks” across sessions/devices
+    await window.PokeRankrSync.overwriteSavedRankings(next);
+  } catch (e) {
+    console.error('Cloud delete failed:', e);
+    alert(`Cloud delete failed: ${e?.message || e}`);
+    // Fallback: at least keep local in sync
+    localStorage.setItem("savedRankings", JSON.stringify(next));
+  }
+
+  render();
+}
+
+
+   async function clearAll() {
+  if (!confirm("Delete ALL saved rankings? This can’t be undone.")) return;
+
+  try {
+    await window.PokeRankrSync.overwriteSavedRankings([]);
+  } catch (e) {
+    console.error('Cloud clear-all failed:', e);
+    alert(`Cloud clear-all failed: ${e?.message || e}`);
+    localStorage.setItem("savedRankings", "[]");
+  }
+
+  render();
+}
+
 
    function formatMode(run) {
   // Use the full label if available (new saves), otherwise fall back to old format
