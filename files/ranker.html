@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script>
+ <script>
 (function () {
+  // Check if we're resuming from a save slot
+  const pendingSlot = localStorage.getItem('PR_PENDING_RESUME_SLOT');
+  if (pendingSlot !== null) {
+    // We're resuming - let the page load and handle it
+    return;
+  }
+  
+  // Otherwise, check for valid rankConfig as before
   try {
     const cfg = JSON.parse(localStorage.getItem('rankConfig') || 'null');
     const valid = new Set(['generation', 'starters', 'legendaries', 'type']);

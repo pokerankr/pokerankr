@@ -1011,7 +1011,18 @@ const POOL_BUILDERS = {
       }
     }
   }
-
+// If we have a resume session, restore its config NOW before building the pool
+if (resumeSession && resumeSession.context && resumeSession.context.config) {
+  window.rankConfig = resumeSession.context.config;
+  // Also restore shiny settings
+  window.includeShinies = !!resumeSession.context.includeShinies;
+  window.shinyOnly = !!resumeSession.context.shinyOnly;
+  
+  // Persist to localStorage so other parts of the code can use them
+  localStorage.setItem('rankConfig', JSON.stringify(window.rankConfig));
+  localStorage.setItem('includeShinies', String(window.includeShinies));
+  localStorage.setItem('shinyOnly', String(window.shinyOnly));
+}
   const rc = window.rankConfig || {};
   let pool = [];
 

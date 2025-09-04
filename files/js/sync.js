@@ -344,15 +344,9 @@ console.log(`Synced ${payload.rankings.length} ranking(s) to cloud`);
         localStorage.setItem('PR_COMPLETIONS', JSON.stringify(unique));
       }
       
-      if (slotsResult.data?.slots) {
-  // For save slots, don't overwrite if we have local data
-  // This prevents cloud from overwriting recent local changes
-  const existingLocal = localStorage.getItem('PR_SAVE_SLOTS_V1');
-  if (!existingLocal || existingLocal === '[]' || existingLocal === '[null,null,null]') {
-    // Only update from cloud if local is empty
-    localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
-  }
-  // If we have local data, keep it (it will sync to cloud on next write)
+if (slotsResult.data?.slots) {
+  // Always load cloud slots on login - they are the authoritative source
+  localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
 }
       
       if (rankResult.data?.rankings) {
