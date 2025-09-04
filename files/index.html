@@ -1659,15 +1659,29 @@ if (category === 'type') {
       return [null, null, null];
     }
   }
-  function slotsWrite(slots) {
-  localStorage.setItem(SAVE_SLOTS_KEY, JSON.stringify(slots));
-  // Auto-sync if logged in
-  if (window.PokeRankrAuth && window.PokeRankrAuth.isLoggedIn()) {
-    setTimeout(() => {
-      window.PokeRankrSync.syncLocalToCloud();
-    }, 500);
+async function slotsWrite(slots) {
+  // normalize to exactly 3
+  const normalized = Array.isArray(slots) ? slots.slice(0, 3) : [];
+  while (normalized.length < 3) normalized.push(null);
+
+  // if logged in, prefer authoritative cloud overwrite
+  if (window.PokeRankrAuth?.isLoggedIn?.() && window.PokeRankrSync?.overwriteSaveSlots) {
+    try {
+      await window.PokeRankrSync.overwriteSaveSlots(normalized);
+      return; // cloud is now source of truth (also updates local)
+    } catch (e) {
+      console.error('Cloud overwrite failed; keeping local only for now:', e);
+      // fall through to local write
+    }
+  }
+
+  // local-only write (offline / not logged in / cloud failed)
+  localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(normalized));
+  if (window.PokeRankrAuth?.isLoggedIn?.()) {
+    setTimeout(() => window.PokeRankrSync?.syncLocalToCloud?.(), 300);
   }
 }
+
   function anySlotUsed() {
     return slotsRead().some(Boolean);
   }

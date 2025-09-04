@@ -23,19 +23,16 @@ function normalizeSavedRankings(list) {
     date: r?.date || r?.lastModified || new Date().toISOString()
   }));
 }
-
-/**
- * Overwrite the cloud copy of saved rankings for this user and keep local in sync.
- * This makes deletes "stick" across sessions/devices.
- */
+// HOISTED declaration (not const/arrow), so it's defined when returned below
 async function overwriteSavedRankings(newList) {
-  const userId = await getCurrentUserId();
+  const user = auth.getCurrentUser();
+  const userId = user?.id || null;
 
   // Normalize + persist locally first
   const rankings = normalizeSavedRankings(newList);
   localStorage.setItem('savedRankings', JSON.stringify(rankings));
 
-  // If not logged in, we’re done (local-only mode)
+  // If not logged in, local-only update
   if (!userId) {
     console.log('Saved rankings updated locally (not logged in).');
     return;
@@ -58,7 +55,81 @@ async function overwriteSavedRankings(newList) {
   console.log(`Cloud overwrite OK: ${rankings.length} ranking(s).`);
 }
 
-  
+
+  // --- helpers for SAVE SLOTS (NEW) ---
+  function normalizeSlots(list) {
+    const arr = Array.isArray(list) ? list.slice(0, 3) : [];
+    while (arr.length < 3) arr.push(null);
+    return arr;
+  }
+
+  /**
+   * Overwrite the cloud copy of save slots for this user and keep local in sync.
+   * Call this after any slot add/delete/import so it "sticks" across sessions/devices.
+   */
+  async function overwriteSaveSlots(newSlots) {
+    const userId = await getCurrentUserId();
+
+    // Normalize + persist locally first
+    const slots = normalizeSlots(newSlots);
+    localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slots));
+
+    // If not logged in, we’re done (local-only mode)
+    if (!userId) {
+      console.log('Save slots updated locally (not logged in).');
+      return;
+    }
+
+    const payload = {
+      user_id: userId,
+      slots,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await auth.supabase
+      .from('user_save_slots')
+      .upsert(payload, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Save Slots sync failed:', error);
+      alert(`Save Slots sync failed: ${error.message}`);
+      throw error;
+    }
+    console.log(`Cloud overwrite OK: ${slots.filter(Boolean).length} slot(s).`);
+  }
+
+    // --- Save Slots Cloud Mirror (auto-push on any local write) ---
+  (function attachSaveSlotsCloudMirror(){
+    const ORIG_SET = localStorage.setItem.bind(localStorage);
+    let mirrorGuard = false;
+
+    localStorage.setItem = function(key, value) {
+      // always do the original write
+      ORIG_SET(key, value);
+
+      // Only react to save-slots updates, and never recurse
+      if (mirrorGuard || key !== 'PR_SAVE_SLOTS_V1') return;
+
+      try {
+        // If logged in and our helper exists, mirror to cloud
+        if (window.PokeRankrAuth?.isLoggedIn?.() && typeof overwriteSaveSlots === 'function') {
+          const parsed = JSON.parse(value || '[]');
+          mirrorGuard = true;
+          // Fire and forget — overwriteSaveSlots also writes localStorage
+          overwriteSaveSlots(parsed)
+            .catch(err => console.error('Save Slots cloud mirror failed:', err))
+            .finally(() => { mirrorGuard = false; });
+        }
+      } catch (e) {
+        // If value wasn’t JSON, just ignore
+        console.warn('Save Slots mirror parse skipped:', e?.message || e);
+      }
+    };
+  })();
+  // --- end Save Slots Cloud Mirror ---
+
+  // --- end helpers ---
+
   // Sync local data to Supabase when user logs in
   async function syncLocalToCloud() {
     const userId = await getCurrentUserId();
@@ -122,44 +193,39 @@ async function overwriteSavedRankings(newList) {
         }
       }
       
-// 3. Sync Save Slots - Smart merge that uses all available slots
+// 3. Sync Save Slots — robust upsert + visible errors
 const localSlots = JSON.parse(localStorage.getItem('PR_SAVE_SLOTS_V1') || '[]');
-const { data: existingSlots } = await auth.supabase
+const existingResp = await auth.supabase
   .from('user_save_slots')
   .select('slots')
   .eq('user_id', userId)
   .maybeSingle();
 
-// Collect all non-null slots from both sources
-const allSlots = [];
-
-// Add cloud slots
-if (existingSlots?.slots) {
-  existingSlots.slots.forEach(slot => {
-    if (slot) allSlots.push(slot);
-  });
+if (existingResp.error) {
+  console.error('Save Slots fetch failed:', existingResp.error);
+  alert(`Save Slots fetch failed: ${existingResp.error.message}`);
+  throw existingResp.error;
 }
 
-// Add local slots
-localSlots.forEach(slot => {
-  if (slot) allSlots.push(slot);
-});
+const cloudSlots = existingResp.data?.slots || [];
+
+// Collect all non-null slots from both sources
+const allSlots = [];
+[...cloudSlots, ...localSlots].forEach(slot => { if (slot) allSlots.push(slot); });
 
 // Remove duplicates (same matchup at same time)
-const uniqueSlots = allSlots.filter((slot, index, self) => {
-  return index === self.findIndex(s => 
-    s.meta?.savedAt === slot.meta?.savedAt &&
-    s.currentMatchup?.a?.id === slot.currentMatchup?.a?.id &&
-    s.currentMatchup?.b?.id === slot.currentMatchup?.b?.id
-  );
-});
+const uniqueSlots = allSlots.filter((slot, index, self) =>
+  index === self.findIndex(s =>
+    s?.meta?.savedAt === slot?.meta?.savedAt &&
+    s?.currentMatchup?.a?.id === slot?.currentMatchup?.a?.id &&
+    s?.currentMatchup?.b?.id === slot?.currentMatchup?.b?.id
+  )
+);
 
-// Sort by newest first
-uniqueSlots.sort((a, b) => {
-  const aTime = new Date(a.meta?.savedAt || 0).getTime();
-  const bTime = new Date(b.meta?.savedAt || 0).getTime();
-  return bTime - aTime;
-});
+// Sort newest first
+uniqueSlots.sort((a, b) =>
+  new Date(b?.meta?.savedAt || 0).getTime() - new Date(a?.meta?.savedAt || 0).getTime()
+);
 
 // Take the 3 newest and arrange them in slots
 const finalSlots = [null, null, null];
@@ -167,17 +233,21 @@ for (let i = 0; i < Math.min(3, uniqueSlots.length); i++) {
   finalSlots[i] = uniqueSlots[i];
 }
 
-// Save to cloud
-if (existingSlots) {
-  await auth.supabase
-    .from('user_save_slots')
-    .update({ slots: finalSlots, updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
-} else {
-  await auth.supabase
-    .from('user_save_slots')
-    .insert({ user_id: userId, slots: finalSlots });
+// UPSERT by user_id (requires UNIQUE(user_id), which you added)
+const { error: slotsUpsertErr } = await auth.supabase
+  .from('user_save_slots')
+  .upsert(
+    { user_id: userId, slots: finalSlots, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+
+if (slotsUpsertErr) {
+  console.error('Save Slots upsert failed:', slotsUpsertErr);
+  alert(`Save Slots sync failed: ${slotsUpsertErr.message}`);
+  throw slotsUpsertErr;
 }
+
+
       
       // 4. Sync Saved Rankings (robust upsert + visible errors)
 const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
@@ -555,12 +625,13 @@ auth.onAuthChange(async (user) => {
   }
 });
   
-  // Public API
  return {
   syncLocalToCloud,
   syncCloudToLocal,
   showSyncPrompt,
-  overwriteSavedRankings // NEW
+  overwriteSavedRankings, // <- add this
+  overwriteSaveSlots
 };
+
 
 })();
