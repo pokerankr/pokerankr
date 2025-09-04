@@ -1,10 +1,12 @@
-// PokeRankr Data Sync Service
 window.PokeRankrSync = (function() {
   const auth = window.PokeRankrAuth;
   
   // Sync status tracking
   let syncInProgress = false;
   let lastSyncTime = null;
+  
+  // NEW: Add flag to prevent recursive cloud syncs
+  let isLoadingFromCloud = false;
   
   // Helper to get current user
   async function getCurrentUserId() {
@@ -120,33 +122,36 @@ async function overwriteSavedRankings(newList) {
   }
 
     // --- Save Slots Cloud Mirror (auto-push on any local write) ---
-  (function attachSaveSlotsCloudMirror(){
-    const ORIG_SET = localStorage.setItem.bind(localStorage);
-    let mirrorGuard = false;
+(function attachSaveSlotsCloudMirror(){
+  const ORIG_SET = localStorage.setItem.bind(localStorage);
+  let mirrorGuard = false;
 
-    localStorage.setItem = function(key, value) {
-      // always do the original write
-      ORIG_SET(key, value);
+  localStorage.setItem = function(key, value) {
+    // always do the original write
+    ORIG_SET(key, value);
 
-      // Only react to save-slots updates, and never recurse
-      if (mirrorGuard || key !== 'PR_SAVE_SLOTS_V1') return;
+    // Only react to save-slots updates, and never recurse
+    if (mirrorGuard || key !== 'PR_SAVE_SLOTS_V1') return;
+    
+    // NEW: Don't sync to cloud if we're currently loading from cloud
+    if (isLoadingFromCloud) return;
 
-      try {
-        // If logged in and our helper exists, mirror to cloud
-        if (window.PokeRankrAuth?.isLoggedIn?.() && typeof overwriteSaveSlots === 'function') {
-          const parsed = JSON.parse(value || '[]');
-          mirrorGuard = true;
-          // Fire and forget — overwriteSaveSlots also writes localStorage
-          overwriteSaveSlots(parsed)
-            .catch(err => console.error('Save Slots cloud mirror failed:', err))
-            .finally(() => { mirrorGuard = false; });
-        }
-      } catch (e) {
-        // If value wasn’t JSON, just ignore
-        console.warn('Save Slots mirror parse skipped:', e?.message || e);
+    try {
+      // If logged in and our helper exists, mirror to cloud
+      if (window.PokeRankrAuth?.isLoggedIn?.() && typeof overwriteSaveSlots === 'function') {
+        const parsed = JSON.parse(value || '[]');
+        mirrorGuard = true;
+        // Fire and forget — overwriteSaveSlots also writes localStorage
+        overwriteSaveSlots(parsed)
+          .catch(err => console.error('Save Slots cloud mirror failed:', err))
+          .finally(() => { mirrorGuard = false; });
       }
-    };
-  })();
+    } catch (e) {
+      // If value wasn't JSON, just ignore
+      console.warn('Save Slots mirror parse skipped:', e?.message || e);
+    }
+  };
+})();
   // --- end Save Slots Cloud Mirror ---
 
   // --- end helpers ---
@@ -361,11 +366,14 @@ console.log(`Synced ${payload.rankings.length} ranking(s) to cloud`);
   }
   
   // Load cloud data to local
-  async function syncCloudToLocal() {
-    const userId = await getCurrentUserId();
-    if (!userId) return;
-    
-    console.log('Loading data from cloud...');
+ async function syncCloudToLocal() {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+  
+  console.log('Loading data from cloud...');
+  
+  // NEW: Set flag to prevent cloud sync loops
+  isLoadingFromCloud = true;
     
     try {
       // Load all user data
@@ -393,10 +401,10 @@ console.log(`Synced ${payload.rankings.length} ranking(s) to cloud`);
         localStorage.setItem('PR_COMPLETIONS', JSON.stringify(unique));
       }
       
-if (slotsResult.data?.slots) {
-  // Always load cloud slots on login - they are the authoritative source
-  localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
-}
+  if (slotsResult.data?.slots) {
+      // Always load cloud slots on login - they are the authoritative source
+      localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slotsResult.data.slots));
+    }
       
       if (rankResult.data?.rankings) {
   const localRankings = JSON.parse(localStorage.getItem('savedRankings') || '[]');
@@ -441,12 +449,15 @@ if (slotsResult.data?.slots) {
   }
 }
       
-      console.log('Cloud data loaded!');
-      
-    } catch (error) {
-      console.error('Error loading cloud data:', error);
-    }
+     console.log('Cloud data loaded!');
+    
+  } catch (error) {
+    console.error('Error loading cloud data:', error);
+  } finally {
+    // NEW: Always clear the flag when done
+    isLoadingFromCloud = false;
   }
+}
   
   // Show sync prompt
 // Show sync prompt
@@ -574,6 +585,9 @@ async function handleSyncNo() {
   if (!userId) return;
   
   console.log('User chose to use cloud data only...');
+
+   // NEW: Set flag before any operations
+  isLoadingFromCloud = true;
   
   try {
     // Get ALL auth-related keys
@@ -623,6 +637,9 @@ async function handleSyncNo() {
   } catch (error) {
     console.error('Error loading cloud data:', error);
     alert('There was an error loading your cloud data. Please try again.');
+  } finally {
+    // NEW: Clear flag
+    isLoadingFromCloud = false;
   }
 }
   
