@@ -1372,15 +1372,19 @@ async function slotsWrite(slots) {
       return; // cloud is now source of truth (also updates local)
     } catch (e) {
       console.error('Cloud overwrite failed; keeping local only for now:', e);
-      // fall through to local write
+      // Don't re-throw - just fall through to local write
     }
   }
 
   // local-only write (offline / not logged in / cloud failed)
-  localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(normalized));
-  if (window.PokeRankrAuth?.isLoggedIn?.()) {
-    setTimeout(() => window.PokeRankrSync?.syncLocalToCloud?.(), 300);
+  window._syncMirrorGuard = true;  // NEW: Prevent mirror trigger
+  try {
+    localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(normalized));
+  } finally {
+    window._syncMirrorGuard = false;
   }
+  
+  // Don't trigger sync here - it's already handled by the mirror
 }
 
 

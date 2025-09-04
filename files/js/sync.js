@@ -90,61 +90,68 @@ async function overwriteSavedRankings(newList) {
    * Overwrite the cloud copy of save slots for this user and keep local in sync.
    * Call this after any slot add/delete/import so it "sticks" across sessions/devices.
    */
-  async function overwriteSaveSlots(newSlots) {
-    const userId = await getCurrentUserId();
+ async function overwriteSaveSlots(newSlots) {
+  const userId = await getCurrentUserId();
 
-    // Normalize + persist locally first
-    const slots = normalizeSlots(newSlots);
+  // Normalize slots
+  const slots = normalizeSlots(newSlots);
+  
+  // NEW: Set flag BEFORE writing to localStorage
+  window._syncMirrorGuard = true;
+  
+  try {
+    // Persist locally first
     localStorage.setItem('PR_SAVE_SLOTS_V1', JSON.stringify(slots));
-
-    // If not logged in, we’re done (local-only mode)
-    if (!userId) {
-      console.log('Save slots updated locally (not logged in).');
-      return;
-    }
-
-    const payload = {
-      user_id: userId,
-      slots,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error } = await auth.supabase
-      .from('user_save_slots')
-      .upsert(payload, { onConflict: 'user_id' });
-
-    if (error) {
-      console.error('Save Slots sync failed:', error);
-      alert(`Save Slots sync failed: ${error.message}`);
-      throw error;
-    }
-    console.log(`Cloud overwrite OK: ${slots.filter(Boolean).length} slot(s).`);
+  } finally {
+    // Always clear the flag
+    window._syncMirrorGuard = false;
   }
+
+  // If not logged in, we're done (local-only mode)
+  if (!userId) {
+    console.log('Save slots updated locally (not logged in).');
+    return;
+  }
+
+  const payload = {
+    user_id: userId,
+    slots,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await auth.supabase
+    .from('user_save_slots')
+    .upsert(payload, { onConflict: 'user_id' });
+
+  if (error) {
+    console.error('Save Slots sync failed:', error);
+    alert(`Save Slots sync failed: ${error.message}`);
+    throw error;
+  }
+  console.log(`Cloud overwrite OK: ${slots.filter(Boolean).length} slot(s).`);
+}
 
     // --- Save Slots Cloud Mirror (auto-push on any local write) ---
 (function attachSaveSlotsCloudMirror(){
   const ORIG_SET = localStorage.setItem.bind(localStorage);
-  let mirrorGuard = false;
 
   localStorage.setItem = function(key, value) {
     // always do the original write
     ORIG_SET(key, value);
 
-    // Only react to save-slots updates, and never recurse
-    if (mirrorGuard || key !== 'PR_SAVE_SLOTS_V1') return;
-    
-    // NEW: Don't sync to cloud if we're currently loading from cloud
+    // Check all guards
+    if (key !== 'PR_SAVE_SLOTS_V1') return;
+    if (window._syncMirrorGuard) return;  // NEW: Check global guard
     if (isLoadingFromCloud) return;
 
     try {
       // If logged in and our helper exists, mirror to cloud
       if (window.PokeRankrAuth?.isLoggedIn?.() && typeof overwriteSaveSlots === 'function') {
         const parsed = JSON.parse(value || '[]');
-        mirrorGuard = true;
-        // Fire and forget — overwriteSaveSlots also writes localStorage
+        
+        // Fire and forget — but overwriteSaveSlots now won't re-trigger this
         overwriteSaveSlots(parsed)
-          .catch(err => console.error('Save Slots cloud mirror failed:', err))
-          .finally(() => { mirrorGuard = false; });
+          .catch(err => console.error('Save Slots cloud mirror failed:', err));
       }
     } catch (e) {
       // If value wasn't JSON, just ignore
